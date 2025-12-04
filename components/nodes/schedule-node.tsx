@@ -10,7 +10,8 @@ export type ScheduleNodeData = {
     timezone?: string;
 };
 
-export const ScheduleNode = ({ data, isConnectable }: NodeProps<any>) => {
+export const ScheduleNode = (props: NodeProps<any>) => {
+    const { data, isConnectable } = props;
     const [cron, setCron] = useState(data.cron || '0 0 * * *');
     const [timezone, setTimezone] = useState(data.timezone || 'UTC');
 

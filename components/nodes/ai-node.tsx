@@ -10,7 +10,8 @@ export type AINodeData = {
     model?: string;
 };
 
-export const AINode = ({ data, isConnectable }: NodeProps<any>) => {
+export const AINode = (props: NodeProps<any>) => {
+    const { data, isConnectable } = props;
     const [prompt, setPrompt] = useState(data.prompt || '');
     const [model, setModel] = useState(data.model || 'gemini-pro');
 
@@ -98,3 +99,5 @@ export const AINode = ({ data, isConnectable }: NodeProps<any>) => {
         </div>
     );
 };
+
+AINode.displayName = 'AINode';

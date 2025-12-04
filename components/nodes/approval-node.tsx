@@ -10,7 +10,8 @@ export type ApprovalNodeData = {
     timeout?: string;
 };
 
-export const ApprovalNode = ({ data, isConnectable }: NodeProps<any>) => {
+export const ApprovalNode = (props: NodeProps<any>) => {
+    const { data, isConnectable } = props;
     const [approverEmail, setApproverEmail] = useState(data.approverEmail || '');
     const [timeout, setTimeout] = useState(data.timeout || '24h');
 
@@ -97,3 +98,5 @@ export const ApprovalNode = ({ data, isConnectable }: NodeProps<any>) => {
         </div>
     );
 };
+
+ApprovalNode.displayName = 'ApprovalNode';

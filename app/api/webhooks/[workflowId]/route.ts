@@ -3,10 +3,10 @@ import { start } from 'workflow/api';
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { workflowId: string } }
+    { params }: { params: Promise<{ workflowId: string }> }
 ) {
     try {
-        const { workflowId } = params;
+        const { workflowId } = await params;
 
         if (!workflowId) {
             return NextResponse.json(

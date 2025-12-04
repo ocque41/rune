@@ -9,7 +9,8 @@ export type TransformNodeData = {
     mapping?: string;
 };
 
-export const TransformNode = ({ data, isConnectable }: NodeProps<any>) => {
+export const TransformNode = (props: NodeProps<any>) => {
+    const { data, isConnectable } = props;
     const [mapping, setMapping] = useState(data.mapping || 'return params;');
 
     return (
@@ -75,3 +76,5 @@ export const TransformNode = ({ data, isConnectable }: NodeProps<any>) => {
         </div>
     );
 };
+
+TransformNode.displayName = 'TransformNode';
