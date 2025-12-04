@@ -106,6 +106,7 @@ function getEnvSecret(key: string): string | null {
 async function listAwsSecretKeys(config: SecretsConfig): Promise<string[]> {
     try {
         // Dynamic import to avoid errors if AWS SDK is not installed
+        // @ts-expect-error - Optional dependency, may not be installed
         const { SecretsManagerClient, ListSecretsCommand } = await import('@aws-sdk/client-secrets-manager');
 
         const client = new SecretsManagerClient({ region: config.awsRegion });
@@ -113,7 +114,7 @@ async function listAwsSecretKeys(config: SecretsConfig): Promise<string[]> {
         const response = await client.send(command);
 
         return (response.SecretList || [])
-            .map(secret => secret.Name)
+            .map((secret: any) => secret.Name)
             .filter(Boolean) as string[];
     } catch (error) {
         console.error('Error listing AWS secrets:', error);
@@ -127,6 +128,7 @@ async function listAwsSecretKeys(config: SecretsConfig): Promise<string[]> {
  */
 async function getAwsSecret(key: string, config: SecretsConfig): Promise<string | null> {
     try {
+        // @ts-expect-error - Optional dependency, may not be installed
         const { SecretsManagerClient, GetSecretValueCommand } = await import('@aws-sdk/client-secrets-manager');
 
         const client = new SecretsManagerClient({ region: config.awsRegion });

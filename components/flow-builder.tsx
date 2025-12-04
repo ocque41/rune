@@ -43,7 +43,7 @@ const nodeTypes = {
     approval: ApprovalNode,
     ai: AINode,
     transform: TransformNode,
-};
+} as any;
 
 const initialNodes: Node[] = [
     {
@@ -68,7 +68,7 @@ const FlowBuilderContent = ({
 }) => {
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[]);
     const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
     const { getNodes, getEdges } = useReactFlow();
     const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);

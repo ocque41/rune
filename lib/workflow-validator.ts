@@ -125,7 +125,7 @@ function detectCycles(nodes: Node[], edges: Edge[], startNodeId: string): string
                 const cycle = currentPath.slice(cycleStartIndex);
                 const cycleLabels = cycle.map(id => {
                     const node = nodes.find(n => n.id === id);
-                    return node?.data.label || id;
+                    return String(node?.data?.label || id);
                 });
                 cycles.push([...cycleLabels, cycleLabels[0]]);
                 return true;
