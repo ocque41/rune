@@ -6,12 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "inspector": "npx workflow inspect runs --web"
   },
   "dependencies": {
+    "@xyflow/react": "^12.9.3",
+    "lucide-react": "^0.555.0",
     "next": "16.0.5",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "workflow": "^4.0.1-beta.22"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
