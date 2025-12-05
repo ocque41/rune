@@ -310,6 +310,9 @@ export const transformData = async (params: { mapping: string; data: any }) => {
 export async function workflow(params: any) {
   "use workflow";
   ${workflowBody}
+export async function workflow(params: any) {
+  "use workflow";
+  ${workflowBody}
   return { result: "Workflow completed" };
 }
 
@@ -797,31 +800,4 @@ function processString(str: string): string {
     return `\${getSecret("${secretName.trim()}")}`;
   });
   return `\`${processed}\``;
-}
-
-function generateScheduleConfig(nodes: Node[]): string {
-  const scheduleNode = nodes.find(n => n.type === 'schedule' || n.data.label === 'Schedule');
-  if (scheduleNode) {
-    const config = (scheduleNode.data as any).scheduleConfig || {};
-    const cron = config.cronExpression || '*/5 * * * *';
-    return `
-export const config = {
-  schedule: "${cron}"
-};`;
-  }
-  return '';
-}
-
-export function generateWebhookHandler(endpointSlug: string, workflowId: string): string {
-  return `
-import { serve } from "workflow/next";
-import { ${workflowId} } from "@/workflows/${workflowId}";
-
-export const { POST } = serve({
-  workflow: ${workflowId},
-  trigger: "webhook",
-  config: {
-    slug: "${endpointSlug}"
-  }
-});`;
 }

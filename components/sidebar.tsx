@@ -50,6 +50,7 @@ export const Sidebar = () => {
     ];
 
     const controlFlow = [
+        { type: 'webhook', label: 'Webhook Trigger', icon: Globe, description: 'Start on HTTP request' },
         { type: 'schedule', label: 'Schedule', icon: Clock, description: 'Trigger on a timer' },
         { type: 'step', label: 'Sleep', icon: Clock, description: 'Pause workflow for a duration' },
         { type: 'step', label: 'Wait for Event', icon: PauseCircle, description: 'Pause until an event occurs' },

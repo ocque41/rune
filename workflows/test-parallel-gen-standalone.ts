@@ -1,27 +1,18 @@
-import { Node, Edge } from '@xyflow/react';
 
-export function generateWorkflowCode(nodes: Node[], edges: Edge[]): string {
-  const imports = `import { sleep, getWritable, resumeHook, createHook, getSecret } from "workflow";`;
+// Mock Node and Edge types
+type WorkflowNode = any;
+type WorkflowEdge = any;
 
-  // Collect unique Sub-Workflow IDs
-  const subWorkflowIds = Array.from(new Set(
-    nodes
-      .filter(n => n.data.label === 'Sub-Workflow' || (n.type === 'subWorkflow')) // Handle both label and type check to be safe
-      .map(n => (n.data as any).workflowId)
-      .filter(Boolean)
-  ));
+// --- COPIED GENERATOR LOGIC START ---
 
-  const subWorkflowImports = subWorkflowIds
-    .map(id => `import { ${id} } from "./workflows/${id}";`)
-    .join('\n');
+function generateWorkflowCode(nodes: WorkflowNode[], edges: WorkflowEdge[]): string {
+  const imports = `import { sleep, getWritable, resumeHook, getSecret } from "workflow";`;
 
   // 1. Identify Steps and Configuration
   const stepDefinitions = nodes
-    .filter((n) => n.type === 'step' && n.data.label !== 'Start Workflow' && n.data.label !== 'HTTP Request' && n.data.label !== 'Send Email' && n.data.label !== 'Database Query' && n.data.label !== 'Run Script' && n.data.label !== 'Slack Message' && n.data.label !== 'Stream' && n.data.label !== 'Wait for Event' && n.data.label !== 'Approval' && n.data.label !== 'AI' && n.data.label !== 'Transform')
+    .filter((n) => n.type === 'step' && n.data.label !== 'Start Workflow' && n.data.label !== 'HTTP Request' && n.data.label !== 'Send Email' && n.data.label !== 'Database Query' && n.data.label !== 'Run Script' && n.data.label !== 'Slack Message' && n.data.label !== 'Stream' && n.data.label !== 'Wait for Event')
     .map((node) => {
       const functionName = toCamelCase(node.data.label as string);
-      // In a real app, we'd generate specific code based on the step type (e.g., email, db)
-      // For now, we generate a generic placeholder
       return `
 export const ${functionName} = async (params: any) => {
   "use step";
@@ -61,122 +52,22 @@ export const sendEmail = async (params: { recipient: string; subject: string; bo
   return { status: "sent", recipient: params.recipient };
 };`;
 
-  // Add reusable Database Query steps - one for each database type
-  // NOTE: Users must install the appropriate database client library:
-  // - PostgreSQL: npm install pg @types/pg
-  // - MySQL: npm install mysql2
-  // - MongoDB: npm install mongodb
-
-  const postgresStepDefinition = `
-export const queryPostgres = async (params: { connectionString: string; query: string; idempotencyKey?: string }) => {
+  // Add reusable Database Query step
+  const dbStepDefinition = `
+export const queryDatabase = async (params: { connectionString: string; query: string; idempotencyKey?: string }) => {
   "use step";
-  console.log("Executing PostgreSQL Query");
-  console.log("Idempotency Key:", params.idempotencyKey);
-  
-  // NOTE: Requires 'pg' package - install with: npm install pg @types/pg
-  const { Client } = await import('pg');
-  
-  const client = new Client({
-    connectionString: params.connectionString
-  });
-  
-  try {
-    await client.connect();
-    const result = await client.query(params.query);
-    return { status: "success", rows: result.rows, rowCount: result.rowCount };
-  } finally {
-    await client.end();
-  }
-};`;
-
-  const mysqlStepDefinition = `
-export const queryMysql = async (params: { connectionString: string; query: string; idempotencyKey?: string }) => {
-  "use step";
-  console.log("Executing MySQL Query");
-  console.log("Idempotency Key:", params.idempotencyKey);
-  
-  // NOTE: Requires 'mysql2' package - install with: npm install mysql2
-  const mysql = await import('mysql2/promise');
-  
-  const connection = await mysql.createConnection(params.connectionString);
-  
-  try {
-    const [rows] = await connection.execute(params.query);
-    return { status: "success", rows, rowCount: Array.isArray(rows) ? rows.length : 0 };
-  } finally {
-    await connection.end();
-  }
-};`;
-
-  const mongodbStepDefinition = `
-export const queryMongodb = async (params: { connectionString: string; operation: string; idempotencyKey?: string }) => {
-  "use step";
-  console.log("Executing MongoDB Operation");
-  console.log("Idempotency Key:", params.idempotencyKey);
-  
-  // NOTE: Requires 'mongodb' package - install with: npm install mongodb
-  const { MongoClient } = await import('mongodb');
-  
-  const client = new MongoClient(params.connectionString);
-  
-  try {
-    await client.connect();
-    
-    // Parse the operation JSON (expected format: { collection: "name", operation: "find", query: {}, options: {} })
-    const opConfig = JSON.parse(params.operation);
-    const db = client.db();
-    const collection = db.collection(opConfig.collection || 'default');
-    
-    let result;
-    switch (opConfig.operation) {
-      case 'find':
-        result = await collection.find(opConfig.query || {}, opConfig.options || {}).toArray();
-        break;
-      case 'findOne':
-        result = await collection.findOne(opConfig.query || {}, opConfig.options || {});
-        break;
-      case 'insertOne':
-        result = await collection.insertOne(opConfig.document);
-        break;
-      case 'insertMany':
-        result = await collection.insertMany(opConfig.documents);
-        break;
-      case 'updateOne':
-        result = await collection.updateOne(opConfig.filter, opConfig.update, opConfig.options);
-        break;
-      case 'updateMany':
-        result = await collection.updateMany(opConfig.filter, opConfig.update, opConfig.options);
-        break;
-      case 'deleteOne':
-        result = await collection.deleteOne(opConfig.filter);
-        break;
-      case 'deleteMany':
-        result = await collection.deleteMany(opConfig.filter);
-        break;
-      default:
-        throw new Error(\`Unsupported MongoDB operation: \${opConfig.operation}\`);
-    }
-    
-    return { status: "success", result };
-  } finally {
-    await client.close();
-  }
-};`;
-
-  const genericDbStepDefinition = `
-export const queryGeneric = async (params: { connectionString: string; query: string; idempotencyKey?: string }) => {
-  "use step";
-  console.log("Generic Database Query (Placeholder)");
+  console.log("Executing Database Query");
   console.log("Idempotency Key:", params.idempotencyKey);
   console.log("Connection:", params.connectionString ? "Provided" : "Missing");
   console.log("Query:", params.query);
   
-  // This is a placeholder for custom database implementations
-  // Users should replace this with their specific database client code
-  console.warn("Generic database type selected - no actual database connection performed");
+  // Simulate database connection and query
+  if (!params.connectionString) {
+    throw new Error("Connection string is required");
+  }
   
   await new Promise(resolve => setTimeout(resolve, 500));
-  return { status: "success", message: "Generic placeholder - implement your own database logic" };
+  return { status: "success", rows: [], rowCount: 0 };
 };`;
 
   // Add reusable Run Script step
@@ -244,60 +135,6 @@ export const waitForEvent = async (params: { event: string; timeout?: string }) 
   return { status: "received", event: params.event, data: result };
 };`;
 
-  // Add reusable Approval step
-  const approvalStepDefinition = `
-export const waitForApproval = async (params: { approverEmail: string; timeout?: string }) => {
-  "use step";
-  console.log("Requesting approval from:", params.approverEmail);
-  // In a real app, this would send an email and wait for a click
-  // We simulate waiting for an event named 'approval-{approverEmail}'
-  const eventName = \`approval-\${params.approverEmail}\`;
-  const result = await resumeHook(eventName);
-  return { status: result.approved ? "approved" : "rejected", approver: params.approverEmail };
-};`;
-
-  // Add reusable AI step
-  const aiStepDefinition = `
-export const generateContent = async (params: { prompt: string; model?: string; provider?: string }) => {
-  "use step";
-  console.log("Generating AI content with model:", params.model);
-  console.log("Prompt:", params.prompt);
-  // Mock AI response
-  // Mock AI response or verify provider
-  if (params.provider === 'openai') {
-      console.log("Calling OpenAI API with model:", params.model);
-      // In production, use standard fetch to OpenAI API
-      // await fetch('https://api.openai.com/v1/chat/completions', ...);
-  } else if (params.provider === 'gemini') {
-      console.log("Calling Google Gemini API with model:", params.model);
-      // await fetch('https://generativelanguage.googleapis.com/v1beta/models/...', ...);
-  }
-  
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  return { 
-    status: "success", 
-    content: \`Generated content for: \${params.prompt}\`,
-    model: params.model 
-    content: \`Generated content for: \${params.prompt}\`,
-    model: params.model,
-    provider: params.provider
-  };
-};`;
-
-  // Add reusable Transform step
-  const transformStepDefinition = `
-export const transformData = async (params: { mapping: string; data: any }) => {
-  "use step";
-  console.log("Transforming data");
-  try {
-    const transformFn = new Function('params', params.mapping);
-    const result = transformFn(params.data);
-    return { status: "success", result };
-  } catch (error: any) {
-    throw new Error("Transformation failed: " + error.message);
-  }
-};`;
-
   // 2. Build Workflow Logic
   const startNode = nodes.find((n) => n.data.label === 'Start Workflow');
   let workflowBody = '';
@@ -311,9 +148,7 @@ export async function workflow(params: any) {
   "use workflow";
   ${workflowBody}
   return { result: "Workflow completed" };
-}
-
-${generateScheduleConfig(nodes)}`;
+}`;
 
   // Helper functions for error handling and retry logic
   const helperFunctions = `
@@ -370,13 +205,13 @@ export class RetryableError extends Error {
   }
 }`;
 
-  return `${imports}\n${subWorkflowImports}\n${helperFunctions}\n${stepDefinitions}\n${httpStepDefinition}\n${emailStepDefinition}\n${postgresStepDefinition}\n${mysqlStepDefinition}\n${mongodbStepDefinition}\n${genericDbStepDefinition}\n${scriptStepDefinition}\n${slackStepDefinition}\n${streamStepDefinition}\n${waitStepDefinition}\n${approvalStepDefinition}\n${aiStepDefinition}\n${transformStepDefinition}\n${workflowDefinition}`;
+  return `${imports}\n${helperFunctions}\n${stepDefinitions}\n${httpStepDefinition}\n${emailStepDefinition}\n${dbStepDefinition}\n${scriptStepDefinition}\n${slackStepDefinition}\n${streamStepDefinition}\n${waitStepDefinition}\n${workflowDefinition}`;
 }
 
 function traverseGraph(
   currentId: string,
-  nodes: Node[],
-  edges: Edge[],
+  nodes: WorkflowNode[],
+  edges: WorkflowEdge[],
   visited: Set<string>
 ): string {
   if (visited.has(currentId)) return ''; // Prevent cycles for MVP
@@ -439,63 +274,6 @@ function traverseGraph(
     return `\n    await Promise.all([\n      ${branchPromises.join(',\n      ')}\n    ]);\n    ${mergeCode}`;
   }
 
-  // Handle Approval Node
-  if (currentNode.type === 'approval') {
-    const approverEmail = (currentNode.data as any).approverEmail || 'manager@example.com';
-    const timeout = (currentNode.data as any).timeout || '24h';
-
-    // Find Next node
-    const nextEdge = edges.find(e => e.source === currentId);
-    const nextCode = nextEdge ? generateNodeCall(nodes.find(n => n.id === nextEdge.target)!) + traverseGraph(nextEdge.target, nodes, edges, visited) : '';
-
-    return `\n    const approvalResult = await waitForApproval({ approverEmail: "${approverEmail}", timeout: "${timeout}" });\n    ${nextCode}`;
-  }
-
-  // Handle AI Node
-  if (currentNode.type === 'ai') {
-    const prompt = (currentNode.data as any).prompt || '';
-    const model = (currentNode.data as any).model || 'gemini-pro';
-
-    const nextEdge = edges.find(e => e.source === currentId);
-    const nextCode = nextEdge ? generateNodeCall(nodes.find(n => n.id === nextEdge.target)!) + traverseGraph(nextEdge.target, nodes, edges, visited) : '';
-
-    // Handle AI Node
-    if (currentNode.type === 'ai') {
-      const config = (currentNode.data as any).aiConfig || {};
-      const prompt = config.promptTemplate || (currentNode.data as any).prompt || '';
-      const model = config.model || (currentNode.data as any).model || 'gpt-4o';
-      const provider = config.provider || 'generic';
-
-      const nextEdge = edges.find(e => e.source === currentId);
-      const nextCode = nextEdge ? generateNodeCall(nodes.find(n => n.id === nextEdge.target)!) + traverseGraph(nextEdge.target, nodes, edges, visited) : '';
-
-      return `\n    const aiResult = await generateContent({ 
-        prompt: \`${prompt.replace(/`/g, '\\`')}\`, 
-        model: "${model}",
-        provider: "${provider}"
-    });\n    ${nextCode}`;
-    }
-  }
-
-  // Handle Transform Node
-  if (currentNode.type === 'transform') {
-    const mapping = (currentNode.data as any).mapping || 'return params;';
-
-    const nextEdge = edges.find(e => e.source === currentId);
-    const nextCode = nextEdge ? generateNodeCall(nodes.find(n => n.id === nextEdge.target)!) + traverseGraph(nextEdge.target, nodes, edges, visited) : '';
-
-    // Handle Transform Node
-    if (currentNode.type === 'transform') {
-      const config = (currentNode.data as any).transformConfig || {};
-      const mapping = config.expression || (currentNode.data as any).mapping || 'return params;';
-
-      const nextEdge = edges.find(e => e.source === currentId);
-      const nextCode = nextEdge ? generateNodeCall(nodes.find(n => n.id === nextEdge.target)!) + traverseGraph(nextEdge.target, nodes, edges, visited) : '';
-
-      return `\n    const transformResult = await transformData({ mapping: \`${mapping.replace(/`/g, '\\`')}\`, data: params });\n    ${nextCode}`;
-    }
-  }
-
   const outgoingEdges = edges.filter((e) => e.source === currentId);
   if (outgoingEdges.length === 0) return '';
 
@@ -532,7 +310,7 @@ function traverseGraph(
   return code;
 }
 
-function generateNodeCall(node: Node): string {
+function generateNodeCall(node: WorkflowNode): string {
   // Handle Sleep nodes specifically
   if (node.data.label === 'Sleep') {
     const duration = (node.data as any).config?.timeout || (node.data as any).duration || '5s';
@@ -580,27 +358,13 @@ function generateNodeCall(node: Node): string {
   // Handle Database Query nodes
   if (node.data.label === 'Database Query') {
     const config = (node.data as any).dbConfig || {};
-    const dbType = config.dbType || 'postgres'; // Default to postgres for backward compatibility
     const connectionString = config.connectionString || '';
     const query = config.query || 'SELECT 1';
     const errorConfig = (node.data as any).errorConfig;
 
-    // Select the appropriate database function based on type
-    let functionName = 'queryPostgres';
-    let paramName = 'query';
-
-    if (dbType === 'mysql') {
-      functionName = 'queryMysql';
-    } else if (dbType === 'mongodb') {
-      functionName = 'queryMongodb';
-      paramName = 'operation'; // MongoDB uses 'operation' instead of 'query'
-    } else if (dbType === 'generic') {
-      functionName = 'queryGeneric';
-    }
-
-    const stepCode = `await ${functionName}({ 
+    const stepCode = `await queryDatabase({ 
         connectionString: ${processString(connectionString)}, 
-        ${paramName}: ${processString(query)},
+        query: ${processString(query)},
         idempotencyKey: "${(node.data as any).idempotencyKey || node.id}"
     })`;
 
@@ -674,8 +438,9 @@ function generateNodeCall(node: Node): string {
     const params = (node.data as any).params || '{}';
     const errorConfig = (node.data as any).errorConfig;
 
-    // Call the imported workflow function
+    // Add a comment to indicate this requires an import
     const stepCode = `
+    // Import: import { ${workflowId} } from "./workflows/${workflowId}";
     await ${workflowId}(JSON.parse(${processString(params)}))`;
 
     return wrapWithRetry(stepCode, 'Sub-Workflow', errorConfig);
@@ -799,29 +564,86 @@ function processString(str: string): string {
   return `\`${processed}\``;
 }
 
-function generateScheduleConfig(nodes: Node[]): string {
-  const scheduleNode = nodes.find(n => n.type === 'schedule' || n.data.label === 'Schedule');
-  if (scheduleNode) {
-    const config = (scheduleNode.data as any).scheduleConfig || {};
-    const cron = config.cronExpression || '*/5 * * * *';
-    return `
-export const config = {
-  schedule: "${cron}"
-};`;
+// Custom Error classes for workflow control
+class FatalError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "FatalError";
   }
-  return '';
 }
 
-export function generateWebhookHandler(endpointSlug: string, workflowId: string): string {
-  return `
-import { serve } from "workflow/next";
-import { ${workflowId} } from "@/workflows/${workflowId}";
+class RetryableError extends Error {
+  retryAfterMs?: number;
 
-export const { POST } = serve({
-  workflow: ${workflowId},
-  trigger: "webhook",
-  config: {
-    slug: "${endpointSlug}"
+  constructor(message: string, retryAfterMs?: number) {
+    super(message);
+    this.name = "RetryableError";
+    this.retryAfterMs = retryAfterMs;
   }
-});`;
+}
+
+// --- COPIED GENERATOR LOGIC END ---
+
+const nodes: WorkflowNode[] = [
+  { id: 'start', type: 'step', data: { label: 'Start Workflow' } },
+  { id: 'parallel', type: 'parallel', data: { label: 'Parallel Split', branches: 2 } },
+  { id: 'branch1_step', type: 'step', data: { label: 'Branch 1 Step' } },
+  { id: 'branch2_step', type: 'step', data: { label: 'Branch 2 Step' } },
+  { id: 'merge_step', type: 'step', data: { label: 'Merge Step' } },
+];
+
+const edges: WorkflowEdge[] = [
+  { id: 'e1', source: 'start', target: 'parallel' },
+  { id: 'e2', source: 'parallel', sourceHandle: 'branch-0', target: 'branch1_step' },
+  { id: 'e3', source: 'parallel', sourceHandle: 'branch-1', target: 'branch2_step' },
+  { id: 'e4', source: 'parallel', sourceHandle: 'merge', target: 'merge_step' },
+];
+
+try {
+  console.log("Generating workflow code...");
+  const code = generateWorkflowCode(nodes, edges);
+
+  console.log("\n--- Generated Code Snippet ---");
+  // Extract the workflow function body for inspection
+  const workflowBody = code.match(/export async function workflow\(params: any\) \{([\s\S]*?)\}/)?.[1];
+  console.log(workflowBody);
+  console.log("------------------------------\n");
+
+  // Assertions
+  if (!code.includes('Promise.all([')) {
+    throw new Error("FAILED: Code does not contain Promise.all");
+  }
+
+  if (!code.includes('await branch1Step({})')) {
+    throw new Error("FAILED: Branch 1 step not found");
+  }
+
+  if (!code.includes('await branch2Step({})')) {
+    throw new Error("FAILED: Branch 2 step not found");
+  }
+
+  if (!code.includes('await mergeStep({})')) {
+    throw new Error("FAILED: Merge step not found");
+  }
+
+  // Check structure: Promise.all should wrap the branches
+  const promiseAllIndex = code.indexOf('Promise.all([');
+  const branch1Index = code.indexOf('branch1Step', promiseAllIndex);
+  const branch2Index = code.indexOf('branch2Step', promiseAllIndex);
+  const mergeIndex = code.indexOf('mergeStep', promiseAllIndex);
+
+  if (branch1Index === -1 || branch2Index === -1) {
+    throw new Error("FAILED: Branches should be inside/after Promise.all start");
+  }
+
+  // Merge step should be AFTER the Promise.all block
+  if (mergeIndex < branch1Index || mergeIndex < branch2Index) {
+    throw new Error("FAILED: Merge step should be after branches");
+  }
+
+  console.log("SUCCESS: Parallel code generation verified!");
+
+} catch (error) {
+  console.error(error);
+  process.exit(1);
 }

@@ -134,6 +134,11 @@ All developers (human and AI) must adhere to these rules:
 -   **DO NOT** use `any` unless absolutely necessary.
 -   **DO** run `npm run lint` before committing.
 
+### 5. Testing
+-   **DO** write unit tests for logic-heavy modules (generators, validators).
+-   **DO** use `npm test` to run the test suite (Vitest).
+-   **DO** ensure tests pass before pushing.
+
 ---
 
 ## 🤝 Contributing Guide

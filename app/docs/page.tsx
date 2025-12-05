@@ -56,52 +56,88 @@ export default function DocsPage() {
                     </p>
                 </div>
 
-                {/* Quick Start Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-                    <div className="rounded-2xl p-8 border transition-all" style={{
+                {/* Content Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
+                    {/* Quick Start */}
+                    <Link href="/docs/quickstart" className="group rounded-2xl p-8 border transition-all hover:shadow-lg" style={{
                         backgroundColor: 'var(--node-background)',
                         borderColor: 'var(--border-color)'
-                    }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--foreground-subtitle)';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--border-color)';
-                        }}>
-                        <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4" style={{
+                    }}>
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors group-hover:bg-blue-500/20" style={{
                             backgroundColor: 'var(--accent-bg)'
                         }}>
-                            <Zap className="w-6 h-6" style={{ color: 'var(--foreground-subtitle)' }} />
+                            <Zap className="w-6 h-6 transition-colors group-hover:text-blue-500" style={{ color: 'var(--foreground-subtitle)' }} />
                         </div>
                         <h3 className="text-xl font-semibold mb-2" style={{
                             color: 'var(--foreground-body)',
                             letterSpacing: '-0.03em'
-                        }}>Quick Start</h3>
+                        }}>Quick Start Guide</h3>
                         <p className="mb-4 text-sm" style={{
                             color: 'var(--foreground-subtitle)',
                             letterSpacing: '-0.02em'
                         }}>
-                            Learn the basics and create your first workflow in minutes.
+                            Learn the basics and create your first workflow in 5 minutes.
                         </p>
-                        <Link href="#getting-started" className="font-medium inline-flex items-center gap-1 text-sm transition-opacity hover:opacity-100" style={{
-                            color: 'var(--foreground-body)',
-                            opacity: 0.9,
-                            letterSpacing: '-0.01em'
-                        }}>
-                            Get Started <ArrowRight className="w-4 h-4" />
-                        </Link>
-                    </div>
+                        <span className="font-medium inline-flex items-center gap-1 text-sm transition-opacity group-hover:opacity-100 opacity-80" style={{ color: 'var(--foreground-body)' }}>
+                            Read Guide <ArrowRight className="w-4 h-4" />
+                        </span>
+                    </Link>
 
-                    <div className="rounded-2xl p-8 border transition-all" style={{
+                    {/* Nodes Reference */}
+                    <Link href="/docs/nodes" className="group rounded-2xl p-8 border transition-all hover:shadow-lg" style={{
                         backgroundColor: 'var(--node-background)',
                         borderColor: 'var(--border-color)'
-                    }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--foreground-subtitle)';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--border-color)';
+                    }}>
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors group-hover:bg-purple-500/20" style={{
+                            backgroundColor: 'var(--accent-bg)'
                         }}>
+                            <Workflow className="w-6 h-6 transition-colors group-hover:text-purple-500" style={{ color: 'var(--foreground-subtitle)' }} />
+                        </div>
+                        <h3 className="text-xl font-semibold mb-2" style={{
+                            color: 'var(--foreground-body)',
+                            letterSpacing: '-0.03em'
+                        }}>Node Reference</h3>
+                        <p className="mb-4 text-sm" style={{
+                            color: 'var(--foreground-subtitle)',
+                            letterSpacing: '-0.02em'
+                        }}>
+                            Detailed documentation for all available node types and their configurations.
+                        </p>
+                        <span className="font-medium inline-flex items-center gap-1 text-sm transition-opacity group-hover:opacity-100 opacity-80" style={{ color: 'var(--foreground-body)' }}>
+                            Explore Nodes <ArrowRight className="w-4 h-4" />
+                        </span>
+                    </Link>
+
+                    {/* Troubleshooting */}
+                    <Link href="/docs/troubleshooting" className="group rounded-2xl p-8 border transition-all hover:shadow-lg" style={{
+                        backgroundColor: 'var(--node-background)',
+                        borderColor: 'var(--border-color)'
+                    }}>
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors group-hover:bg-amber-500/20" style={{
+                            backgroundColor: 'var(--accent-bg)'
+                        }}>
+                            <Lock className="w-6 h-6 transition-colors group-hover:text-amber-500" style={{ color: 'var(--foreground-subtitle)' }} />
+                        </div>
+                        <h3 className="text-xl font-semibold mb-2" style={{
+                            color: 'var(--foreground-body)',
+                            letterSpacing: '-0.03em'
+                        }}>Troubleshooting</h3>
+                        <p className="mb-4 text-sm" style={{
+                            color: 'var(--foreground-subtitle)',
+                            letterSpacing: '-0.02em'
+                        }}>
+                            Common issues, error messages, and how to resolve them.
+                        </p>
+                        <span className="font-medium inline-flex items-center gap-1 text-sm transition-opacity group-hover:opacity-100 opacity-80" style={{ color: 'var(--foreground-body)' }}>
+                            Get Help <ArrowRight className="w-4 h-4" />
+                        </span>
+                    </Link>
+
+                    {/* Secrets (Keeping inline or separate? I'll keep it simple for now, maybe just a card since I kept the section below anyway) */}
+                    <a href="#secrets" className="group rounded-2xl p-8 border transition-all hover:shadow-lg" style={{
+                        backgroundColor: 'var(--node-background)',
+                        borderColor: 'var(--border-color)'
+                    }}>
                         <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4" style={{
                             backgroundColor: 'var(--accent-bg)'
                         }}>
@@ -110,212 +146,18 @@ export default function DocsPage() {
                         <h3 className="text-xl font-semibold mb-2" style={{
                             color: 'var(--foreground-body)',
                             letterSpacing: '-0.03em'
-                        }}>Secrets & Security</h3>
+                        }}>Secrets Management</h3>
                         <p className="mb-4 text-sm" style={{
                             color: 'var(--foreground-subtitle)',
                             letterSpacing: '-0.02em'
                         }}>
-                            Understand how we keep your API keys and credentials safe.
+                            How to safely use API keys and credentials.
                         </p>
-                        <Link href="#secrets" className="font-medium inline-flex items-center gap-1 text-sm transition-opacity hover:opacity-100" style={{
-                            color: 'var(--foreground-body)',
-                            opacity: 0.9,
-                            letterSpacing: '-0.01em'
-                        }}>
+                        <span className="font-medium inline-flex items-center gap-1 text-sm transition-opacity group-hover:opacity-100 opacity-80" style={{ color: 'var(--foreground-body)' }}>
                             Learn More <ArrowRight className="w-4 h-4" />
-                        </Link>
-                    </div>
-
-                    <div className="rounded-2xl p-8 border transition-all" style={{
-                        backgroundColor: 'var(--node-background)',
-                        borderColor: 'var(--border-color)'
-                    }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--foreground-subtitle)';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--border-color)';
-                        }}>
-                        <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4" style={{
-                            backgroundColor: 'var(--accent-bg)'
-                        }}>
-                            <Workflow className="w-6 h-6" style={{ color: 'var(--foreground-subtitle)' }} />
-                        </div>
-                        <h3 className="text-xl font-semibold mb-2" style={{
-                            color: 'var(--foreground-body)',
-                            letterSpacing: '-0.03em'
-                        }}>Workflow Nodes</h3>
-                        <p className="mb-4 text-sm" style={{
-                            color: 'var(--foreground-subtitle)',
-                            letterSpacing: '-0.02em'
-                        }}>
-                            Explore all available nodes and what they can do.
-                        </p>
-                        <Link href="#nodes" className="font-medium inline-flex items-center gap-1 text-sm transition-opacity hover:opacity-100" style={{
-                            color: 'var(--foreground-body)',
-                            opacity: 0.9,
-                            letterSpacing: '-0.01em'
-                        }}>
-                            Explore Nodes <ArrowRight className="w-4 h-4" />
-                        </Link>
-                    </div>
+                        </span>
+                    </a>
                 </div>
-
-                {/* Getting Started Section */}
-                <section id="getting-started" className="mb-16 scroll-mt-20">
-                    <div className="rounded-2xl p-10 border" style={{
-                        backgroundColor: 'var(--node-background)',
-                        borderColor: 'var(--border-color)'
-                    }}>
-                        <h2 className="text-3xl font-bold mb-6" style={{
-                            color: 'var(--foreground-title)',
-                            letterSpacing: '-0.05em'
-                        }}>Getting Started</h2>
-
-                        <div className="space-y-8">
-                            <div className="flex gap-6">
-                                <div className="flex-shrink-0">
-                                    <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold" style={{
-                                        backgroundColor: 'var(--foreground-title)',
-                                        color: 'var(--background)'
-                                    }}>
-                                        1
-                                    </div>
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-semibold mb-2" style={{
-                                        color: 'var(--foreground-body)',
-                                        letterSpacing: '-0.03em'
-                                    }}>Open the Workflow Builder</h3>
-                                    <p style={{
-                                        color: 'var(--foreground-subtitle)',
-                                        letterSpacing: '-0.02em'
-                                    }}>
-                                        Click the "Back to App" button above to return to the main canvas. You'll see a blank workspace ready for your automation.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="flex gap-6">
-                                <div className="flex-shrink-0">
-                                    <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold" style={{
-                                        backgroundColor: 'var(--foreground-title)',
-                                        color: 'var(--background)'
-                                    }}>
-                                        2
-                                    </div>
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-semibold mb-2" style={{
-                                        color: 'var(--foreground-body)',
-                                        letterSpacing: '-0.03em'
-                                    }}>Drag Nodes onto the Canvas</h3>
-                                    <p className="mb-3" style={{
-                                        color: 'var(--foreground-subtitle)',
-                                        letterSpacing: '-0.02em'
-                                    }}>
-                                        On the left sidebar, you'll find different types of nodes you can use:
-                                    </p>
-                                    <ul className="space-y-2">
-                                        <li className="flex items-start gap-2">
-                                            <span className="mt-1" style={{ color: 'var(--foreground-subtitle)' }}>•</span>
-                                            <span style={{ color: 'var(--foreground-subtitle)', letterSpacing: '-0.02em' }}>
-                                                <strong style={{ color: 'var(--foreground-body)' }}>HTTP Request:</strong> Make API calls to external services
-                                            </span>
-                                        </li>
-                                        <li className="flex items-start gap-2">
-                                            <span className="mt-1" style={{ color: 'var(--foreground-subtitle)' }}>•</span>
-                                            <span style={{ color: 'var(--foreground-subtitle)', letterSpacing: '-0.02em' }}>
-                                                <strong style={{ color: 'var(--foreground-body)' }}>Send Email:</strong> Send automated emails
-                                            </span>
-                                        </li>
-                                        <li className="flex items-start gap-2">
-                                            <span className="mt-1" style={{ color: 'var(--foreground-subtitle)' }}>•</span>
-                                            <span style={{ color: 'var(--foreground-subtitle)', letterSpacing: '-0.02em' }}>
-                                                <strong style={{ color: 'var(--foreground-body)' }}>Database Query:</strong> Read or write to databases
-                                            </span>
-                                        </li>
-                                        <li className="flex items-start gap-2">
-                                            <span className="mt-1" style={{ color: 'var(--foreground-subtitle)' }}>•</span>
-                                            <span style={{ color: 'var(--foreground-subtitle)', letterSpacing: '-0.02em' }}>
-                                                <strong style={{ color: 'var(--foreground-body)' }}>Conditional:</strong> Add if/else logic to your workflow
-                                            </span>
-                                        </li>
-                                    </ul>
-                                </div>
-                            </div>
-
-                            <div className="flex gap-6">
-                                <div className="flex-shrink-0">
-                                    <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold" style={{
-                                        backgroundColor: 'var(--foreground-title)',
-                                        color: 'var(--background)'
-                                    }}>
-                                        3
-                                    </div>
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-semibold mb-2" style={{
-                                        color: 'var(--foreground-body)',
-                                        letterSpacing: '-0.03em'
-                                    }}>Configure Each Node</h3>
-                                    <p style={{
-                                        color: 'var(--foreground-subtitle)',
-                                        letterSpacing: '-0.02em'
-                                    }}>
-                                        Click on any node to open its configuration panel. Fill in the required fields like URLs, email addresses, or SQL queries.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="flex gap-6">
-                                <div className="flex-shrink-0">
-                                    <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold" style={{
-                                        backgroundColor: 'var(--foreground-title)',
-                                        color: 'var(--background)'
-                                    }}>
-                                        4
-                                    </div>
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-semibold mb-2" style={{
-                                        color: 'var(--foreground-body)',
-                                        letterSpacing: '-0.03em'
-                                    }}>Connect the Nodes</h3>
-                                    <p style={{
-                                        color: 'var(--foreground-subtitle)',
-                                        letterSpacing: '-0.02em'
-                                    }}>
-                                        Drag from the output handle (right side) of one node to the input handle (left side) of another to create connections. This defines the flow of your automation.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="flex gap-6">
-                                <div className="flex-shrink-0">
-                                    <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold" style={{
-                                        backgroundColor: 'var(--foreground-title)',
-                                        color: 'var(--background)'
-                                    }}>
-                                        5
-                                    </div>
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-semibold mb-2" style={{
-                                        color: 'var(--foreground-body)',
-                                        letterSpacing: '-0.03em'
-                                    }}>Save and Deploy</h3>
-                                    <p style={{
-                                        color: 'var(--foreground-subtitle)',
-                                        letterSpacing: '-0.02em'
-                                    }}>
-                                        Click "Save Workflow" to generate the code, then "Deploy" to make your automation live.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
 
                 {/* Secrets Section */}
                 <section id="secrets" className="mb-16 scroll-mt-20">
@@ -370,7 +212,10 @@ export default function DocsPage() {
                             backgroundColor: 'var(--foreground-title)',
                             color: 'var(--background)'
                         }}>
-                            <h3 className="font-semibold mb-2 flex items-center gap-2">
+                            <h3 className="font-semibold mb-2 flex items-center gap-2" style={{
+                                color: 'var(--background)',
+                                opacity: 0.9
+                            }}>
                                 <Lock className="w-5 h-5" />
                                 Security Guarantee
                             </h3>
@@ -382,55 +227,7 @@ export default function DocsPage() {
                 </section>
 
                 {/* Nodes Overview */}
-                <section id="nodes" className="mb-16 scroll-mt-20">
-                    <div className="rounded-2xl p-10 border" style={{
-                        backgroundColor: 'var(--node-background)',
-                        borderColor: 'var(--border-color)'
-                    }}>
-                        <h2 className="text-3xl font-bold mb-6" style={{
-                            color: 'var(--foreground-title)',
-                            letterSpacing: '-0.05em'
-                        }}>Available Workflow Nodes</h2>
-                        <p className="mb-8" style={{
-                            color: 'var(--foreground-subtitle)',
-                            letterSpacing: '-0.02em'
-                        }}>
-                            Each node type serves a specific purpose in your automation. Click on any node type below to learn more about its capabilities.
-                        </p>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {[
-                                { title: 'HTTP Request', desc: 'Make GET, POST, PUT, or DELETE requests to any API endpoint.' },
-                                { title: 'Send Email', desc: 'Send automated emails with custom content and attachments.' },
-                                { title: 'Database Query', desc: 'Execute SQL queries to read or write data to your database.' },
-                                { title: 'Conditional', desc: 'Add if/else logic to branch your workflow based on conditions.' },
-                                { title: 'Run Script', desc: 'Execute custom JavaScript code for advanced transformations.' },
-                                { title: 'Slack Message', desc: 'Send notifications to Slack channels or direct messages.' }
-                            ].map((node) => (
-                                <div key={node.title} className="border rounded-xl p-6 transition-all" style={{
-                                    borderColor: 'var(--border-color)'
-                                }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.borderColor = 'var(--foreground-subtitle)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.borderColor = 'var(--border-color)';
-                                    }}>
-                                    <h3 className="font-semibold mb-2" style={{
-                                        color: 'var(--foreground-body)',
-                                        letterSpacing: '-0.02em'
-                                    }}>{node.title}</h3>
-                                    <p className="text-sm" style={{
-                                        color: 'var(--foreground-subtitle)',
-                                        letterSpacing: '-0.01em'
-                                    }}>
-                                        {node.desc}
-                                    </p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </section>
 
                 {/* Footer CTA */}
                 <div className="text-center rounded-2xl p-12" style={{
