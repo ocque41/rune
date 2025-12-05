@@ -458,19 +458,14 @@ const FlowBuilderContent = ({
                             Import
                         </button>
                         <button
-                            onClick={onSaveDraft}
-                            className="px-6 py-2 text-sm font-medium transition-all"
-                            style={{
-                                backgroundColor: 'var(--foreground-title)',
-                                color: 'var(--background)',
-                                letterSpacing: '0.05em',
-                                textTransform: 'uppercase'
+                            onClick={() => {
+                                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                                if (isLocal) {
+                                    onSaveDraft();
+                                } else {
+                                    onSaveCloud();
+                                }
                             }}
-                        >
-                            Save Local
-                        </button>
-                        <button
-                            onClick={onSaveCloud}
                             disabled={isSaving}
                             className="flex items-center gap-2 rounded px-4 py-2 text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50"
                             style={{
@@ -479,7 +474,7 @@ const FlowBuilderContent = ({
                             }}
                         >
                             <Cloud size={14} />
-                            {isSaving ? 'Saving...' : 'Save Cloud'}
+                            {isSaving ? 'Saving...' : 'Save'}
                         </button>
                         <button
                             onClick={onSimulate}
@@ -664,9 +659,9 @@ const FlowBuilderContent = ({
                                         <div className="flex-1 border-l pl-3" style={{ borderColor: 'var(--border-color)' }}>
                                             <div className="flex items-center gap-2">
                                                 <span className={`font-bold uppercase text-[10px] px-1.5 py-0.5 rounded ${log.type === 'error' ? 'bg-red-500/10 text-red-500' :
-                                                        log.type === 'success' ? 'bg-green-500/10 text-green-500' :
-                                                            log.type === 'warning' ? 'bg-yellow-500/10 text-yellow-500' :
-                                                                'bg-blue-500/10 text-blue-500'
+                                                    log.type === 'success' ? 'bg-green-500/10 text-green-500' :
+                                                        log.type === 'warning' ? 'bg-yellow-500/10 text-yellow-500' :
+                                                            'bg-blue-500/10 text-blue-500'
                                                     }`}>
                                                     {log.type}
                                                 </span>
