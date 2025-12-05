@@ -175,10 +175,23 @@ function validateNodeConfiguration(node: Node): ValidationError[] {
 
     if (node.data.label === 'Database Query') {
         const config = (node.data as any).dbConfig;
+        const dbType = config?.dbType || 'postgres';
+
+        // Validate dbType
+        const validDbTypes = ['postgres', 'mysql', 'mongodb', 'generic'];
+        if (config?.dbType && !validDbTypes.includes(config.dbType)) {
+            errors.push({
+                type: 'error',
+                message: `Database node has invalid database type: ${config.dbType}`,
+                nodeId: node.id,
+                code: 'INVALID_DB_TYPE'
+            });
+        }
+
         if (!config?.connectionString) {
             errors.push({
                 type: 'error',
-                message: `Database node "${node.data.label}" is missing connection string`,
+                message: `Database node (${dbType}) is missing connection string`,
                 nodeId: node.id,
                 code: 'MISSING_REQUIRED_FIELD'
             });
@@ -186,10 +199,32 @@ function validateNodeConfiguration(node: Node): ValidationError[] {
         if (!config?.query) {
             errors.push({
                 type: 'error',
-                message: `Database node "${node.data.label}" is missing query`,
+                message: `Database node (${dbType}) is missing ${dbType === 'mongodb' ? 'operation' : 'query'}`,
                 nodeId: node.id,
                 code: 'MISSING_REQUIRED_FIELD'
             });
+        }
+
+        // Validate MongoDB operation JSON if applicable
+        if (dbType === 'mongodb' && config?.query) {
+            try {
+                const parsed = JSON.parse(config.query);
+                if (!parsed.collection || !parsed.operation) {
+                    errors.push({
+                        type: 'warning',
+                        message: `MongoDB operation should include 'collection' and 'operation' fields`,
+                        nodeId: node.id,
+                        code: 'INVALID_MONGODB_OPERATION'
+                    });
+                }
+            } catch (e) {
+                errors.push({
+                    type: 'error',
+                    message: `MongoDB operation must be valid JSON`,
+                    nodeId: node.id,
+                    code: 'INVALID_JSON'
+                });
+            }
         }
     }
 

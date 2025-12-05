@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useCallback, useRef, useState } from 'react';
+import Link from 'next/link';
+import { Cloud } from 'lucide-react';
 import {
     ReactFlow,
     ReactFlowProvider,
@@ -30,8 +32,12 @@ import { AINode } from './nodes/ai-node';
 import { TransformNode } from './nodes/transform-node';
 import { generateWorkflowCode } from '@/lib/workflow-generator';
 import { validateGraph, ValidationResult } from '@/lib/workflow-validator';
-import { LayoutTemplate, AlertCircle, X } from 'lucide-react';
+import { LayoutTemplate, AlertCircle, X, Download, Upload, Trash2, HelpCircle, Play } from 'lucide-react';
 import { templates, Template } from '@/lib/templates';
+import { ExportedWorkflow } from '@/lib/types/export';
+import { toast } from 'sonner';
+import { useLocalWorkflowSession } from '@/hooks/useLocalWorkflowSession';
+import { simulateWorkflow, SimulationLogEntry } from '@/lib/workflow-simulator';
 
 const nodeTypes = {
     step: StepNode,
@@ -74,6 +80,58 @@ const FlowBuilderContent = ({
     const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
     const [showValidation, setShowValidation] = useState(false);
     const [showTemplates, setShowTemplates] = useState(false);
+    const [workflowId, setWorkflowId] = useState<string | null>(null);
+    const [workflowName, setWorkflowName] = useState<string>('My Workflow');
+    const [isSaving, setIsSaving] = useState(false);
+
+    // Simulation State
+    const [simulationLogs, setSimulationLogs] = useState<SimulationLogEntry[]>([]);
+    const [isSimulating, setIsSimulating] = useState(false);
+    const [showSimulationPanel, setShowSimulationPanel] = useState(false);
+
+    const onSimulate = useCallback(async () => {
+        setIsSimulating(true);
+        setShowSimulationPanel(true);
+        setSimulationLogs([]); // Clear previous logs
+
+        try {
+            // Basic input mock
+            const initialInput = {
+                triggeredAt: new Date().toISOString(),
+                user: { id: 'sim-user', email: 'test@example.com' }
+            };
+
+            const result = await simulateWorkflow(nodes, edges, initialInput);
+            setSimulationLogs(result.logs);
+
+            if (result.success) {
+                toast.success('Simulation completed');
+            } else {
+                toast.error('Simulation finished with errors');
+            }
+        } catch (error) {
+            console.error('Simulation error:', error);
+            toast.error('Simulation failed');
+        } finally {
+            setIsSimulating(false);
+        }
+    }, [nodes, edges]);
+
+    const { clearSession } = useLocalWorkflowSession({
+        nodes,
+        edges,
+        setNodes,
+        setEdges
+    });
+
+    const onClearSession = useCallback(() => {
+        if (window.confirm('Are you sure you want to clear the current session? This will reset the workflow to the default state.')) {
+            clearSession();
+            setNodes(initialNodes);
+            setEdges([]);
+            toast.success('Session cleared');
+        }
+    }, [clearSession, setNodes, setEdges]);
 
     const onConnect = useCallback(
         (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -114,6 +172,52 @@ const FlowBuilderContent = ({
         [reactFlowInstance, setNodes],
     );
 
+    const onSaveCloud = useCallback(async () => {
+        if (!nodes.length) return;
+
+        const name = prompt("Enter workflow name:", workflowName);
+        if (name === null) return; // Cancelled
+        if (name) setWorkflowName(name);
+
+        const finalName = name || workflowName;
+        setIsSaving(true);
+        const code = generateWorkflowCode(nodes, edges);
+
+        try {
+            // Retrieve user_id separately in a real app, e.g. from context
+            const response = await fetch('/api/rune/workflows', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: workflowId,
+                    name: finalName,
+                    description: 'Created via Flow Builder',
+                    graph: { nodes, edges },
+                    code,
+                    // user_id: '...' // Handled on server/dummy for now
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to save to cloud');
+            }
+
+            if (data.workflow?.id) {
+                setWorkflowId(data.workflow.id);
+            }
+
+            toast.success('Workflow saved to cloud successfully');
+        } catch (error) {
+            console.error('Cloud save error:', error);
+            const msg = error instanceof Error ? error.message : 'Failed to save';
+            toast.error(msg);
+        } finally {
+            setIsSaving(false);
+        }
+    }, [nodes, edges, workflowId, workflowName]);
+
     const onSaveDraft = useCallback(async () => {
         if (!nodes.length) return;
 
@@ -131,36 +235,139 @@ const FlowBuilderContent = ({
             if (!response.ok) throw new Error('Failed to save');
 
             console.log('Saved draft successfully');
-            alert('Draft saved!');
+            toast.success('Draft saved locally');
         } catch (error) {
             console.error('Save error:', error);
-            alert('Failed to save draft');
+            toast.error('Failed to save draft');
         }
     }, [nodes, edges]);
 
     const onDeploy = useCallback(async () => {
         try {
+            // Auto-save draft before deploying
+            const code = generateWorkflowCode(nodes, edges);
+            const filename = 'my-workflow.ts';
+
+            const saveResponse = await fetch('/api/workflows/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, filename }),
+            });
+
+            if (!saveResponse.ok) throw new Error('Failed to auto-save draft');
+
             const response = await fetch('/api/workflows/deploy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ slug: 'my-workflow' }),
             });
 
-            if (!response.ok) throw new Error('Failed to deploy');
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Failed to deploy');
+            }
 
             const data = await response.json();
             console.log(`Deployed version ${data.version}`);
-            alert(`Deployed version ${data.version} successfully!`);
+            toast.success(`Deployed version ${data.version} successfully!`, {
+                description: 'Your workflow is now live in production.'
+            });
         } catch (error) {
             console.error('Deploy error:', error);
-            alert('Failed to deploy');
+            toast.error(error instanceof Error ? error.message : 'Failed to deploy');
         }
-    }, []);
+    }, [nodes, edges]);
 
     const loadTemplate = useCallback((template: Template) => {
         setNodes(template.nodes);
         setEdges(template.edges);
         setShowTemplates(false);
+        toast.success(`Template "${template.name}" loaded`);
+    }, [setNodes, setEdges]);
+
+    const [exportUrl, setExportUrl] = useState<string | null>(null);
+    const [exportFilename, setExportFilename] = useState<string | null>(null);
+
+    // Export workflow - show modal with manual download link
+    const onExport = useCallback(() => {
+        try {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            const code = generateWorkflowCode(nodes, edges);
+
+            const exportData: ExportedWorkflow = {
+                version: '1.0.0',
+                meta: {
+                    name: 'Workflow Export',
+                    description: 'Exported workflow from Flow Builder',
+                    createdAt: new Date().toISOString(),
+                },
+                nodes,
+                edges,
+                code,
+            };
+
+            const json = JSON.stringify(exportData, null, 2);
+            const filename = `workflow-${timestamp}.json`;
+
+            // Create blob URL
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            setExportUrl(url);
+            setExportFilename(filename);
+
+        } catch (error) {
+            console.error('Export error:', error);
+            toast.error('Failed to export workflow');
+        }
+    }, [nodes, edges]);
+
+    const closeExportModal = useCallback(() => {
+        if (exportUrl) {
+            URL.revokeObjectURL(exportUrl);
+        }
+        setExportUrl(null);
+        setExportFilename(null);
+    }, [exportUrl]);
+
+    // Import workflow from JSON file
+    const onImport = useCallback(() => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+
+        input.onchange = async (e: Event) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (!file) return;
+
+            try {
+                const text = await file.text();
+                const data = JSON.parse(text) as ExportedWorkflow;
+
+                // Validate required fields
+                if (!data.version) {
+                    throw new Error('Invalid workflow file: missing version field');
+                }
+                if (!data.nodes || !Array.isArray(data.nodes)) {
+                    throw new Error('Invalid workflow file: missing or invalid nodes array');
+                }
+                if (!data.edges || !Array.isArray(data.edges)) {
+                    throw new Error('Invalid workflow file: missing or invalid edges array');
+                }
+
+                // Replace current workflow with imported data
+                setNodes(data.nodes);
+                setEdges(data.edges);
+
+                toast.success('Workflow imported successfully!');
+            } catch (error) {
+                console.error('Import error:', error);
+                const message = error instanceof Error ? error.message : 'Failed to import workflow';
+                toast.error(message);
+            }
+        };
+
+        input.click();
     }, [setNodes, setEdges]);
 
     return (
@@ -197,6 +404,23 @@ const FlowBuilderContent = ({
                         }}
                     />
                     <div className="absolute right-4 top-4 z-10 flex gap-3">
+                        <Link
+                            href="/docs/quickstart"
+                            target="_blank"
+                            className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                            style={{ color: 'var(--foreground-title)' }}
+                        >
+                            <HelpCircle size={14} />
+                            Help
+                        </Link>
+                        <button
+                            onClick={onClearSession}
+                            className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                            style={{ color: 'var(--foreground-title)' }}
+                        >
+                            <Trash2 size={14} />
+                            Clear
+                        </button>
                         <button
                             onClick={() => setShowTemplates(true)}
                             className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
@@ -218,6 +442,22 @@ const FlowBuilderContent = ({
                             Validate
                         </button>
                         <button
+                            onClick={onExport}
+                            className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                            style={{ color: 'var(--foreground-title)' }}
+                        >
+                            <Download size={14} />
+                            Export
+                        </button>
+                        <button
+                            onClick={onImport}
+                            className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                            style={{ color: 'var(--foreground-title)' }}
+                        >
+                            <Upload size={14} />
+                            Import
+                        </button>
+                        <button
                             onClick={onSaveDraft}
                             className="px-6 py-2 text-sm font-medium transition-all"
                             style={{
@@ -227,8 +467,34 @@ const FlowBuilderContent = ({
                                 textTransform: 'uppercase'
                             }}
                         >
-                            Save Draft
+                            Save Local
                         </button>
+                        <button
+                            onClick={onSaveCloud}
+                            disabled={isSaving}
+                            className="flex items-center gap-2 rounded px-4 py-2 text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50"
+                            style={{
+                                backgroundColor: 'var(--foreground-title)',
+                                color: 'var(--background)',
+                            }}
+                        >
+                            <Cloud size={14} />
+                            {isSaving ? 'Saving...' : 'Save Cloud'}
+                        </button>
+                        <button
+                            onClick={onSimulate}
+                            disabled={isSimulating}
+                            className="flex items-center gap-2 rounded px-4 py-2 text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50"
+                            style={{
+                                backgroundColor: 'var(--accent-bg)',
+                                color: 'var(--foreground-title)',
+                                border: '1px solid var(--border-color)'
+                            }}
+                        >
+                            <Play size={14} />
+                            {isSimulating ? 'Simulating...' : 'Simulate'}
+                        </button>
+
                         <button
                             onClick={onDeploy}
                             className="px-6 py-2 text-sm font-medium transition-all"
@@ -243,6 +509,44 @@ const FlowBuilderContent = ({
                         </button>
                     </div>
                 </ReactFlow>
+
+                {/* Export Modal */}
+                {exportUrl && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <div className="w-[400px] rounded-lg border p-6 shadow-xl" style={{
+                            backgroundColor: 'var(--node-background)',
+                            borderColor: 'var(--border-color)'
+                        }}>
+                            <div className="mb-4 flex items-center justify-between">
+                                <h2 className="text-lg font-bold" style={{ color: 'var(--foreground-title)' }}>Export Ready</h2>
+                                <button onClick={closeExportModal} className="opacity-60 hover:opacity-100">
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            <div className="flex flex-col gap-4">
+                                <p className="text-sm opacity-80" style={{ color: 'var(--foreground-body)' }}>
+                                    Your workflow has been serialized successfully. Click the button below to download the JSON file.
+                                </p>
+                                <a
+                                    href={exportUrl}
+                                    download={exportFilename || 'workflow.json'}
+                                    className="flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-medium transition-all hover:opacity-90"
+                                    style={{
+                                        backgroundColor: 'var(--foreground-title)',
+                                        color: 'var(--background)',
+                                    }}
+                                    onClick={(e) => {
+                                        // Optional: close modal after download
+                                        // setTimeout(closeExportModal, 1000);
+                                    }}
+                                >
+                                    <Download size={16} />
+                                    Download {exportFilename}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Templates Modal */}
                 {showTemplates && (
@@ -317,10 +621,87 @@ const FlowBuilderContent = ({
                         </div>
                     </div>
                 )}
+                {/* Simulation Logs Panel */}
+                {showSimulationPanel && (
+                    <div className="absolute bottom-0 left-0 right-0 z-40 border-t shadow-xl flex flex-col transition-all duration-300 ease-in-out" style={{
+                        backgroundColor: 'var(--node-background)',
+                        borderColor: 'var(--border-color)',
+                        height: '350px',
+                        maxHeight: '40vh'
+                    }}>
+                        <div className="flex items-center justify-between border-b px-4 py-2" style={{ borderColor: 'var(--border-color)' }}>
+                            <div className="flex items-center gap-2">
+                                <Play size={14} className="text-blue-500" />
+                                <span className="font-bold text-sm" style={{ color: 'var(--foreground-title)' }}>Simulation Logs</span>
+                                <span className="text-xs opacity-50 ml-2" style={{ color: 'var(--foreground-subtitle)' }}>
+                                    {simulationLogs.length} steps
+                                </span>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setSimulationLogs([])}
+                                    title="Clear Logs"
+                                    className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded opacity-60 hover:opacity-100"
+                                >
+                                    <Trash2 size={14} style={{ color: 'var(--foreground-title)' }} />
+                                </button>
+                                <button onClick={() => setShowSimulationPanel(false)} className="opacity-60 hover:opacity-100 p-1">
+                                    <X size={16} style={{ color: 'var(--foreground-title)' }} />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-2 font-mono text-xs">
+                            {simulationLogs.length === 0 ? (
+                                <div className="text-center opacity-50 italic py-4">
+                                    {isSimulating ? 'Running simulation...' : 'Ready to simulate'}
+                                </div>
+                            ) : (
+                                simulationLogs.map((log, i) => (
+                                    <div key={i} className="flex gap-3 group animate-in fade-in slide-in-from-bottom-1 duration-200">
+                                        <span className="opacity-40 shrink-0 select-none w-16 text-right" style={{ color: 'var(--foreground-subtitle)' }}>
+                                            {new Date(log.timestamp).toLocaleTimeString().split(' ')[0]}
+                                        </span>
+                                        <div className="flex-1 border-l pl-3" style={{ borderColor: 'var(--border-color)' }}>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`font-bold uppercase text-[10px] px-1.5 py-0.5 rounded ${log.type === 'error' ? 'bg-red-500/10 text-red-500' :
+                                                        log.type === 'success' ? 'bg-green-500/10 text-green-500' :
+                                                            log.type === 'warning' ? 'bg-yellow-500/10 text-yellow-500' :
+                                                                'bg-blue-500/10 text-blue-500'
+                                                    }`}>
+                                                    {log.type}
+                                                </span>
+                                                <span className="font-semibold" style={{ color: 'var(--foreground-title)' }}>
+                                                    {log.stepLabel}
+                                                </span>
+                                            </div>
+
+                                            <div className="mt-1" style={{ color: 'var(--foreground-body)' }}>
+                                                {log.message}
+                                            </div>
+
+                                            {log.data && Object.keys(log.data).length > 0 && simulatedDataView(log.data)}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
 };
+
+// Helper to render data cleanly
+const simulatedDataView = (data: any) => {
+    return (
+        <pre className="mt-2 block overflow-x-auto rounded bg-black/5 dark:bg-white/5 p-2 text-[10px] opacity-80" style={{ color: 'var(--foreground-body)' }}>
+            {JSON.stringify(data, null, 2)}
+        </pre>
+    );
+}
+
+
 
 
 export const FlowBuilder = () => {

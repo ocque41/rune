@@ -21,6 +21,7 @@ export type StepNodeData = {
         body: string;
     };
     dbConfig?: {
+        dbType?: 'postgres' | 'mysql' | 'mongodb' | 'generic';
         connectionString: string;
         query: string;
     };
@@ -53,6 +54,20 @@ export type StepNodeData = {
         fatalErrorPatterns?: string[]; // List of error message patterns that should trigger fatal error
         timeout?: string;           // e.g. "5m"
     };
+    webhookConfig?: {
+        endpointSlug: string;
+    };
+    scheduleConfig?: {
+        cronExpression: string;
+    };
+    transformConfig?: {
+        expression: string;
+    };
+    aiConfig?: {
+        provider: 'openai' | 'gemini' | 'generic';
+        model: string;
+        promptTemplate: string;
+    };
 };
 
 export type CustomNode = Node<StepNodeData>;
@@ -72,6 +87,7 @@ const StepNode = ({ data, selected }: NodeProps<CustomNode>) => {
         body: ''
     });
     const [dbConfig, setDbConfig] = useState<NonNullable<StepNodeData['dbConfig']>>(data.dbConfig || {
+        dbType: 'postgres',
         connectionString: '',
         query: ''
     });
@@ -101,6 +117,20 @@ const StepNode = ({ data, selected }: NodeProps<CustomNode>) => {
         errorTypeHandling: 'all-retryable',
         fatalErrorPatterns: [],
         timeout: ''
+    });
+    const [webhookConfig, setWebhookConfig] = useState<NonNullable<StepNodeData['webhookConfig']>>(data.webhookConfig || {
+        endpointSlug: ''
+    });
+    const [scheduleConfig, setScheduleConfig] = useState<NonNullable<StepNodeData['scheduleConfig']>>(data.scheduleConfig || {
+        cronExpression: ''
+    });
+    const [transformConfig, setTransformConfig] = useState<NonNullable<StepNodeData['transformConfig']>>(data.transformConfig || {
+        expression: ''
+    });
+    const [aiConfig, setAiConfig] = useState<NonNullable<StepNodeData['aiConfig']>>(data.aiConfig || {
+        provider: 'generic',
+        model: 'gpt-4o',
+        promptTemplate: ''
     });
 
     const handleConfigChange = (key: keyof NonNullable<StepNodeData['config']>, value: string) => {
@@ -353,10 +383,37 @@ const StepNode = ({ data, selected }: NodeProps<CustomNode>) => {
                 {data.label === 'Database Query' && (
                     <div className="mb-2 space-y-2">
                         <div>
+                            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--foreground-body)' }}>Database Type</label>
+                            <select
+                                className="w-full rounded border px-2 py-1 text-sm"
+                                style={{
+                                    backgroundColor: 'var(--accent-bg)',
+                                    borderColor: 'var(--border-color)',
+                                    color: 'var(--foreground-body)'
+                                }}
+                                value={dbConfig.dbType || 'postgres'}
+                                onChange={(e) => {
+                                    const newVal = { ...dbConfig, dbType: e.target.value as any };
+                                    setDbConfig(newVal);
+                                    data.dbConfig = newVal;
+                                }}
+                            >
+                                <option value="postgres">PostgreSQL</option>
+                                <option value="mysql">MySQL</option>
+                                <option value="mongodb">MongoDB</option>
+                                <option value="generic">Generic (Placeholder)</option>
+                            </select>
+                        </div>
+                        <div>
                             <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--foreground-body)' }}>Connection String</label>
                             <input
                                 type="text"
-                                placeholder="postgresql://user:pass@localhost:5432/db"
+                                placeholder={
+                                    dbConfig.dbType === 'mongodb' ? 'mongodb://user:pass@localhost:27017/db' :
+                                        dbConfig.dbType === 'mysql' ? 'mysql://user:pass@localhost:3306/db' :
+                                            dbConfig.dbType === 'generic' ? 'your-connection-string' :
+                                                'postgresql://user:pass@localhost:5432/db'
+                                }
                                 className="w-full rounded border px-2 py-1 text-sm"
                                 style={{
                                     backgroundColor: 'var(--accent-bg)',
@@ -370,13 +427,21 @@ const StepNode = ({ data, selected }: NodeProps<CustomNode>) => {
                                     data.dbConfig = newVal;
                                 }}
                             />
+                            <p className="mt-1 text-[10px] opacity-60" style={{ color: 'var(--foreground-body)' }}>
+                                Use {`{{SECRET_NAME}}`} to reference secrets
+                            </p>
                         </div>
                         <div>
-                            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--foreground-body)' }}>SQL Query</label>
+                            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--foreground-body)' }}>
+                                {dbConfig.dbType === 'mongodb' ? 'Operation (JSON)' : 'SQL Query'}
+                            </label>
                             <textarea
                                 className="w-full rounded border px-2 py-1 text-sm font-mono"
                                 rows={3}
-                                placeholder="SELECT * FROM users;"
+                                placeholder={
+                                    dbConfig.dbType === 'mongodb' ? '{ "collection": "users", "operation": "find", "query": {} }' :
+                                        'SELECT * FROM users;'
+                                }
                                 style={{
                                     backgroundColor: 'var(--accent-bg)',
                                     borderColor: 'var(--border-color)',
@@ -543,6 +608,148 @@ const StepNode = ({ data, selected }: NodeProps<CustomNode>) => {
                                     const newVal = { ...waitConfig, timeout: e.target.value };
                                     setWaitConfig(newVal);
                                     data.waitConfig = newVal;
+                                }}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* Webhook Trigger Configuration */}
+                {data.label === 'Webhook Trigger' && (
+                    <div className="mb-2">
+                        <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--foreground-body)' }}>Endpoint Slug</label>
+                        <input
+                            type="text"
+                            placeholder="my-webhook-endpoint"
+                            className="w-full rounded border px-2 py-1 text-sm"
+                            style={{
+                                backgroundColor: 'var(--accent-bg)',
+                                borderColor: 'var(--border-color)',
+                                color: 'var(--foreground-body)'
+                            }}
+                            value={webhookConfig.endpointSlug}
+                            onChange={(e) => {
+                                // Basic validation: no spaces, alphanumeric + dashes
+                                const val = e.target.value.replace(/[^a-zA-Z0-9-]/g, '');
+                                const newVal = { ...webhookConfig, endpointSlug: val };
+                                setWebhookConfig(newVal);
+                                data.webhookConfig = newVal;
+                            }}
+                        />
+                        <p className="mt-1 text-[10px] opacity-60" style={{ color: 'var(--foreground-body)' }}>
+                            URL: /api/hooks/{webhookConfig.endpointSlug || '...'}
+                        </p>
+                    </div>
+                )}
+
+                {/* Schedule/Cron Configuration */}
+                {data.label === 'Schedule' && (
+                    <div className="mb-2">
+                        <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--foreground-body)' }}>Cron Expression</label>
+                        <input
+                            type="text"
+                            placeholder="*/5 * * * *"
+                            className="w-full rounded border px-2 py-1 text-sm font-mono"
+                            style={{
+                                backgroundColor: 'var(--accent-bg)',
+                                borderColor: 'var(--border-color)',
+                                color: 'var(--foreground-body)'
+                            }}
+                            value={scheduleConfig.cronExpression}
+                            onChange={(e) => {
+                                const newVal = { ...scheduleConfig, cronExpression: e.target.value };
+                                setScheduleConfig(newVal);
+                                data.scheduleConfig = newVal;
+                            }}
+                        />
+                        <p className="mt-1 text-[10px] opacity-60" style={{ color: 'var(--foreground-body)' }}>
+                            Format: min hour day month day-of-week
+                        </p>
+                    </div>
+                )}
+
+                {/* Transform Configuration */}
+                {data.label === 'Transform' && (
+                    <div className="mb-2">
+                        <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--foreground-body)' }}>Transformation Expression</label>
+                        <textarea
+                            className="w-full rounded border px-2 py-1 text-sm font-mono"
+                            rows={4}
+                            placeholder="(input) => ({ ...input, transformed: true })"
+                            style={{
+                                backgroundColor: 'var(--accent-bg)',
+                                borderColor: 'var(--border-color)',
+                                color: 'var(--foreground-body)'
+                            }}
+                            value={transformConfig.expression}
+                            onChange={(e) => {
+                                const newVal = { ...transformConfig, expression: e.target.value };
+                                setTransformConfig(newVal);
+                                data.transformConfig = newVal;
+                            }}
+                        />
+                    </div>
+                )}
+
+                {/* AI Configuration */}
+                {data.label === 'AI Generation' && (
+                    <div className="mb-2 space-y-2">
+                        <div>
+                            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--foreground-body)' }}>Provider</label>
+                            <select
+                                className="w-full rounded border px-2 py-1 text-sm"
+                                style={{
+                                    backgroundColor: 'var(--accent-bg)',
+                                    borderColor: 'var(--border-color)',
+                                    color: 'var(--foreground-body)'
+                                }}
+                                value={aiConfig.provider}
+                                onChange={(e) => {
+                                    const newVal = { ...aiConfig, provider: e.target.value as any };
+                                    setAiConfig(newVal);
+                                    data.aiConfig = newVal;
+                                }}
+                            >
+                                <option value="openai">OpenAI</option>
+                                <option value="gemini">Google Gemini</option>
+                                <option value="generic">Generic / Other</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--foreground-body)' }}>Model</label>
+                            <input
+                                type="text"
+                                placeholder={aiConfig.provider === 'gemini' ? 'gemini-pro' : 'gpt-4o'}
+                                className="w-full rounded border px-2 py-1 text-sm"
+                                style={{
+                                    backgroundColor: 'var(--accent-bg)',
+                                    borderColor: 'var(--border-color)',
+                                    color: 'var(--foreground-body)'
+                                }}
+                                value={aiConfig.model}
+                                onChange={(e) => {
+                                    const newVal = { ...aiConfig, model: e.target.value };
+                                    setAiConfig(newVal);
+                                    data.aiConfig = newVal;
+                                }}
+                            />
+                        </div>
+                        <div>
+                            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--foreground-body)' }}>Prompt Template</label>
+                            <textarea
+                                className="w-full rounded border px-2 py-1 text-sm font-mono"
+                                rows={4}
+                                placeholder="Summarize the following text: {{input.text}}"
+                                style={{
+                                    backgroundColor: 'var(--accent-bg)',
+                                    borderColor: 'var(--border-color)',
+                                    color: 'var(--foreground-body)'
+                                }}
+                                value={aiConfig.promptTemplate}
+                                onChange={(e) => {
+                                    const newVal = { ...aiConfig, promptTemplate: e.target.value };
+                                    setAiConfig(newVal);
+                                    data.aiConfig = newVal;
                                 }}
                             />
                         </div>

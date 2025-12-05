@@ -49,7 +49,7 @@ export const templates: Template[] = [
         description: 'Run a database query every Monday and email the results.',
         nodes: [
             { id: '1', type: 'schedule', position: { x: 250, y: 0 }, data: { label: 'Schedule', cron: '0 9 * * 1' } },
-            { id: '2', type: 'step', position: { x: 250, y: 100 }, data: { label: 'Database Query', dbConfig: { query: 'SELECT * FROM users WHERE created_at > NOW() - INTERVAL 7 DAY' } } },
+            { id: '2', type: 'step', position: { x: 250, y: 100 }, data: { label: 'Database Query', dbConfig: { dbType: 'postgres', query: 'SELECT * FROM users WHERE created_at > NOW() - INTERVAL 7 DAY' } } },
             { id: '3', type: 'step', position: { x: 250, y: 200 }, data: { label: 'Send Email', emailConfig: { recipient: 'admin@example.com', subject: 'Weekly Report', body: 'See attached data.' } } },
         ],
         edges: [

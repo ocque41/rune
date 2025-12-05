@@ -33,8 +33,8 @@ export default function Home() {
             <button
               onClick={() => setActiveTab('editor')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'editor'
-                  ? 'bg-white dark:bg-black shadow-sm'
-                  : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-60 hover:opacity-100'
+                ? 'bg-white dark:bg-black shadow-sm'
+                : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-60 hover:opacity-100'
                 }`}
               style={{
                 color: activeTab === 'editor' ? 'var(--foreground-title)' : 'var(--foreground-subtitle)'
@@ -46,8 +46,8 @@ export default function Home() {
             <button
               onClick={() => setActiveTab('runs')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'runs'
-                  ? 'bg-white dark:bg-black shadow-sm'
-                  : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-60 hover:opacity-100'
+                ? 'bg-white dark:bg-black shadow-sm'
+                : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-60 hover:opacity-100'
                 }`}
               style={{
                 color: activeTab === 'runs' ? 'var(--foreground-title)' : 'var(--foreground-subtitle)'
@@ -73,24 +73,7 @@ export default function Home() {
             Documentation
           </Link>
           {activeTab === 'editor' && (
-            <>
-              <button className="px-6 py-2 text-sm font-medium transition-all" style={{
-                backgroundColor: 'var(--accent-bg)',
-                color: 'var(--foreground-body)',
-                letterSpacing: '0.05em',
-                textTransform: 'uppercase'
-              }}>
-                Save
-              </button>
-              <button className="px-6 py-2 text-sm font-medium transition-all" style={{
-                backgroundColor: 'var(--foreground-title)',
-                color: 'var(--background)',
-                letterSpacing: '0.05em',
-                textTransform: 'uppercase'
-              }}>
-                Deploy
-              </button>
-            </>
+            <></>
           )}
         </div>
       </header>
