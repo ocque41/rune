@@ -1,14 +1,17 @@
 'use client';
 
+
 import { FlowBuilder } from "@/components/flow-builder";
 import { RunList } from "@/components/run-list";
 import { RunDetails } from "@/components/run-details";
+import { WorkflowList } from "@/components/workflow-list"; // Import
 import Link from "next/link";
-import { BookOpen, Layout, Activity } from "lucide-react";
+import { BookOpen, Layout, Activity, FolderGit2 } from "lucide-react"; // Add Folder icon
 import { useState } from "react";
+import { toast } from 'sonner';
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'editor' | 'runs'>('editor');
+  const [activeTab, setActiveTab] = useState<'editor' | 'runs' | 'workflows'>('editor'); // Add 'workflows'
   const [selectedRunId, setSelectedRunId] = useState<string | undefined>();
 
   return (
@@ -42,6 +45,19 @@ export default function Home() {
             >
               <Layout size={14} />
               Editor
+            </button>
+            <button
+              onClick={() => setActiveTab('workflows')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'workflows'
+                ? 'bg-white dark:bg-black shadow-sm'
+                : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-60 hover:opacity-100'
+                }`}
+              style={{
+                color: activeTab === 'workflows' ? 'var(--foreground-title)' : 'var(--foreground-subtitle)'
+              }}
+            >
+              <FolderGit2 size={14} />
+              Workflows
             </button>
             <button
               onClick={() => setActiveTab('runs')}
@@ -80,6 +96,12 @@ export default function Home() {
       <main className="flex-1 overflow-hidden">
         {activeTab === 'editor' ? (
           <FlowBuilder />
+        ) : activeTab === 'workflows' ? (
+          <WorkflowList onSelectWorkflow={(id, type) => {
+            // TODO: Implement loading workflow into editor
+            toast.info(`Selected ${type} workflow: ${id}`);
+            // In future: setNodes/Edges and switch to editor
+          }} />
         ) : (
           <div className="flex h-full">
             <div className="w-80 h-full">
@@ -103,3 +125,4 @@ export default function Home() {
     </div>
   );
 }
+

@@ -246,7 +246,8 @@ const FlowBuilderContent = ({
         try {
             // Auto-save draft before deploying
             const code = generateWorkflowCode(nodes, edges);
-            const filename = 'my-workflow.ts';
+            // Use saved filename if available, otherwise default
+            const filename = savedFilename ? (savedFilename.endsWith('.ts') ? savedFilename : `${savedFilename}.ts`) : 'my-workflow.ts';
 
             const saveResponse = await fetch('/api/workflows/save', {
                 method: 'POST',
@@ -254,12 +255,15 @@ const FlowBuilderContent = ({
                 body: JSON.stringify({ code, filename }),
             });
 
-            if (!saveResponse.ok) throw new Error('Failed to auto-save draft');
+            if (!saveResponse.ok) {
+                const err = await saveResponse.json().catch(() => ({ error: 'Unknown error' }));
+                throw new Error(`Failed to auto-save draft: ${err.error || saveResponse.statusText}`);
+            }
 
             const response = await fetch('/api/workflows/deploy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ slug: 'my-workflow' }),
+                body: JSON.stringify({ slug: filename.replace(/\.ts$/, '') }),
             });
 
             if (!response.ok) {
