@@ -277,8 +277,6 @@ export const generateContent = async (params: { prompt: string; model?: string; 
   return { 
     status: "success", 
     content: \`Generated content for: \${params.prompt}\`,
-    model: params.model 
-    content: \`Generated content for: \${params.prompt}\`,
     model: params.model,
     provider: params.provider
   };
