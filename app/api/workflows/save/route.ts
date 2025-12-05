@@ -32,8 +32,11 @@ export async function POST(req: NextRequest) {
         try {
             await fs.access(workflowDir);
             dirExists = true;
-        } catch {
-            // Directory doesn't exist
+        } catch (e: any) {
+            if (e.code !== 'ENOENT') {
+                throw new Error(`Failed to access workflow directory: ${e.message}`);
+            }
+            // Directory doesn't exist, proceed to create
         }
 
         // Migration Logic: If directory doesn't exist but legacy file does
@@ -84,10 +87,10 @@ export async function POST(req: NextRequest) {
         await fs.writeFile(draftPath, code, 'utf-8');
 
         return NextResponse.json({ success: true, path: draftPath });
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error saving workflow:', error);
         return NextResponse.json(
-            { error: 'Failed to save workflow' },
+            { error: `Failed to save workflow: ${error.message}` },
             { status: 500 }
         );
     }

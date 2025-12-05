@@ -88,3 +88,28 @@ export async function POST(req: NextRequest) {
         );
     }
 }
+
+export const dynamic = 'force-dynamic';
+
+export async function GET(req: NextRequest) {
+    try {
+        const supabase = createServerSupabaseClient();
+
+        // Optional: filter by user_id if we want to add that logic later
+        const { data, error } = await supabase
+            .from('rune_workflows')
+            .select('id, name, description, updated_at')
+            .order('updated_at', { ascending: false });
+
+        if (error) throw error;
+
+        return NextResponse.json({ workflows: data });
+
+    } catch (error: unknown) {
+        console.error('List cloud workflows error:', error);
+        return NextResponse.json(
+            { error: 'Failed to list cloud workflows' },
+            { status: 500 }
+        );
+    }
+}
