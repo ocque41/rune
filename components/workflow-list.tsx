@@ -17,6 +17,12 @@ export function WorkflowList({ onSelectWorkflow }: { onSelectWorkflow?: (id: str
     const [workflows, setWorkflows] = useState<Workflow[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
+    useEffect(() => {
+        // Auto-detect storage based on hostname
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        setActiveTab(isLocal ? 'local' : 'cloud');
+    }, []);
+
     const fetchWorkflows = async () => {
         setIsLoading(true);
         setWorkflows([]);
@@ -53,28 +59,9 @@ export function WorkflowList({ onSelectWorkflow }: { onSelectWorkflow?: (id: str
             <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
                 <div className="flex gap-2 items-center">
                     <h2 className="text-lg font-bold mr-4" style={{ color: 'var(--foreground-title)' }}>Your Workflows</h2>
-                    <button
-                        onClick={() => setActiveTab('local')}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'local'
-                            ? 'bg-white dark:bg-black shadow-sm'
-                            : 'opacity-60 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'
-                            }`}
-                        style={{ color: 'var(--foreground-title)' }}
-                    >
-                        <HardDrive size={14} />
-                        Local
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('cloud')}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'cloud'
-                            ? 'bg-white dark:bg-black shadow-sm'
-                            : 'opacity-60 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'
-                            }`}
-                        style={{ color: 'var(--foreground-title)' }}
-                    >
-                        <Cloud size={14} />
-                        Cloud
-                    </button>
+                    <span className="text-xs px-2 py-1 rounded bg-black/5 dark:bg-white/10 opacity-60" style={{ color: 'var(--foreground-subtitle)' }}>
+                        {activeTab === 'local' ? 'Local Storage' : 'Cloud Storage'}
+                    </span>
                 </div>
                 <button
                     onClick={fetchWorkflows}
