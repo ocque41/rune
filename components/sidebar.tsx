@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { DragEvent } from 'react';
 import { MessageSquare, Mail, Database, Globe, Clock, Code, PauseCircle, Split, Repeat, Lock, GitMerge, Workflow, Info, ChevronDown, UserCheck, Sparkles, Box } from 'lucide-react';
 import { useEnterAnimation, animateHover, animateHoverExit } from '@/lib/animation-utils';
-import anime from 'animejs';
+import { animate, stagger, remove } from 'animejs';
 
 export const Sidebar = () => {
     const [showSecrets, setShowSecrets] = useState(false);
@@ -16,11 +16,10 @@ export const Sidebar = () => {
     // Staggered animation for list items
     useEffect(() => {
         if (containerRef.current) {
-            anime({
-                targets: containerRef.current.querySelectorAll('.sidebar-item'),
+            animate(containerRef.current.querySelectorAll('.sidebar-item'), {
                 opacity: [0, 1],
                 translateX: [-20, 0],
-                delay: anime.stagger(50),
+                delay: stagger(50),
                 easing: 'easeOutExpo'
             });
         }
@@ -81,10 +80,6 @@ export const Sidebar = () => {
     ];
 
     return (
-// ... (imports remain)
-
-    // ... (Sidebar component start)
-    return (
         <aside className="h-full w-72 border-r flex flex-col relative backdrop-blur-md z-20" style={{
             backgroundColor: 'rgba(20, 20, 25, 0.8)', // Semi-transparent dark
             borderColor: 'rgba(255, 255, 255, 0.1)'
@@ -110,23 +105,23 @@ const SidebarItemPreview = ({ label, description, type, icon: Icon }: { label: s
         if (!previewRef.current) return;
 
         // Reset any existing animations
-        anime.remove(previewRef.current.querySelectorAll('.anim-target'));
+        remove(previewRef.current.querySelectorAll('.anim-target'));
 
         // Animation logic based on type
         if (type === 'step') {
             // Sequence animation
-            anime({
+            animate({
                 targets: previewRef.current.querySelectorAll('.dot'),
                 translateX: [0, 40],
                 opacity: [0, 1, 0],
-                delay: anime.stagger(200),
+                delay: stagger(200),
                 duration: 1500,
                 loop: true,
                 easing: 'easeInOutQuad'
             });
         } else if (type === 'if') {
             // Split animation
-            anime({
+            animate({
                 targets: previewRef.current.querySelector('.dot-main'),
                 translateX: [0, 20],
                 opacity: [0, 1],
@@ -134,7 +129,7 @@ const SidebarItemPreview = ({ label, description, type, icon: Icon }: { label: s
                 loop: true,
                 easing: 'linear'
             });
-            anime({
+            animate({
                 targets: previewRef.current.querySelector('.dot-up'),
                 translateX: [20, 40],
                 translateY: [0, -15],
@@ -144,7 +139,7 @@ const SidebarItemPreview = ({ label, description, type, icon: Icon }: { label: s
                 loop: true,
                 easing: 'easeOutQuad'
             });
-            anime({
+            animate({
                 targets: previewRef.current.querySelector('.dot-down'),
                 translateX: [20, 40],
                 translateY: [0, 15],
@@ -156,7 +151,7 @@ const SidebarItemPreview = ({ label, description, type, icon: Icon }: { label: s
             });
         } else if (type === 'loop') {
             // Rotation animation
-            anime({
+            animate({
                 targets: previewRef.current.querySelector('.loop-icon'),
                 rotate: 360,
                 duration: 2000,
@@ -165,18 +160,18 @@ const SidebarItemPreview = ({ label, description, type, icon: Icon }: { label: s
             });
         } else if (type === 'ai') {
             // Sparkle animation
-            anime({
+            animate({
                 targets: previewRef.current.querySelectorAll('.sparkle'),
                 scale: [0, 1, 0],
                 opacity: [0, 1, 0],
-                delay: anime.stagger(300),
+                delay: stagger(300),
                 duration: 1500,
                 loop: true,
                 easing: 'easeInOutSine'
             });
         } else {
             // General Pulse
-            anime({
+            animate({
                 targets: previewRef.current.querySelector('.icon-large'),
                 scale: [1, 1.1, 1],
                 opacity: [0.5, 1, 0.5],
