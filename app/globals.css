@@ -3,12 +3,12 @@
 /* Cumulus Brand - Dark Mode Default */
 :root {
   /* Dark palette (default) */
-  --background: #171717;
+  --background: #141414;
   --foreground-body: #AAAAAA;
   --foreground-subtitle: #999999;
   --foreground-title: #888888;
-  --sidebar-background: #171717;
-  --header-background: #171717;
+  --sidebar-background: #141414;
+  --header-background: #141414;
   --node-background: #1f1f1f;
   --border-color: rgba(170, 170, 170, 0.15);
   --accent-bg: rgba(170, 170, 170, 0.1);
@@ -16,15 +16,114 @@
 
 /* Light palette (opt-in) */
 :root[data-theme="light"] {
-  --background: #f9f9f9;
+  --background: #F0EEE9;
   --foreground-body: #111111;
   --foreground-subtitle: #222222;
   --foreground-title: #333333;
-  --sidebar-background: #f9f9f9;
-  --header-background: #f9f9f9;
+  --sidebar-background: #F0EEE9;
+  --header-background: #F0EEE9;
   --node-background: #ffffff;
   --border-color: rgba(17, 17, 17, 0.1);
   --accent-bg: rgba(17, 17, 17, 0.05);
+}
+
+/* Custom Fonts */
+@font-face {
+  font-family: 'Drafting Mono';
+  src: url('/DraftingMono-Thin.ttf') format('truetype');
+  font-weight: 100;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Drafting Mono';
+  src: url('/DraftingMono-ThinItalic.ttf') format('truetype');
+  font-weight: 100;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Drafting Mono';
+  src: url('/DraftingMono-ExtraLight.ttf') format('truetype');
+  font-weight: 200;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Drafting Mono';
+  src: url('/DraftingMono-ExtraLightItalic.ttf') format('truetype');
+  font-weight: 200;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Drafting Mono';
+  src: url('/DraftingMono-Light.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Drafting Mono';
+  src: url('/DraftingMono-LightItalic.ttf') format('truetype');
+  font-weight: 300;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Drafting Mono';
+  src: url('/DraftingMono-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Drafting Mono';
+  src: url('/DraftingMono-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Drafting Mono';
+  src: url('/DraftingMono-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Drafting Mono';
+  src: url('/DraftingMono-MediumItalic.ttf') format('truetype');
+  font-weight: 500;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Drafting Mono';
+  src: url('/DraftingMono-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Drafting Mono';
+  src: url('/DraftingMono-SemiBoldItalic.ttf') format('truetype');
+  font-weight: 600;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Drafting Mono';
+  src: url('/DraftingMono-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Drafting Mono';
+  src: url('/DraftingMono-BoldItalic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
 }
 
 @theme inline {
@@ -32,16 +131,17 @@
   --color-foreground: var(--foreground-body);
   --color-sidebar: var(--sidebar-background);
   --color-header: var(--header-background);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: 'Drafting Mono', var(--font-geist-sans), monospace;
+  --font-mono: 'Drafting Mono', var(--font-geist-mono), monospace;
 }
 
 body {
   background: var(--background);
   color: var(--foreground-body);
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: 'Drafting Mono', monospace;
   font-weight: 500;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.01em;
+  /* Text -1% */
   line-height: 1.5;
 }
 
@@ -52,10 +152,17 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: 'Drafting Mono', monospace;
   font-weight: 700;
   letter-spacing: -0.05em;
+  /* Titles -5% */
   color: var(--foreground-title);
+}
+
+.subtitle,
+[data-slot="subtitle"] {
+  letter-spacing: -0.03em;
+  /* Subtitles -3% */
 }
 
 /* Accessibility: Focus rings */
@@ -78,7 +185,7 @@ h6 {
 
 /* Button base styles - pill/rounded CTAs */
 button {
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: 'Drafting Mono', monospace;
   font-weight: 500;
   border-radius: 24px;
   transition: all 0.2s ease;
@@ -99,9 +206,9 @@ a:hover {
 input,
 textarea,
 select {
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: 'Drafting Mono', monospace;
   font-weight: 400;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 /* Code blocks */

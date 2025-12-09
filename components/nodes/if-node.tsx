@@ -1,8 +1,7 @@
-'use client';
-
 import React, { useState } from 'react';
 import { Handle, Position, NodeProps, Node } from '@xyflow/react';
 import { Split, Settings } from 'lucide-react';
+import { NodeWrapper } from './node-wrapper';
 
 export type IfNodeData = {
     label: string;
@@ -16,48 +15,37 @@ const IfNode = ({ data, selected }: NodeProps<CustomIfNode>) => {
     const [condition, setCondition] = useState(data.condition || 'true');
 
     return (
-        <div
-            className={`min-w-[200px] rounded-lg border shadow-sm transition-all ${selected ? 'ring-2 ring-blue-500/20' : ''}`}
-            style={{
-                backgroundColor: 'var(--node-background)',
-                borderColor: selected ? '#3b82f6' : 'rgba(17, 17, 17, 0.1)'
-            }}
+        <NodeWrapper
+            selected={selected}
+            handles={[
+                { type: 'target', position: Position.Top }
+            ]}
+            className="min-w-[240px]"
         >
-            <div className="flex items-center justify-between border-b px-3 py-2" style={{
-                backgroundColor: 'var(--accent-bg)',
-                borderColor: 'var(--border-color)'
-            }}>
-                <div className="flex items-center gap-2">
-                    <div className="flex h-6 w-6 items-center justify-center rounded" style={{
-                        backgroundColor: 'var(--accent-bg)',
-                        color: 'var(--foreground-body)'
-                    }}>
-                        <Split size={12} />
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 bg-white/5">
+                <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10 text-purple-400 ring-1 ring-purple-500/20">
+                        <Split size={16} />
                     </div>
-                    <span className="text-sm font-medium" style={{ color: 'var(--foreground-body)' }}>
+                    <span className="text-sm font-semibold text-white/90 tracking-wide">
                         If / Else
                     </span>
                 </div>
                 <button
                     onClick={() => setShowConfig(!showConfig)}
-                    className="rounded p-1 transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                    className="rounded p-1.5 transition-colors text-white/40 hover:text-white/80 hover:bg-white/5"
                 >
-                    <Settings size={14} className="opacity-60 hover:opacity-100" style={{ color: 'var(--foreground-body)' }} />
+                    <Settings size={16} />
                 </button>
             </div>
 
-            <div className="p-3">
-                <div className="mb-2">
-                    <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--foreground-body)' }}>Condition (JS)</label>
+            <div className="p-4 space-y-4">
+                <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Condition (JS)</label>
                     <input
                         type="text"
                         placeholder="e.g. params.value > 10"
-                        className="w-full rounded border px-2 py-1 text-sm font-mono"
-                        style={{
-                            backgroundColor: 'var(--accent-bg)',
-                            borderColor: 'var(--border-color)',
-                            color: 'var(--foreground-body)'
-                        }}
+                        className="w-full rounded bg-black/20 border border-white/10 px-3 py-2 text-sm font-mono text-purple-300 placeholder-white/20 focus:outline-none focus:border-purple-500/50 transition-colors"
                         value={condition}
                         onChange={(e) => {
                             setCondition(e.target.value);
@@ -67,48 +55,30 @@ const IfNode = ({ data, selected }: NodeProps<CustomIfNode>) => {
                 </div>
             </div>
 
-            <Handle
-                type="target"
-                position={Position.Top}
-                className="!h-3 !w-3 !border-2 !transition-colors hover:!bg-blue-500"
-                style={{
-                    backgroundColor: 'var(--foreground)',
-                    borderColor: 'var(--background)'
-                }}
-            />
-
             {/* True Output */}
             <div className="absolute -bottom-6 left-1/4 flex flex-col items-center">
-                <span className="mb-1 text-[10px] font-medium text-green-600">True</span>
+                <span className="mb-1 text-[10px] font-bold text-green-500 uppercase tracking-widest">True</span>
                 <Handle
                     type="source"
                     position={Position.Bottom}
                     id="true"
-                    className="!h-3 !w-3 !border-2 !transition-colors hover:!bg-green-500"
-                    style={{
-                        backgroundColor: 'var(--foreground)',
-                        borderColor: 'var(--background)',
-                        left: '25%'
-                    }}
+                    className="!h-3 !w-3 !bg-green-500 !border-2 !border-[#0f172a]"
+                    style={{ left: '25%' }}
                 />
             </div>
 
             {/* False Output */}
             <div className="absolute -bottom-6 right-1/4 flex flex-col items-center">
-                <span className="mb-1 text-[10px] font-medium text-red-600">False</span>
+                <span className="mb-1 text-[10px] font-bold text-red-500 uppercase tracking-widest">False</span>
                 <Handle
                     type="source"
                     position={Position.Bottom}
                     id="false"
-                    className="!h-3 !w-3 !border-2 !transition-colors hover:!bg-red-500"
-                    style={{
-                        backgroundColor: 'var(--foreground)',
-                        borderColor: 'var(--background)',
-                        left: '75%'
-                    }}
+                    className="!h-3 !w-3 !bg-red-500 !border-2 !border-[#0f172a]"
+                    style={{ left: '75%' }}
                 />
             </div>
-        </div>
+        </NodeWrapper>
     );
 };
 
