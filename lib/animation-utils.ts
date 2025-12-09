@@ -1,8 +1,8 @@
-import anime from 'animejs';
+import { animate } from 'animejs';
 import { useEffect, useRef, useCallback } from 'react';
 
 // --- Types ---
-type AnimationTarget = HTMLElement | SVGElement | NodeList | string | null;
+type AnimationTarget = HTMLElement | SVGElement | NodeList | string;
 
 interface HoverOptions {
     scale?: number;
@@ -15,9 +15,12 @@ interface HoverOptions {
 /**
  * Animate an element entering the screen (e.g., scale up + fade in)
  */
+// ... (imports)
+
+// ...
+
 export const animateEnter = (target: AnimationTarget, delay: number = 0) => {
-    return anime({
-        targets: target,
+    return animate(target, {
         opacity: [0, 1],
         scale: [0.8, 1],
         translateY: [20, 0],
@@ -27,12 +30,8 @@ export const animateEnter = (target: AnimationTarget, delay: number = 0) => {
     });
 };
 
-/**
- * Animate an element exiting the screen (e.g., scale down + fade out)
- */
 export const animateExit = (target: AnimationTarget) => {
-    return anime({
-        targets: target,
+    return animate(target, {
         opacity: 0,
         scale: 0.8,
         duration: 400,
@@ -40,38 +39,26 @@ export const animateExit = (target: AnimationTarget) => {
     });
 };
 
-/**
- * Create a hover effect (scale up) for an element
- */
 export const animateHover = (target: AnimationTarget, options: HoverOptions = {}) => {
     const { scale = 1.05, duration = 300, easing = 'easeOutQuad' } = options;
-    return anime({
-        targets: target,
+    return animate(target, {
         scale: scale,
         duration: duration,
         easing: easing,
     });
 };
 
-/**
- * Reset hover effect (scale back to 1)
- */
 export const animateHoverExit = (target: AnimationTarget, options: HoverOptions = {}) => {
     const { duration = 300, easing = 'easeOutQuad' } = options;
-    return anime({
-        targets: target,
+    return animate(target, {
         scale: 1,
         duration: duration,
         easing: easing,
     });
 };
 
-/**
- * Pulse animation for attention or selection
- */
 export const animatePulse = (target: AnimationTarget) => {
-    return anime({
-        targets: target,
+    return animate(target, {
         scale: [1, 1.05, 1],
         opacity: [1, 0.8, 1],
         duration: 1500,
@@ -79,6 +66,8 @@ export const animatePulse = (target: AnimationTarget) => {
         easing: 'easeInOutSine',
     });
 };
+
+// ... (Effect hooks remain the same as they use these functions)
 
 // --- Hooks ---
 

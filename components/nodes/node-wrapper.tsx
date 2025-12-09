@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { Handle, Position, NodeProps } from '@xyflow/react';
 import { useEnterAnimation, animatePulse } from '@/lib/animation-utils';
-import anime from 'animejs/lib/anime.es.js';
+import { animate } from 'animejs';
 
 interface NodeWrapperProps {
     children: React.ReactNode;
@@ -17,11 +17,11 @@ export const NodeWrapper = memo(({ children, selected, className, style, handles
     const ref = useEnterAnimation(100);
 
     // Pulse effect when selected
+    // Pulse effect when selected
     React.useEffect(() => {
         if (ref.current && selected) {
             // Pulse animation
-            const animation = anime({
-                targets: ref.current,
+            const animation = animate(ref.current, {
                 boxShadow: [
                     '0 0 0 0px rgba(59, 130, 246, 0)',
                     '0 0 0 4px rgba(59, 130, 246, 0.3)',
@@ -32,7 +32,7 @@ export const NodeWrapper = memo(({ children, selected, className, style, handles
                 loop: true,
                 easing: 'easeInOutSine'
             });
-            return () => animation.pause(); // Cleanup
+            return () => { animation.pause(); }; // Cleanup
         }
     }, [selected]);
 

@@ -41,7 +41,8 @@ export async function POST(
 
         let workflowModule;
         try {
-            workflowModule = await import(`@/workflows/${sanitizedId}/prod`);
+            // workflowModule = await import(`@/workflows/${sanitizedId}/prod`);
+            throw new Error('Falback to legacy');
         } catch (e) {
             try {
                 // Try legacy path
