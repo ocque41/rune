@@ -7,7 +7,7 @@ import { RunDetails } from "@/components/run-details";
 import { WorkflowList } from "@/components/workflow-list"; // Import
 import Link from "next/link";
 import { BookOpen, Layout, Activity, FolderGit2 } from "lucide-react"; // Add Folder icon
-import { useState } from "react";
+import React, { useState } from "react";
 import { toast } from 'sonner';
 
 export default function Home() {
