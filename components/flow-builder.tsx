@@ -375,7 +375,10 @@ const FlowBuilderContent = ({
     }, [setNodes, setEdges]);
 
     return (
-        <div className="flex h-[calc(100vh-64px)] w-full flex-row overflow-hidden" style={{ backgroundColor: 'var(--background)' }}>
+        <div className="flex h-[calc(100vh-64px)] w-full flex-row overflow-hidden relative" style={{
+            backgroundColor: '#0a0a0f', // Deep space black
+            backgroundImage: 'radial-gradient(circle at 50% 50%, #1a1a2e 0%, #0a0a0f 100%)'
+        }}>
             <Sidebar />
             <div className="flex-grow h-full relative" ref={reactFlowWrapper}>
                 <ReactFlow
@@ -389,23 +392,36 @@ const FlowBuilderContent = ({
                     onDragOver={onDragOver}
                     nodeTypes={nodeTypes}
                     fitView
-                    style={{ backgroundColor: 'var(--background)' }}
+                    className="transition-opacity duration-500" // Smooth load
+                    style={{ backgroundColor: 'transparent' }} // Let radial gradient show
                 >
                     <Controls style={{
-                        backgroundColor: 'var(--node-background)',
-                        borderColor: 'var(--border-color)',
-                        color: 'var(--foreground-body)'
-                    }} className="!shadow-none [&>button]:!border-transparent" />
-                    <Background color="var(--foreground-subtitle)" gap={16} size={1} variant={BackgroundVariant.Dots} className="opacity-10" />
+                        backgroundColor: 'rgba(20, 20, 25, 0.9)',
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                        color: 'white',
+                        borderRadius: '8px',
+                        padding: '4px'
+                    }} className="!shadow-2xl backdrop-blur-md [&>button]:!border-transparent [&>button:hover]:!bg-white/10" />
+
+                    <Background
+                        color="#4a4a5e"
+                        gap={24}
+                        size={1}
+                        variant={BackgroundVariant.Dots}
+                        className="opacity-5"
+                    />
+
                     <MiniMap
                         style={{
-                            backgroundColor: 'var(--node-background)',
-                            borderColor: 'var(--border-color)'
+                            backgroundColor: 'rgba(20, 20, 25, 0.9)',
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            borderRadius: '12px'
                         }}
-                        className="!shadow-none"
+                        className="!shadow-2xl backdrop-blur-md m-4"
                         nodeColor={(n) => {
-                            return 'var(--foreground-subtitle)';
+                            return '#3b82f6'; // Neon blue nodes
                         }}
+                        maskColor="rgba(0, 0, 0, 0.6)"
                     />
                     <div className="absolute right-4 top-4 z-10 flex gap-3">
                         <Link
