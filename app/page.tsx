@@ -2,10 +2,20 @@
 import React from 'react';
 
 
-import { FlowBuilder } from "@/components/flow-builder";
+import dynamic from 'next/dynamic';
+
+const FlowBuilder = dynamic(() => import("@/components/flow-builder").then(mod => mod.FlowBuilder), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center h-full opacity-50">Loading Editor...</div>
+});
+
 import { RunList } from "@/components/run-list";
 import { RunDetails } from "@/components/run-details";
-import { WorkflowList } from "@/components/workflow-list"; // Import
+
+const WorkflowList = dynamic(() => import("@/components/workflow-list").then(mod => mod.WorkflowList), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center h-full opacity-50">Loading Workflows...</div>
+});
 import Link from "next/link";
 import { BookOpen, Layout, Activity, FolderGit2 } from "lucide-react"; // Add Folder icon
 import { useState } from "react";
