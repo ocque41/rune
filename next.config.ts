@@ -4,6 +4,8 @@ import { withWorkflow } from "workflow/next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  transpilePackages: ['workflow', 'animejs', '@xyflow/react'],
 };
 
 export default withWorkflow(nextConfig);
+// export default nextConfig;
