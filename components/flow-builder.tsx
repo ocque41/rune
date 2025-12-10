@@ -689,12 +689,15 @@ const FlowBuilderContent = ({
                                                     {log.stepLabel}
                                                 </span>
                                             </div>
-
                                             <div className="mt-1" style={{ color: 'var(--foreground-body)' }}>
                                                 {log.message}
                                             </div>
 
-                                            {log.data && Object.keys(log.data).length > 0 && simulatedDataView(log.data)}
+                                            {log.data && Object.keys(log.data).length > 0 && (
+                                                <pre className="mt-2 block overflow-x-auto rounded bg-black/5 dark:bg-white/5 p-2 text-[10px] opacity-80" style={{ color: 'var(--foreground-body)' }}>
+                                                    {JSON.stringify(log.data, null, 2)}
+                                                </pre>
+                                            )}
                                         </div>
                                     </div>
                                 ))
@@ -706,15 +709,6 @@ const FlowBuilderContent = ({
         </div>
     );
 };
-
-// Helper to render data cleanly
-const simulatedDataView = (data: any) => {
-    return (
-        <pre className="mt-2 block overflow-x-auto rounded bg-black/5 dark:bg-white/5 p-2 text-[10px] opacity-80" style={{ color: 'var(--foreground-body)' }}>
-            {JSON.stringify(data, null, 2)}
-        </pre>
-    );
-}
 
 
 
