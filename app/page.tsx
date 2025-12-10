@@ -1,4 +1,5 @@
 'use client';
+import React from 'react';
 
 
 import { FlowBuilder } from "@/components/flow-builder";
@@ -7,7 +8,7 @@ import { RunDetails } from "@/components/run-details";
 import { WorkflowList } from "@/components/workflow-list"; // Import
 import Link from "next/link";
 import { BookOpen, Layout, Activity, FolderGit2 } from "lucide-react"; // Add Folder icon
-import React, { useState } from "react";
+import { useState } from "react";
 import { toast } from 'sonner';
 
 export default function Home() {

@@ -4,27 +4,36 @@
 :root {
   /* Dark palette (default) */
   --background: #141414;
-  --foreground-body: #AAAAAA;
+  --foreground-body: #F0EEE9;
+  /* Updated text color */
   --foreground-subtitle: #999999;
-  --foreground-title: #888888;
+  --foreground-title: #F0EEE9;
+  /* Match main text for titles or keep distinct if needed, using main text color for now as requested */
   --sidebar-background: #141414;
   --header-background: #141414;
   --node-background: #1f1f1f;
-  --border-color: rgba(170, 170, 170, 0.15);
-  --accent-bg: rgba(170, 170, 170, 0.1);
+  --border-color: rgba(240, 238, 233, 0.15);
+  /* Adjusted based on new text color */
+  --accent-bg: rgba(240, 238, 233, 0.1);
+
+  /* Typography Variables */
+  --font-h1: 'Drafting Mono', monospace;
+  --font-h2: 'Drafting Mono', monospace;
+  --font-h3: 'Drafting Mono', monospace;
+  --font-body: 'Drafting Mono', monospace;
 }
 
-/* Light palette (opt-in) */
+/* Light palette (opt-in) - Adjusted to invert logically if needed, but keeping user request focus on specific colors */
 :root[data-theme="light"] {
   --background: #F0EEE9;
-  --foreground-body: #111111;
-  --foreground-subtitle: #222222;
-  --foreground-title: #333333;
+  --foreground-body: #141414;
+  --foreground-subtitle: #333333;
+  --foreground-title: #141414;
   --sidebar-background: #F0EEE9;
   --header-background: #F0EEE9;
   --node-background: #ffffff;
-  --border-color: rgba(17, 17, 17, 0.1);
-  --accent-bg: rgba(17, 17, 17, 0.05);
+  --border-color: rgba(20, 20, 20, 0.1);
+  --accent-bg: rgba(20, 20, 20, 0.05);
 }
 
 /* Custom Fonts */
@@ -138,7 +147,7 @@
 body {
   background: var(--background);
   color: var(--foreground-body);
-  font-family: 'Drafting Mono', monospace;
+  font-family: var(--font-body);
   font-weight: 500;
   letter-spacing: -0.01em;
   /* Text -1% */
@@ -152,7 +161,8 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: 'Drafting Mono', monospace;
+  font-family: var(--font-h1);
+  /* Using h1 font for all headings for now as they are the same family */
   font-weight: 700;
   letter-spacing: -0.05em;
   /* Titles -5% */
