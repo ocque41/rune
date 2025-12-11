@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useCallback, useRef, useState } from 'react';
+import "@/lib/react-shim";
+import React, { useCallback, useRef, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Cloud } from 'lucide-react';
 import {
