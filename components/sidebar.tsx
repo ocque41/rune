@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { DragEvent } from 'react';
 import { MessageSquare, Mail, Database, Globe, Clock, Code, PauseCircle, Split, Repeat, Lock, GitMerge, Workflow, Info, ChevronDown, UserCheck, Sparkles, Box } from 'lucide-react';
 import { useEnterAnimation, animateHover, animateHoverExit } from '@/lib/animation-utils';
-import { animate, stagger, remove } from 'animejs';
+// animejs import removed
 
 export const Sidebar = () => {
     const [showSecrets, setShowSecrets] = useState(false);
@@ -14,16 +14,7 @@ export const Sidebar = () => {
     const containerRef = useRef<HTMLDivElement>(null);
 
     // Staggered animation for list items
-    useEffect(() => {
-        if (containerRef.current) {
-            animate(containerRef.current.querySelectorAll('.sidebar-item'), {
-                opacity: [0, 1],
-                translateX: [-20, 0],
-                delay: stagger(50),
-                easing: 'easeOutExpo'
-            });
-        }
-    }, []);
+    // Animation effect removed
 
     // Fetch available secrets on mount
     useEffect(() => {
@@ -102,93 +93,7 @@ const SidebarItemPreview = ({ label, description, type, icon: Icon }: { label: s
     const previewRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (!previewRef.current) return;
-
-        // Reset any existing animations
-        remove(previewRef.current.querySelectorAll('.anim-target'));
-
-        // Animation logic based on type
-        if (type === 'step') {
-            // Sequence animation
-            animate(previewRef.current.querySelectorAll('.dot'), {
-                translateX: [0, 40],
-                opacity: [0, 1, 0],
-                delay: stagger(200),
-                duration: 1500,
-                loop: true,
-                easing: 'easeInOutQuad'
-            });
-        } else if (type === 'if') {
-            // Split animation
-            const dotMain = previewRef.current.querySelector('.dot-main');
-            if (dotMain) {
-                animate(dotMain, {
-                    translateX: [0, 20],
-                    opacity: [0, 1],
-                    duration: 1000,
-                    loop: true,
-                    easing: 'linear'
-                });
-            }
-            const dotUp = previewRef.current.querySelector('.dot-up');
-            if (dotUp) {
-                animate(dotUp, {
-                    translateX: [20, 40],
-                    translateY: [0, -15],
-                    opacity: [0, 1, 0],
-                    delay: 1000,
-                    duration: 1000,
-                    loop: true,
-                    easing: 'easeOutQuad'
-                });
-            }
-            const dotDown = previewRef.current.querySelector('.dot-down');
-            if (dotDown) {
-                animate(dotDown, {
-                    translateX: [20, 40],
-                    translateY: [0, 15],
-                    opacity: [0, 1, 0],
-                    delay: 1000,
-                    duration: 1000,
-                    loop: true,
-                    easing: 'easeOutQuad'
-                });
-            }
-        } else if (type === 'loop') {
-            // Rotation animation
-            const loopIcon = previewRef.current.querySelector('.loop-icon');
-            if (loopIcon) {
-                animate(loopIcon, {
-                    rotate: 360,
-                    duration: 2000,
-                    loop: true,
-                    easing: 'linear'
-                });
-            }
-        } else if (type === 'ai') {
-            // Sparkle animation
-            animate(previewRef.current.querySelectorAll('.sparkle'), {
-                scale: [0, 1, 0],
-                opacity: [0, 1, 0],
-                delay: stagger(300),
-                duration: 1500,
-                loop: true,
-                easing: 'easeInOutSine'
-            });
-        } else {
-            // General Pulse
-            const iconLarge = previewRef.current.querySelector('.icon-large');
-            if (iconLarge) {
-                animate(iconLarge, {
-                    scale: [1, 1.1, 1],
-                    opacity: [0.5, 1, 0.5],
-                    duration: 2000,
-                    loop: true,
-                    easing: 'easeInOutSine'
-                });
-            }
-        }
-
+        // Animations removed
     }, [type]);
 
     return (
@@ -278,45 +183,12 @@ const SidebarItem = ({ item, onDragStart }: { item: any, onDragStart: any }) => 
 
     const handleMouseEnter = () => {
         setIsHovered(true);
-        if (ref.current) {
-            animate(ref.current, {
-                scale: 1.05,
-                backgroundColor: 'rgba(59, 130, 246, 0.15)',
-                borderColor: 'rgba(59, 130, 246, 0.4)',
-                duration: 300,
-                easing: 'easeOutQuad'
-            });
-            // Icon animation
-            const iconWrapper = ref.current.querySelector('.icon-wrapper');
-            if (iconWrapper) {
-                animate(iconWrapper, {
-                    rotate: '10deg',
-                    scale: 1.1,
-                    duration: 400
-                });
-            }
-        }
+        // Animation removed
     };
 
     const handleMouseLeave = () => {
         setIsHovered(false);
-        if (ref.current) {
-            animate(ref.current, {
-                scale: 1,
-                backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                borderColor: 'rgba(255, 255, 255, 0.05)',
-                duration: 300,
-                easing: 'easeOutQuad'
-            });
-            const iconWrapper = ref.current.querySelector('.icon-wrapper');
-            if (iconWrapper) {
-                animate(iconWrapper, {
-                    rotate: '0deg',
-                    scale: 1,
-                    duration: 400
-                });
-            }
-        }
+        // Animation removed
     };
 
     return (
