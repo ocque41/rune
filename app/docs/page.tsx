@@ -60,7 +60,6 @@ export default function DocsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
                     {/* Quick Start */}
                     <Link href="/docs/quickstart" className="group rounded-2xl p-8 border transition-all hover:shadow-lg" style={{
-                        backgroundColor: 'var(--node-background)',
                         borderColor: 'var(--border-color)'
                     }}>
                         <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors group-hover:bg-blue-500/20" style={{
@@ -85,7 +84,6 @@ export default function DocsPage() {
 
                     {/* Nodes Reference */}
                     <Link href="/docs/nodes" className="group rounded-2xl p-8 border transition-all hover:shadow-lg" style={{
-                        backgroundColor: 'var(--node-background)',
                         borderColor: 'var(--border-color)'
                     }}>
                         <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors group-hover:bg-purple-500/20" style={{
@@ -110,7 +108,6 @@ export default function DocsPage() {
 
                     {/* Troubleshooting */}
                     <Link href="/docs/troubleshooting" className="group rounded-2xl p-8 border transition-all hover:shadow-lg" style={{
-                        backgroundColor: 'var(--node-background)',
                         borderColor: 'var(--border-color)'
                     }}>
                         <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors group-hover:bg-amber-500/20" style={{
@@ -135,7 +132,6 @@ export default function DocsPage() {
 
                     {/* Secrets (Keeping inline or separate? I'll keep it simple for now, maybe just a card since I kept the section below anyway) */}
                     <a href="#secrets" className="group rounded-2xl p-8 border transition-all hover:shadow-lg" style={{
-                        backgroundColor: 'var(--node-background)',
                         borderColor: 'var(--border-color)'
                     }}>
                         <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4" style={{
@@ -162,7 +158,6 @@ export default function DocsPage() {
                 {/* Secrets Section */}
                 <section id="secrets" className="mb-16 scroll-mt-20">
                     <div className="rounded-2xl p-10 border" style={{
-                        backgroundColor: 'var(--node-background)',
                         borderColor: 'var(--border-color)'
                     }}>
                         <div className="flex items-center gap-3 mb-6">
