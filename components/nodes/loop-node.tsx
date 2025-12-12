@@ -17,47 +17,36 @@ const LoopNode = ({ data, selected }: NodeProps<CustomLoopNode>) => {
 
     return (
         <div
-            className={`min-w-[200px] rounded-lg border shadow-sm transition-all ${selected ? 'ring-2 ring-blue-500/20' : ''}`}
+            className={`min-w-[200px] rounded-xl border-2 transition-all ${selected ? 'border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.3)]' : 'border-white/10 hover:border-white/20'}`}
             style={{
-                backgroundColor: 'var(--node-background)',
-                borderColor: selected ? '#3b82f6' : 'rgba(17, 17, 17, 0.1)'
+                backgroundColor: '#111111',
+                backdropFilter: 'blur(10px)'
             }}
         >
-            <div className="flex items-center justify-between border-b px-3 py-2" style={{
-                backgroundColor: 'var(--accent-bg)',
-                borderColor: 'var(--border-color)'
-            }}>
-                <div className="flex items-center gap-2">
-                    <div className="flex h-6 w-6 items-center justify-center rounded" style={{
-                        backgroundColor: 'var(--accent-bg)',
-                        color: 'var(--foreground-body)'
-                    }}>
-                        <Repeat size={12} />
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 bg-white/5">
+                <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white/70 ring-1 ring-white/20">
+                        <Repeat size={16} />
                     </div>
-                    <span className="text-sm font-medium" style={{ color: 'var(--foreground-body)' }}>
+                    <span className="text-sm font-semibold text-white/90 tracking-wide">
                         For Each
                     </span>
                 </div>
                 <button
                     onClick={() => setShowConfig(!showConfig)}
-                    className="rounded p-1 transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                    className="rounded p-1.5 transition-colors text-white/40 hover:text-white/80 hover:bg-white/5"
                 >
-                    <Settings size={14} className="opacity-60 hover:opacity-100" style={{ color: 'var(--foreground-body)' }} />
+                    <Settings size={16} />
                 </button>
             </div>
 
             <div className="p-3">
                 <div className="mb-2">
-                    <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--foreground-body)' }}>Items (Array)</label>
+                    <label className="mb-1 block text-xs font-medium text-white/50">Items (Array)</label>
                     <input
                         type="text"
                         placeholder="e.g. params.users"
-                        className="w-full rounded border px-2 py-1 text-sm font-mono"
-                        style={{
-                            backgroundColor: 'var(--accent-bg)',
-                            borderColor: 'var(--border-color)',
-                            color: 'var(--foreground-body)'
-                        }}
+                        className="w-full rounded-lg bg-[#222222] border-none px-2 py-1.5 text-sm font-mono text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30"
                         value={items}
                         onChange={(e) => {
                             setItems(e.target.value);
@@ -70,42 +59,29 @@ const LoopNode = ({ data, selected }: NodeProps<CustomLoopNode>) => {
             <Handle
                 type="target"
                 position={Position.Top}
-                className="!h-3 !w-3 !border-2 !transition-colors hover:!bg-blue-500"
-                style={{
-                    backgroundColor: 'var(--foreground)',
-                    borderColor: 'var(--background)'
-                }}
+                className="!h-3 !w-3 !bg-[#F0EEE9] !border-2"
+                style={{ borderColor: '#131313' }}
             />
 
-            {/* Body Output */}
             <div className="absolute -bottom-6 left-1/4 flex flex-col items-center">
-                <span className="mb-1 text-[10px] font-medium text-blue-600">Loop Body</span>
+                <span className="mb-1 text-[10px] font-medium text-blue-400">Loop Body</span>
                 <Handle
                     type="source"
                     position={Position.Bottom}
                     id="body"
-                    className="!h-3 !w-3 !border-2 !transition-colors hover:!bg-blue-500"
-                    style={{
-                        backgroundColor: 'var(--foreground)',
-                        borderColor: 'var(--background)',
-                        left: '25%'
-                    }}
+                    className="!h-3 !w-3 !bg-[#F0EEE9] !border-2"
+                    style={{ borderColor: '#131313', left: '25%' }}
                 />
             </div>
 
-            {/* Done Output */}
             <div className="absolute -bottom-6 right-1/4 flex flex-col items-center">
-                <span className="mb-1 text-[10px] font-medium text-gray-600">Done</span>
+                <span className="mb-1 text-[10px] font-medium text-white/50">Done</span>
                 <Handle
                     type="source"
                     position={Position.Bottom}
                     id="done"
-                    className="!h-3 !w-3 !border-2 !transition-colors hover:!bg-gray-500"
-                    style={{
-                        backgroundColor: 'var(--foreground)',
-                        borderColor: 'var(--background)',
-                        left: '75%'
-                    }}
+                    className="!h-3 !w-3 !bg-gray-500 !border-2"
+                    style={{ borderColor: '#131313', left: '75%' }}
                 />
             </div>
         </div>

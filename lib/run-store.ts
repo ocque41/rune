@@ -7,10 +7,27 @@ export interface RunLog {
     message: string;
 }
 
+export interface StepExecution {
+    stepId: string;
+    stepLabel: string;
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'waiting';
+    startTime?: string;
+    endTime?: string;
+    durationMs?: number;
+    result?: any;
+    error?: string;
+}
+
+export interface WaitingFor {
+    type: 'event' | 'approval';
+    identifier: string;
+    since: string;
+}
+
 export interface WorkflowRun {
     id: string;
     workflowName: string;
-    status: 'pending' | 'running' | 'completed' | 'failed';
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'waiting';
     startTime: string;
     endTime?: string;
     duration?: number;
@@ -18,7 +35,10 @@ export interface WorkflowRun {
     result?: any;
     error?: string;
     logs: RunLog[];
+    steps?: StepExecution[];
+    waitingFor?: WaitingFor;
 }
+
 
 const RUNS_FILE = path.join(process.cwd(), '.runs.json');
 
@@ -124,4 +144,126 @@ export async function updateRunStatus(
 
         await writeRuns(runs);
     }
+}
+
+/**
+ * Update or add a step execution record
+ */
+export async function updateStepExecution(
+    runId: string,
+    stepExecution: StepExecution
+): Promise<void> {
+    const runs = await readRuns();
+    const run = runs.find(r => r.id === runId);
+
+    if (run) {
+        if (!run.steps) {
+            run.steps = [];
+        }
+
+        const existingIndex = run.steps.findIndex(s => s.stepId === stepExecution.stepId);
+        if (existingIndex >= 0) {
+            run.steps[existingIndex] = stepExecution;
+        } else {
+            run.steps.push(stepExecution);
+        }
+
+        await writeRuns(runs);
+    }
+}
+
+/**
+ * Mark a run as waiting for an event or approval
+ */
+export async function setRunWaiting(
+    runId: string,
+    waitingFor: WaitingFor
+): Promise<void> {
+    const runs = await readRuns();
+    const run = runs.find(r => r.id === runId);
+
+    if (run) {
+        run.status = 'waiting';
+        run.waitingFor = waitingFor;
+        await writeRuns(runs);
+    }
+}
+
+/**
+ * Resume a waiting run (clear the waiting state)
+ */
+export async function resumeRun(runId: string): Promise<void> {
+    const runs = await readRuns();
+    const run = runs.find(r => r.id === runId);
+
+    if (run && run.status === 'waiting') {
+        run.status = 'running';
+        run.waitingFor = undefined;
+        await writeRuns(runs);
+    }
+}
+
+/**
+ * Get runs that are waiting for a specific event or approval
+ */
+export async function getWaitingRuns(
+    type: 'event' | 'approval',
+    identifier?: string
+): Promise<WorkflowRun[]> {
+    const runs = await readRuns();
+    return runs.filter(r =>
+        r.status === 'waiting' &&
+        r.waitingFor?.type === type &&
+        (identifier === undefined || r.waitingFor.identifier === identifier)
+    );
+}
+
+/**
+ * Purge completed runs older than the specified age.
+ * 
+ * TODO: When moving to DB, replace with proper archival/retention policy.
+ * 
+ * @param maxAgeMs - Maximum age in milliseconds. Runs older than this will be deleted.
+ *                   Default: 7 days (604800000ms)
+ * @returns Number of runs purged
+ */
+export async function purgeOldRuns(maxAgeMs: number = 7 * 24 * 60 * 60 * 1000): Promise<number> {
+    const runs = await readRuns();
+    const now = Date.now();
+
+    const filtered = runs.filter(run => {
+        // Keep waiting/running runs regardless of age
+        if (run.status === 'waiting' || run.status === 'running' || run.status === 'pending') {
+            return true;
+        }
+
+        // Check age of completed/failed runs
+        const runTime = new Date(run.endTime || run.startTime).getTime();
+        return (now - runTime) < maxAgeMs;
+    });
+
+    const purgedCount = runs.length - filtered.length;
+
+    if (purgedCount > 0) {
+        await writeRuns(filtered);
+        console.log(`[Run Store] Purged ${purgedCount} old runs`);
+    }
+
+    return purgedCount;
+}
+
+/**
+ * Clear all completed/failed runs (keep pending/running/waiting).
+ * Use with caution - this is destructive.
+ */
+export async function clearCompletedRuns(): Promise<number> {
+    const runs = await readRuns();
+    const active = runs.filter(r =>
+        r.status === 'pending' || r.status === 'running' || r.status === 'waiting'
+    );
+
+    const clearedCount = runs.length - active.length;
+    await writeRuns(active);
+
+    return clearedCount;
 }

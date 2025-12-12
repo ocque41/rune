@@ -24,7 +24,7 @@ const IfNode = ({ data, selected }: NodeProps<CustomIfNode>) => {
         >
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 bg-white/5">
                 <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10 text-purple-400 ring-1 ring-purple-500/20">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white/70 ring-1 ring-white/20">
                         <Split size={16} />
                     </div>
                     <span className="text-sm font-semibold text-white/90 tracking-wide">
@@ -45,7 +45,7 @@ const IfNode = ({ data, selected }: NodeProps<CustomIfNode>) => {
                     <input
                         type="text"
                         placeholder="e.g. params.value > 10"
-                        className="w-full rounded bg-black/20 border border-white/10 px-3 py-2 text-sm font-mono text-purple-300 placeholder-white/20 focus:outline-none focus:border-purple-500/50 transition-colors"
+                        className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-sm font-mono text-purple-300 placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
                         value={condition}
                         onChange={(e) => {
                             setCondition(e.target.value);
@@ -62,7 +62,7 @@ const IfNode = ({ data, selected }: NodeProps<CustomIfNode>) => {
                     type="source"
                     position={Position.Bottom}
                     id="true"
-                    className="!h-3 !w-3 !bg-green-500 !border-2 !border-[#0f172a]"
+                    className="!h-3 !w-3 !bg-[#F0EEE9] !border-2 !border-[#131313]"
                     style={{ left: '25%' }}
                 />
             </div>
@@ -74,7 +74,7 @@ const IfNode = ({ data, selected }: NodeProps<CustomIfNode>) => {
                     type="source"
                     position={Position.Bottom}
                     id="false"
-                    className="!h-3 !w-3 !bg-red-500 !border-2 !border-[#0f172a]"
+                    className="!h-3 !w-3 !bg-[#F0EEE9] !border-2 !border-[#131313]"
                     style={{ left: '75%' }}
                 />
             </div>

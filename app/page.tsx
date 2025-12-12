@@ -47,7 +47,7 @@ export default function Home() {
             <button
               onClick={() => setActiveTab('editor')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'editor'
-                ? 'bg-white dark:bg-black shadow-sm'
+                ? 'border border-white/20'
                 : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-60 hover:opacity-100'
                 }`}
               style={{
@@ -60,7 +60,7 @@ export default function Home() {
             <button
               onClick={() => setActiveTab('workflows')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'workflows'
-                ? 'bg-white dark:bg-black shadow-sm'
+                ? 'border border-white/20'
                 : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-60 hover:opacity-100'
                 }`}
               style={{
@@ -73,7 +73,7 @@ export default function Home() {
             <button
               onClick={() => setActiveTab('runs')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'runs'
-                ? 'bg-white dark:bg-black shadow-sm'
+                ? 'border border-white/20'
                 : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-60 hover:opacity-100'
                 }`}
               style={{

@@ -45,7 +45,32 @@ export function useLocalWorkflowSession({
 
                 // Basic validation
                 if (Array.isArray(session.nodes) && Array.isArray(session.edges)) {
-                    setNodes(session.nodes);
+                    // Deduplicate nodes by ID to prevent React key conflicts
+                    const seenIds = new Set<string>();
+                    let hasDuplicates = false;
+                    const uniqueNodes = session.nodes.filter((node: Node) => {
+                        if (seenIds.has(node.id)) {
+                            console.warn(`Duplicate node ID found and removed: ${node.id}`);
+                            hasDuplicates = true;
+                            return false;
+                        }
+                        seenIds.add(node.id);
+                        return true;
+                    });
+
+                    // If duplicates were found, immediately save cleaned data
+                    if (hasDuplicates) {
+                        const cleanedSession: WorkflowSession = {
+                            nodes: uniqueNodes,
+                            edges: session.edges,
+                            meta: session.meta,
+                            updatedAt: Date.now(),
+                        };
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(cleanedSession));
+                        console.log('Cleaned up duplicate nodes in localStorage');
+                    }
+
+                    setNodes(uniqueNodes);
                     setEdges(session.edges);
                     console.log('Restored workflow session from', new Date(session.updatedAt).toLocaleString());
                 }

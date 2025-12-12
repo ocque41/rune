@@ -22,6 +22,7 @@ import {
 import '@xyflow/react/dist/style.css';
 
 import { Sidebar } from './sidebar';
+import { AnimatedGridBackground } from './animated-grid-background';
 import StepNode from './nodes/step-node';
 import IfNode from './nodes/if-node';
 import LoopNode from './nodes/loop-node';
@@ -31,6 +32,7 @@ import { ScheduleNode } from './nodes/schedule-node';
 import { ApprovalNode } from './nodes/approval-node';
 import { AINode } from './nodes/ai-node';
 import { TransformNode } from './nodes/transform-node';
+import WebhookNode from './nodes/webhook-node';
 import { generateWorkflowCode } from '@/lib/workflow-generator';
 import { validateGraph, ValidationResult } from '@/lib/workflow-validator';
 import { LayoutTemplate, AlertCircle, X, Download, Upload, Trash2, HelpCircle, Play } from 'lucide-react';
@@ -50,6 +52,7 @@ const nodeTypes = {
     approval: ApprovalNode,
     ai: AINode,
     transform: TransformNode,
+    webhook: WebhookNode,
 } as any;
 
 const initialNodes: Node[] = [
@@ -61,8 +64,7 @@ const initialNodes: Node[] = [
     },
 ];
 
-let id = 0;
-const getId = () => `dndnode_${id++}`;
+const getId = () => `dndnode_${crypto.randomUUID()}`;
 
 const FlowBuilderContent = ({
     onSave,
@@ -377,11 +379,11 @@ const FlowBuilderContent = ({
 
     return (
         <div className="flex h-[calc(100vh-64px)] w-full flex-row overflow-hidden relative" style={{
-            backgroundColor: '#0a0a0f', // Deep space black
-            backgroundImage: 'radial-gradient(circle at 50% 50%, #1a1a2e 0%, #0a0a0f 100%)'
+            backgroundColor: '#000000'
         }}>
             <Sidebar />
             <div className="flex-grow h-full relative" ref={reactFlowWrapper}>
+                <AnimatedGridBackground />
                 <ReactFlow
                     nodes={nodes}
                     edges={edges}

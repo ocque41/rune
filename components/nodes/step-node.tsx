@@ -158,7 +158,7 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
         >
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 bg-white/5">
                 <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white/70 ring-1 ring-white/20">
                         {data.label === 'Sleep' || data.label === 'Wait for Event' ? <Clock size={16} /> : <Play size={16} />}
                     </div>
                     <span className="text-sm font-semibold text-white/90 tracking-wide">
@@ -189,7 +189,7 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                         <input
                             type="text"
                             placeholder="e.g. 2s, 1m"
-                            className="w-full rounded bg-black/20 border border-white/10 px-3 py-2 text-xs text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors"
+                            className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
                             value={duration}
                             onChange={(e) => {
                                 setDuration(e.target.value);
@@ -206,7 +206,7 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                             <div className="space-y-1.5">
                                 <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Method</label>
                                 <select
-                                    className="w-full rounded bg-black/20 border border-white/10 px-2 py-2 text-xs text-white focus:outline-none focus:border-blue-500/50 transition-colors"
+                                    className="w-full rounded-lg bg-[#222222] border-none px-2 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
                                     value={httpRequest.method}
                                     onChange={(e) => {
                                         const newVal = { ...httpRequest, method: e.target.value as any };
@@ -224,7 +224,7 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                                 <input
                                     type="text"
                                     placeholder="https://api..."
-                                    className="w-full rounded bg-black/20 border border-white/10 px-3 py-2 text-xs text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors"
+                                    className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
                                     value={httpRequest.url}
                                     onChange={(e) => {
                                         const newVal = { ...httpRequest, url: e.target.value };
@@ -239,7 +239,7 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Headers</label>
                                     <textarea
-                                        className="w-full rounded bg-black/20 border border-white/10 px-3 py-2 text-xs font-mono text-white/80 placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors"
+                                        className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs font-mono text-white/80 placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
                                         rows={2}
                                         placeholder='{"Content-Type": "application/json"}'
                                         value={httpRequest.headers}
@@ -253,7 +253,7 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Body</label>
                                     <textarea
-                                        className="w-full rounded bg-black/20 border border-white/10 px-3 py-2 text-xs font-mono text-white/80 placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors"
+                                        className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs font-mono text-white/80 placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
                                         rows={3}
                                         placeholder='{"key": "value"}'
                                         value={httpRequest.body}
@@ -275,7 +275,7 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                         <div className="space-y-1.5">
                             <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Message</label>
                             <textarea
-                                className="w-full rounded bg-black/20 border border-white/10 px-3 py-2 text-xs text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors"
+                                className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
                                 rows={2}
                                 value={slackConfig.message}
                                 onChange={(e) => {
@@ -294,7 +294,7 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                         <div className="space-y-1.5">
                             <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Prompt</label>
                             <textarea
-                                className="w-full rounded bg-black/20 border border-white/10 px-3 py-2 text-xs text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors"
+                                className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
                                 rows={3}
                                 value={aiConfig.promptTemplate}
                                 onChange={(e) => {

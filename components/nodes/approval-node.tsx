@@ -11,44 +11,46 @@ export type ApprovalNodeData = {
 };
 
 export const ApprovalNode = (props: NodeProps<any>) => {
-    const { data, isConnectable } = props;
+    const { data, isConnectable, selected } = props;
     const [approverEmail, setApproverEmail] = useState(data.approverEmail || '');
     const [timeout, setTimeout] = useState(data.timeout || '24h');
 
     return (
-        <div className="min-w-[250px] rounded-lg border bg-white shadow-sm transition-all hover:shadow-md dark:bg-black" style={{
-            borderColor: 'var(--border-color)',
-            backgroundColor: 'var(--node-background)'
-        }}>
+        <div
+            className={`min-w-[280px] rounded-xl border-2 transition-all ${selected
+                ? 'border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.3)]'
+                : 'border-white/10 hover:border-white/20'
+                }`}
+            style={{
+                backgroundColor: '#111111',
+                backdropFilter: 'blur(10px)',
+            }}
+        >
             {/* Header */}
-            <div className="flex items-center gap-2 border-b px-3 py-2" style={{
-                borderColor: 'var(--border-color)',
-                backgroundColor: 'var(--header-background)'
-            }}>
-                <div className="flex h-6 w-6 items-center justify-center rounded" style={{
-                    backgroundColor: 'var(--accent-bg)',
-                    color: 'var(--foreground-title)'
-                }}>
-                    <UserCheck size={14} />
+            <div
+                className="flex items-center gap-3 border-b px-4 py-3"
+                style={{ borderColor: 'rgba(255, 255, 255, 0.1)' }}
+            >
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-white/70">
+                    <UserCheck size={16} />
                 </div>
                 <div className="flex-1">
-                    <div className="text-sm font-medium" style={{ color: 'var(--foreground-title)' }}>Approval</div>
-                    <div className="text-[10px] opacity-60" style={{ color: 'var(--foreground-subtitle)' }}>Wait for human review</div>
+                    <div className="text-sm font-semibold text-white/90">Approval</div>
+                    <div className="text-[10px] text-white/40">Wait for human review</div>
                 </div>
             </div>
 
             {/* Content */}
-            <div className="p-3 space-y-3">
-                <div>
-                    <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--foreground-body)' }}>Approver Email</label>
+            <div className="p-4 space-y-4">
+                <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-white/50">Approver Email</label>
                     <input
                         type="email"
                         placeholder="manager@example.com"
-                        className="w-full rounded border px-2 py-1 text-sm"
+                        className="w-full rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-all"
                         style={{
-                            backgroundColor: 'var(--accent-bg)',
-                            borderColor: 'var(--border-color)',
-                            color: 'var(--foreground-body)'
+                            backgroundColor: '#222222',
+                            border: 'none',
                         }}
                         value={approverEmail}
                         onChange={(e) => {
@@ -58,16 +60,15 @@ export const ApprovalNode = (props: NodeProps<any>) => {
                     />
                 </div>
 
-                <div>
-                    <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--foreground-body)' }}>Timeout</label>
+                <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-white/50">Timeout</label>
                     <input
                         type="text"
                         placeholder="24h"
-                        className="w-full rounded border px-2 py-1 text-sm"
+                        className="w-full rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-all"
                         style={{
-                            backgroundColor: 'var(--accent-bg)',
-                            borderColor: 'var(--border-color)',
-                            color: 'var(--foreground-body)'
+                            backgroundColor: '#222222',
+                            border: 'none',
                         }}
                         value={timeout}
                         onChange={(e) => {
@@ -83,8 +84,8 @@ export const ApprovalNode = (props: NodeProps<any>) => {
                 type="target"
                 position={Position.Top}
                 isConnectable={isConnectable}
-                className="!h-3 !w-3 !bg-blue-500"
-                style={{ border: '2px solid var(--background)' }}
+                className="!h-3 !w-3 !bg-[#F0EEE9]"
+                style={{ border: '2px solid #131313' }}
             />
 
             {/* Output Handle */}
@@ -92,8 +93,8 @@ export const ApprovalNode = (props: NodeProps<any>) => {
                 type="source"
                 position={Position.Bottom}
                 isConnectable={isConnectable}
-                className="!h-3 !w-3 !bg-blue-500"
-                style={{ border: '2px solid var(--background)' }}
+                className="!h-3 !w-3 !bg-[#F0EEE9]"
+                style={{ border: '2px solid #131313' }}
             />
         </div>
     );

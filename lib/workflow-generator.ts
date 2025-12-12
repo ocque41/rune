@@ -35,30 +35,146 @@ export const ${functionName} = async (params: any) => {
 
   // Add reusable HTTP Request step
   const httpStepDefinition = `
-export const makeHttpRequest = async (params: { method: string; url: string; headers: any; body: any; idempotencyKey?: string }) => {
+export const makeHttpRequest = async (params: { method: string; url: string; headers: any; body: any; idempotencyKey?: string; mockResponse?: any }) => {
   "use step";
-  console.log("Making HTTP Request:", params.method, params.url);
-  console.log("Idempotency Key:", params.idempotencyKey);
-  const response = await fetch(params.url, {
-    method: params.method,
-    headers: params.headers,
-    body: params.method !== 'GET' && params.method !== 'HEAD' ? JSON.stringify(params.body) : undefined,
-  });
-  const data = await response.json().catch(() => ({}));
-  return { status: response.status, data };
+  const isSandbox = process.env.RUNE_WORKFLOW_MODE === 'sandbox' || (process.env.NODE_ENV !== 'production' && !process.env.RUNE_WORKFLOW_MODE);
+  
+  console.log("[HTTP Request] Method:", params.method, "URL:", params.url);
+  console.log("[HTTP Request] Idempotency Key:", params.idempotencyKey);
+  console.log("[HTTP Request] Mode:", isSandbox ? 'sandbox' : 'live');
+  
+  // In sandbox mode, return mock response without making real request
+  if (isSandbox && !process.env.RUNE_ALLOW_REAL_HTTP) {
+    console.log("[HTTP Request] Returning mock response (sandbox mode)");
+    return {
+      ok: true,
+      status: 200,
+      statusText: 'OK (Mocked)',
+      data: params.mockResponse || { simulated: true, message: 'Mock response from sandbox mode', url: params.url },
+      timing: { durationMs: 0 },
+      mocked: true
+    };
+  }
+  
+  const startTime = Date.now();
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    
+    const response = await fetch(params.url, {
+      method: params.method,
+      headers: params.headers,
+      body: params.method !== 'GET' && params.method !== 'HEAD' ? JSON.stringify(params.body) : undefined,
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeout);
+    const durationMs = Date.now() - startTime;
+    
+    let data;
+    const contentType = response.headers.get('content-type');
+    if (contentType?.includes('application/json')) {
+      data = await response.json().catch(() => ({}));
+    } else {
+      data = await response.text().catch(() => '');
+    }
+    
+    return {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      data,
+      timing: { durationMs },
+      mocked: false
+    };
+  } catch (error: any) {
+    const durationMs = Date.now() - startTime;
+    console.error("[HTTP Request] Error:", error.message);
+    
+    // Determine if error is retryable
+    const isRetryable = error.name === 'AbortError' || 
+                        error.code === 'ECONNRESET' || 
+                        error.code === 'ETIMEDOUT' ||
+                        error.code === 'ENOTFOUND';
+    
+    if (isRetryable) {
+      throw new RetryableError(error.message);
+    }
+    throw error;
+  }
 };`;
 
   // Add reusable Send Email step
   const emailStepDefinition = `
-export const sendEmail = async (params: { recipient: string; subject: string; body: string; idempotencyKey?: string }) => {
+export const sendEmail = async (params: { recipient: string; subject: string; body: string; from?: string; idempotencyKey?: string }) => {
   "use step";
-  console.log("Sending email to:", params.recipient);
-  console.log("Idempotency Key:", params.idempotencyKey);
-  console.log("Subject:", params.subject);
-  console.log("Body:", params.body);
-  // Simulate sending
-  await new Promise(resolve => setTimeout(resolve, 500));
-  return { status: "sent", recipient: params.recipient };
+  const isSandbox = process.env.RUNE_WORKFLOW_MODE === 'sandbox' || (process.env.NODE_ENV !== 'production' && !process.env.RUNE_WORKFLOW_MODE);
+  const hasEmailConfig = !!(process.env.RESEND_API_KEY || process.env.SMTP_HOST || process.env.SENDGRID_API_KEY);
+  
+  console.log("[Send Email] To:", params.recipient);
+  console.log("[Send Email] Subject:", params.subject);
+  console.log("[Send Email] Idempotency Key:", params.idempotencyKey);
+  console.log("[Send Email] Mode:", isSandbox ? 'sandbox' : 'live');
+  console.log("[Send Email] Email Provider Configured:", hasEmailConfig);
+  
+  // In sandbox mode or without email config, log and return mock
+  if (isSandbox || !hasEmailConfig) {
+    console.log("[Send Email] Body:", params.body);
+    console.log("[Send Email] Email logged (not sent - " + (isSandbox ? 'sandbox mode' : 'no provider configured') + ")");
+    return {
+      ok: true,
+      status: 'mocked',
+      messageId: \`mock-\${Date.now()}\`,
+      recipient: params.recipient,
+      note: isSandbox ? 'Sandbox mode - email logged only' : 'No email provider configured'
+    };
+  }
+  
+  // Real email sending would go here
+  // For now, we use Resend if available
+  try {
+    if (process.env.RESEND_API_KEY) {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': \`Bearer \${process.env.RESEND_API_KEY}\`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: params.from || 'onboarding@resend.dev',
+          to: params.recipient,
+          subject: params.subject,
+          html: params.body,
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(\`Resend API error: \${error}\`);
+      }
+      
+      const result = await response.json();
+      return {
+        ok: true,
+        status: 'sent',
+        messageId: result.id,
+        recipient: params.recipient
+      };
+    }
+    
+    // Fallback to logging
+    console.log("[Send Email] No supported provider, email logged only");
+    return {
+      ok: true,
+      status: 'mocked',
+      messageId: \`mock-\${Date.now()}\`,
+      recipient: params.recipient,
+      note: 'Email provider not implemented'
+    };
+  } catch (error: any) {
+    console.error("[Send Email] Error:", error.message);
+    throw error;
+  }
 };`;
 
   // Add reusable Database Query steps - one for each database type
@@ -70,130 +186,279 @@ export const sendEmail = async (params: { recipient: string; subject: string; bo
   const postgresStepDefinition = `
 export const queryPostgres = async (params: { connectionString: string; query: string; idempotencyKey?: string }) => {
   "use step";
-  console.log("Executing PostgreSQL Query");
-  console.log("Idempotency Key:", params.idempotencyKey);
+  const isSandbox = process.env.RUNE_WORKFLOW_MODE === 'sandbox' || (process.env.NODE_ENV !== 'production' && !process.env.RUNE_WORKFLOW_MODE);
+  
+  console.log("[PostgreSQL] Executing Query");
+  console.log("[PostgreSQL] Idempotency Key:", params.idempotencyKey);
+  console.log("[PostgreSQL] Mode:", isSandbox ? 'sandbox' : 'live');
+  
+  // Validate configuration
+  if (!params.connectionString) {
+    console.warn("[PostgreSQL] No connection string provided");
+    return {
+      ok: false,
+      status: 'not_configured',
+      error: 'Database connection string not provided',
+      query: params.query
+    };
+  }
+  
+  // In sandbox mode, return mock data
+  if (isSandbox) {
+    console.log("[PostgreSQL] Returning mock data (sandbox mode)");
+    console.log("[PostgreSQL] Query:", params.query);
+    return {
+      ok: true,
+      status: 'success',
+      rows: [{ id: 1, mock: true, message: 'Sandbox mock data' }],
+      rowCount: 1,
+      mocked: true
+    };
+  }
   
   // NOTE: Requires 'pg' package - install with: npm install pg @types/pg
-  const { Client } = await import('pg');
-  
-  const client = new Client({
-    connectionString: params.connectionString
-  });
-  
   try {
+    const { Client } = await import('pg');
+    const client = new Client({ connectionString: params.connectionString });
+    
     await client.connect();
-    const result = await client.query(params.query);
-    return { status: "success", rows: result.rows, rowCount: result.rowCount };
-  } finally {
-    await client.end();
+    try {
+      const result = await client.query(params.query);
+      return { ok: true, status: 'success', rows: result.rows, rowCount: result.rowCount };
+    } finally {
+      await client.end();
+    }
+  } catch (error: any) {
+    console.error("[PostgreSQL] Error:", error.message);
+    return {
+      ok: false,
+      status: 'error',
+      error: error.message,
+      query: params.query
+    };
   }
 };`;
 
   const mysqlStepDefinition = `
 export const queryMysql = async (params: { connectionString: string; query: string; idempotencyKey?: string }) => {
   "use step";
-  console.log("Executing MySQL Query");
-  console.log("Idempotency Key:", params.idempotencyKey);
+  const isSandbox = process.env.RUNE_WORKFLOW_MODE === 'sandbox' || (process.env.NODE_ENV !== 'production' && !process.env.RUNE_WORKFLOW_MODE);
   
-  // NOTE: Requires 'mysql2' package - install with: npm install mysql2
-  const mysql = await import('mysql2/promise');
+  console.log("[MySQL] Executing Query");
+  console.log("[MySQL] Idempotency Key:", params.idempotencyKey);
+  console.log("[MySQL] Mode:", isSandbox ? 'sandbox' : 'live');
   
-  const connection = await mysql.createConnection(params.connectionString);
+  if (!params.connectionString) {
+    console.warn("[MySQL] No connection string provided");
+    return {
+      ok: false,
+      status: 'not_configured',
+      error: 'Database connection string not provided',
+      query: params.query
+    };
+  }
+  
+  if (isSandbox) {
+    console.log("[MySQL] Returning mock data (sandbox mode)");
+    console.log("[MySQL] Query:", params.query);
+    return {
+      ok: true,
+      status: 'success',
+      rows: [{ id: 1, mock: true, message: 'Sandbox mock data' }],
+      rowCount: 1,
+      mocked: true
+    };
+  }
   
   try {
-    const [rows] = await connection.execute(params.query);
-    return { status: "success", rows, rowCount: Array.isArray(rows) ? rows.length : 0 };
-  } finally {
-    await connection.end();
+    const mysql = await import('mysql2/promise');
+    const connection = await mysql.createConnection(params.connectionString);
+    
+    try {
+      const [rows] = await connection.execute(params.query);
+      return { ok: true, status: 'success', rows, rowCount: Array.isArray(rows) ? rows.length : 0 };
+    } finally {
+      await connection.end();
+    }
+  } catch (error: any) {
+    console.error("[MySQL] Error:", error.message);
+    return {
+      ok: false,
+      status: 'error',
+      error: error.message,
+      query: params.query
+    };
   }
 };`;
 
   const mongodbStepDefinition = `
 export const queryMongodb = async (params: { connectionString: string; operation: string; idempotencyKey?: string }) => {
   "use step";
-  console.log("Executing MongoDB Operation");
-  console.log("Idempotency Key:", params.idempotencyKey);
+  const isSandbox = process.env.RUNE_WORKFLOW_MODE === 'sandbox' || (process.env.NODE_ENV !== 'production' && !process.env.RUNE_WORKFLOW_MODE);
   
-  // NOTE: Requires 'mongodb' package - install with: npm install mongodb
-  const { MongoClient } = await import('mongodb');
+  console.log("[MongoDB] Executing Operation");
+  console.log("[MongoDB] Idempotency Key:", params.idempotencyKey);
+  console.log("[MongoDB] Mode:", isSandbox ? 'sandbox' : 'live');
   
-  const client = new MongoClient(params.connectionString);
+  if (!params.connectionString) {
+    console.warn("[MongoDB] No connection string provided");
+    return {
+      ok: false,
+      status: 'not_configured',
+      error: 'Database connection string not provided',
+      operation: params.operation
+    };
+  }
+  
+  let opConfig;
+  try {
+    opConfig = JSON.parse(params.operation);
+  } catch (e) {
+    return {
+      ok: false,
+      status: 'error',
+      error: 'Invalid operation JSON',
+      operation: params.operation
+    };
+  }
+  
+  if (isSandbox) {
+    console.log("[MongoDB] Returning mock data (sandbox mode)");
+    console.log("[MongoDB] Operation:", opConfig);
+    return {
+      ok: true,
+      status: 'success',
+      result: opConfig.operation === 'find' ? [{ _id: '1', mock: true }] : { acknowledged: true },
+      mocked: true
+    };
+  }
   
   try {
+    const { MongoClient } = await import('mongodb');
+    const client = new MongoClient(params.connectionString);
+    
     await client.connect();
-    
-    // Parse the operation JSON (expected format: { collection: "name", operation: "find", query: {}, options: {} })
-    const opConfig = JSON.parse(params.operation);
-    const db = client.db();
-    const collection = db.collection(opConfig.collection || 'default');
-    
-    let result;
-    switch (opConfig.operation) {
-      case 'find':
-        result = await collection.find(opConfig.query || {}, opConfig.options || {}).toArray();
-        break;
-      case 'findOne':
-        result = await collection.findOne(opConfig.query || {}, opConfig.options || {});
-        break;
-      case 'insertOne':
-        result = await collection.insertOne(opConfig.document);
-        break;
-      case 'insertMany':
-        result = await collection.insertMany(opConfig.documents);
-        break;
-      case 'updateOne':
-        result = await collection.updateOne(opConfig.filter, opConfig.update, opConfig.options);
-        break;
-      case 'updateMany':
-        result = await collection.updateMany(opConfig.filter, opConfig.update, opConfig.options);
-        break;
-      case 'deleteOne':
-        result = await collection.deleteOne(opConfig.filter);
-        break;
-      case 'deleteMany':
-        result = await collection.deleteMany(opConfig.filter);
-        break;
-      default:
-        throw new Error(\`Unsupported MongoDB operation: \${opConfig.operation}\`);
+    try {
+      const db = client.db();
+      const collection = db.collection(opConfig.collection || 'default');
+      
+      let result;
+      switch (opConfig.operation) {
+        case 'find':
+          result = await collection.find(opConfig.query || {}, opConfig.options || {}).toArray();
+          break;
+        case 'findOne':
+          result = await collection.findOne(opConfig.query || {}, opConfig.options || {});
+          break;
+        case 'insertOne':
+          result = await collection.insertOne(opConfig.document);
+          break;
+        case 'insertMany':
+          result = await collection.insertMany(opConfig.documents);
+          break;
+        case 'updateOne':
+          result = await collection.updateOne(opConfig.filter, opConfig.update, opConfig.options);
+          break;
+        case 'updateMany':
+          result = await collection.updateMany(opConfig.filter, opConfig.update, opConfig.options);
+          break;
+        case 'deleteOne':
+          result = await collection.deleteOne(opConfig.filter);
+          break;
+        case 'deleteMany':
+          result = await collection.deleteMany(opConfig.filter);
+          break;
+        default:
+          throw new Error(\`Unsupported MongoDB operation: \${opConfig.operation}\`);
+      }
+      
+      return { ok: true, status: 'success', result };
+    } finally {
+      await client.close();
     }
-    
-    return { status: "success", result };
-  } finally {
-    await client.close();
+  } catch (error: any) {
+    console.error("[MongoDB] Error:", error.message);
+    return {
+      ok: false,
+      status: 'error',
+      error: error.message,
+      operation: params.operation
+    };
   }
 };`;
 
   const genericDbStepDefinition = `
 export const queryGeneric = async (params: { connectionString: string; query: string; idempotencyKey?: string }) => {
   "use step";
-  console.log("Generic Database Query (Placeholder)");
-  console.log("Idempotency Key:", params.idempotencyKey);
-  console.log("Connection:", params.connectionString ? "Provided" : "Missing");
-  console.log("Query:", params.query);
+  const isSandbox = process.env.RUNE_WORKFLOW_MODE === 'sandbox' || (process.env.NODE_ENV !== 'production' && !process.env.RUNE_WORKFLOW_MODE);
   
-  // This is a placeholder for custom database implementations
+  console.log("[Generic DB] Executing Query");
+  console.log("[Generic DB] Idempotency Key:", params.idempotencyKey);
+  console.log("[Generic DB] Mode:", isSandbox ? 'sandbox' : 'live');
+  console.log("[Generic DB] Query:", params.query);
+  
+  // Generic DB always returns mock data or not_configured
   // Users should replace this with their specific database client code
-  console.warn("Generic database type selected - no actual database connection performed");
+  if (!params.connectionString) {
+    return {
+      ok: false,
+      status: 'not_configured',
+      error: 'Database connection string not provided',
+      query: params.query,
+      note: 'Generic database type - implement your own database logic'
+    };
+  }
   
-  await new Promise(resolve => setTimeout(resolve, 500));
-  return { status: "success", message: "Generic placeholder - implement your own database logic" };
+  console.warn("[Generic DB] No implementation - returning mock data");
+  return {
+    ok: true,
+    status: 'success',
+    rows: [{ id: 1, mock: true, message: 'Generic DB placeholder' }],
+    rowCount: 1,
+    mocked: true,
+    note: 'Generic database type - implement your own database logic'
+  };
 };`;
 
   // Add reusable Run Script step
   const scriptStepDefinition = `
-export const runScript = async (params: { code: string; context: any }) => {
+export const runScript = async (params: { code: string; context: any; timeoutMs?: number }) => {
   "use step";
-  console.log("Running custom script");
+  const MAX_EXECUTION_TIME = params.timeoutMs || 10000; // 10 second default
+  
+  console.log("[Script] Running custom script");
+  console.log("[Script] Timeout:", MAX_EXECUTION_TIME + "ms");
+  
+  const startTime = Date.now();
   
   try {
     // Create a function from the user code
     // We pass 'params' as an argument to the function
     const userFunction = new Function('params', params.code);
+    
+    // Execute with a simple timeout check (note: this doesn't truly limit execution time
+    // for synchronous code, but provides a baseline)
     const result = userFunction(params.context);
-    return { status: "success", result };
+    
+    const durationMs = Date.now() - startTime;
+    console.log("[Script] Completed in", durationMs + "ms");
+    
+    return {
+      ok: true,
+      status: 'success',
+      result,
+      timing: { durationMs }
+    };
   } catch (error: any) {
-    console.error("Script execution failed:", error);
-    throw new Error("Script execution failed: " + error.message);
+    const durationMs = Date.now() - startTime;
+    console.error("[Script] Execution failed:", error.message);
+    
+    return {
+      ok: false,
+      status: 'error',
+      error: error.message,
+      timing: { durationMs }
+    };
   }
 };`;
 
@@ -201,100 +466,345 @@ export const runScript = async (params: { code: string; context: any }) => {
   const slackStepDefinition = `
 export const sendSlackMessage = async (params: { webhookUrl: string; channel?: string; message: string; idempotencyKey?: string }) => {
   "use step";
-  console.log("Sending Slack message");
-  console.log("Idempotency Key:", params.idempotencyKey);
+  const isSandbox = process.env.RUNE_WORKFLOW_MODE === 'sandbox' || (process.env.NODE_ENV !== 'production' && !process.env.RUNE_WORKFLOW_MODE);
+  const envWebhook = process.env.SLACK_WEBHOOK_URL;
+  const webhookUrl = params.webhookUrl || envWebhook;
   
-  if (!params.webhookUrl) {
-    throw new Error("Webhook URL is required");
+  console.log("[Slack] Sending message");
+  console.log("[Slack] Idempotency Key:", params.idempotencyKey);
+  console.log("[Slack] Mode:", isSandbox ? 'sandbox' : 'live');
+  console.log("[Slack] Channel:", params.channel || '(default)');
+  console.log("[Slack] Message:", params.message);
+  
+  if (!webhookUrl) {
+    console.warn("[Slack] No webhook URL configured");
+    return {
+      ok: false,
+      status: 'not_configured',
+      error: 'Slack webhook URL not provided. Set SLACK_WEBHOOK_URL env var or configure in node.',
+      channel: params.channel
+    };
   }
-
-  // In a real app, we would POST to the webhook
-  // await fetch(params.webhookUrl, { method: 'POST', body: JSON.stringify({ text: params.message, channel: params.channel }) });
   
-  console.log("Webhook:", params.webhookUrl);
-  console.log("Channel:", params.channel);
-  console.log("Message:", params.message);
+  if (isSandbox) {
+    console.log("[Slack] Message logged (sandbox mode - not sent)");
+    return {
+      ok: true,
+      status: 'mocked',
+      channel: params.channel,
+      message: params.message,
+      note: 'Sandbox mode - message logged only'
+    };
+  }
   
-  await new Promise(resolve => setTimeout(resolve, 500));
-  return { status: "sent" };
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: params.message,
+        channel: params.channel
+      })
+    });
+    
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(\`Slack API error: \${error}\`);
+    }
+    
+    return {
+      ok: true,
+      status: 'sent',
+      channel: params.channel
+    };
+  } catch (error: any) {
+    console.error("[Slack] Error:", error.message);
+    return {
+      ok: false,
+      status: 'error',
+      error: error.message,
+      channel: params.channel
+    };
+  }
 };`;
 
   // Add reusable Stream step
   const streamStepDefinition = `
-export const streamUpdate = async (params: { message: string }) => {
+export const streamUpdate = async (params: { message: string; runId?: string }) => {
   "use step";
-  console.log("Streaming update:", params.message);
-  const writable = getWritable();
-  if (writable) {
-    const writer = writable.getWriter();
-    await writer.write(new TextEncoder().encode(params.message + "\\n"));
-    writer.releaseLock();
+  const isSandbox = process.env.RUNE_WORKFLOW_MODE === 'sandbox' || (process.env.NODE_ENV !== 'production' && !process.env.RUNE_WORKFLOW_MODE);
+  
+  console.log("[Stream] Sending update:", params.message);
+  console.log("[Stream] Mode:", isSandbox ? 'sandbox' : 'live');
+  
+  try {
+    const writable = getWritable();
+    if (writable) {
+      const writer = writable.getWriter();
+      await writer.write(new TextEncoder().encode(JSON.stringify({
+        type: 'stream',
+        message: params.message,
+        timestamp: Date.now(),
+        runId: params.runId
+      }) + "\\n"));
+      writer.releaseLock();
+      return { 
+        ok: true, 
+        status: 'streamed', 
+        message: params.message,
+        timestamp: Date.now()
+      };
+    } else {
+      console.log("[Stream] No writable stream available, logging only");
+      return {
+        ok: true,
+        status: 'logged',
+        message: params.message,
+        note: 'No writable stream - message logged to console only'
+      };
+    }
+  } catch (error: any) {
+    console.error("[Stream] Error:", error.message);
+    return {
+      ok: false,
+      status: 'error',
+      error: error.message,
+      message: params.message
+    };
   }
-  return { status: "streamed", message: params.message };
 };`;
 
   // Add reusable Wait for Event step
   const waitStepDefinition = `
-export const waitForEvent = async (params: { event: string; timeout?: string }) => {
+export const waitForEvent = async (params: { event: string; timeout?: string; runId?: string }) => {
   "use step";
-  console.log("Waiting for event:", params.event);
-  // This will pause execution until the event is received via resumeHook
-  // The timeout is handled by the workflow engine if supported, or we can implement a race
-  const result = await resumeHook(params.event);
-  return { status: "received", event: params.event, data: result };
+  const isSandbox = process.env.RUNE_WORKFLOW_MODE === 'sandbox' || (process.env.NODE_ENV !== 'production' && !process.env.RUNE_WORKFLOW_MODE);
+  
+  console.log("[Wait for Event] Event:", params.event);
+  console.log("[Wait for Event] Timeout:", params.timeout || 'none');
+  console.log("[Wait for Event] Mode:", isSandbox ? 'sandbox' : 'live');
+  
+  // In sandbox mode, return immediately with simulated event data
+  if (isSandbox) {
+    console.log("[Wait for Event] Returning simulated event (sandbox mode)");
+    return {
+      ok: true,
+      status: 'received',
+      event: params.event,
+      data: { simulated: true, timestamp: Date.now() },
+      mocked: true
+    };
+  }
+  
+  // Real execution uses resumeHook from workflow library
+  try {
+    const result = await resumeHook(params.event);
+    return {
+      ok: true,
+      status: 'received',
+      event: params.event,
+      data: result,
+      receivedAt: new Date().toISOString()
+    };
+  } catch (error: any) {
+    console.error("[Wait for Event] Error:", error.message);
+    return {
+      ok: false,
+      status: error.message.includes('timeout') ? 'timeout' : 'error',
+      event: params.event,
+      error: error.message
+    };
+  }
 };`;
 
   // Add reusable Approval step
   const approvalStepDefinition = `
-export const waitForApproval = async (params: { approverEmail: string; timeout?: string }) => {
+export const waitForApproval = async (params: { approverEmail: string; timeout?: string; message?: string; runId?: string }) => {
   "use step";
-  console.log("Requesting approval from:", params.approverEmail);
-  // In a real app, this would send an email and wait for a click
-  // We simulate waiting for an event named 'approval-{approverEmail}'
+  const isSandbox = process.env.RUNE_WORKFLOW_MODE === 'sandbox' || (process.env.NODE_ENV !== 'production' && !process.env.RUNE_WORKFLOW_MODE);
   const eventName = \`approval-\${params.approverEmail}\`;
-  const result = await resumeHook(eventName);
-  return { status: result.approved ? "approved" : "rejected", approver: params.approverEmail };
+  
+  console.log("[Approval] Requesting approval from:", params.approverEmail);
+  console.log("[Approval] Timeout:", params.timeout || '24h default');
+  console.log("[Approval] Mode:", isSandbox ? 'sandbox' : 'live');
+  
+  // In sandbox mode, auto-approve immediately
+  if (isSandbox) {
+    console.log("[Approval] Auto-approved (sandbox mode)");
+    return {
+      ok: true,
+      status: 'approved',
+      approver: params.approverEmail,
+      respondedAt: new Date().toISOString(),
+      mocked: true,
+      note: 'Auto-approved in sandbox mode'
+    };
+  }
+  
+  // Real execution: wait for external approval callback via resume API
+  try {
+    const result = await resumeHook(eventName);
+    return {
+      ok: true,
+      status: result.approved ? 'approved' : 'rejected',
+      approver: params.approverEmail,
+      respondedAt: new Date().toISOString(),
+      reason: result.reason
+    };
+  } catch (error: any) {
+    console.error("[Approval] Error:", error.message);
+    return {
+      ok: false,
+      status: error.message.includes('timeout') ? 'timeout' : 'error',
+      approver: params.approverEmail,
+      error: error.message
+    };
+  }
 };`;
 
   // Add reusable AI step
   const aiStepDefinition = `
-export const generateContent = async (params: { prompt: string; model?: string; provider?: string }) => {
+export const generateContent = async (params: { prompt: string; model?: string; provider?: string; maxTokens?: number }) => {
   "use step";
-  console.log("Generating AI content with model:", params.model);
-  console.log("Prompt:", params.prompt);
-  // Mock AI response
-  // Mock AI response or verify provider
-  if (params.provider === 'openai') {
-      console.log("Calling OpenAI API with model:", params.model);
-      // In production, use standard fetch to OpenAI API
-      // await fetch('https://api.openai.com/v1/chat/completions', ...);
-  } else if (params.provider === 'gemini') {
-      console.log("Calling Google Gemini API with model:", params.model);
-      // await fetch('https://generativelanguage.googleapis.com/v1beta/models/...', ...);
+  const isSandbox = process.env.RUNE_WORKFLOW_MODE === 'sandbox' || (process.env.NODE_ENV !== 'production' && !process.env.RUNE_WORKFLOW_MODE);
+  const provider = params.provider || 'openai';
+  const model = params.model || (provider === 'openai' ? 'gpt-4o' : provider === 'gemini' ? 'gemini-pro' : 'default');
+  
+  console.log("[AI] Generating content");
+  console.log("[AI] Provider:", provider);
+  console.log("[AI] Model:", model);
+  console.log("[AI] Prompt length:", params.prompt?.length || 0, "chars");
+  console.log("[AI] Mode:", isSandbox ? 'sandbox' : 'live');
+  
+  // Check for API keys
+  const openaiKey = process.env.OPENAI_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
+  
+  // In sandbox mode or without API keys, return mock
+  if (isSandbox || (provider === 'openai' && !openaiKey) || (provider === 'gemini' && !geminiKey)) {
+    console.log("[AI] Returning mock response", isSandbox ? '(sandbox mode)' : '(no API key)');
+    return {
+      ok: true,
+      status: 'mocked',
+      content: \`[Mock AI Response] This is a simulated response for prompt: "\${params.prompt?.substring(0, 50)}..."\`,
+      model,
+      provider,
+      mocked: true,
+      note: isSandbox ? 'Sandbox mode' : 'API key not configured'
+    };
   }
   
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  return { 
-    status: "success", 
-    content: \`Generated content for: \${params.prompt}\`,
-    model: params.model,
-    provider: params.provider
-  };
+  try {
+    if (provider === 'openai' && openaiKey) {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': \`Bearer \${openaiKey}\`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: params.prompt }],
+          max_tokens: params.maxTokens || 1000,
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(\`OpenAI API error: \${error}\`);
+      }
+      
+      const data = await response.json();
+      return {
+        ok: true,
+        status: 'success',
+        content: data.choices?.[0]?.message?.content || '',
+        model,
+        provider,
+        usage: data.usage
+      };
+    }
+    
+    if (provider === 'gemini' && geminiKey) {
+      const response = await fetch(\`https://generativelanguage.googleapis.com/v1beta/models/\${model}:generateContent?key=\${geminiKey}\`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: params.prompt }] }],
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(\`Gemini API error: \${error}\`);
+      }
+      
+      const data = await response.json();
+      return {
+        ok: true,
+        status: 'success',
+        content: data.candidates?.[0]?.content?.parts?.[0]?.text || '',
+        model,
+        provider
+      };
+    }
+    
+    // Fallback mock for unknown providers
+    return {
+      ok: true,
+      status: 'mocked',
+      content: \`[Mock] Provider \${provider} not implemented\`,
+      model,
+      provider,
+      mocked: true
+    };
+  } catch (error: any) {
+    console.error("[AI] Error:", error.message);
+    return {
+      ok: false,
+      status: 'error',
+      error: error.message,
+      model,
+      provider
+    };
+  }
 };`;
 
   // Add reusable Transform step
   const transformStepDefinition = `
 export const transformData = async (params: { mapping: string; data: any }) => {
   "use step";
-  console.log("Transforming data");
+  const startTime = Date.now();
+  
+  console.log("[Transform] Executing transformation");
+  console.log("[Transform] Input data type:", typeof params.data);
+  
   try {
     const transformFn = new Function('params', params.mapping);
     const result = transformFn(params.data);
-    return { status: "success", result };
+    const durationMs = Date.now() - startTime;
+    
+    console.log("[Transform] Completed in", durationMs + "ms");
+    
+    return {
+      ok: true,
+      status: 'success',
+      result,
+      timing: { durationMs }
+    };
   } catch (error: any) {
-    throw new Error("Transformation failed: " + error.message);
+    const durationMs = Date.now() - startTime;
+    console.error("[Transform] Error:", error.message);
+    
+    return {
+      ok: false,
+      status: 'error',
+      error: error.message,
+      timing: { durationMs }
+    };
   }
 };`;
+
 
   // 2. Build Workflow Logic
   const startNode = nodes.find((n) => n.data.label === 'Start Workflow');

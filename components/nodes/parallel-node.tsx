@@ -23,32 +23,26 @@ const ParallelNode = ({ data, selected }: NodeProps<CustomParallelNode>) => {
 
     return (
         <div
-            className={`min-w-[240px] rounded-lg border shadow-sm transition-all ${selected ? 'ring-2 ring-blue-500/20' : ''}`}
+            className={`min-w-[240px] rounded-xl border-2 transition-all ${selected ? 'border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.3)]' : 'border-white/10 hover:border-white/20'}`}
             style={{
-                backgroundColor: 'var(--node-background)',
-                borderColor: selected ? '#3b82f6' : 'rgba(17, 17, 17, 0.1)'
+                backgroundColor: '#111111',
+                backdropFilter: 'blur(10px)'
             }}
         >
-            <div className="flex items-center justify-between border-b px-3 py-2" style={{
-                backgroundColor: 'var(--accent-bg)',
-                borderColor: 'var(--border-color)'
-            }}>
-                <div className="flex items-center gap-2">
-                    <div className="flex h-6 w-6 items-center justify-center rounded" style={{
-                        backgroundColor: 'var(--accent-bg)',
-                        color: 'var(--foreground-body)'
-                    }}>
-                        <GitMerge size={12} className="rotate-90" />
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 bg-white/5">
+                <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white/70 ring-1 ring-white/20">
+                        <GitMerge size={16} className="rotate-90" />
                     </div>
-                    <span className="text-sm font-medium" style={{ color: 'var(--foreground-body)' }}>
+                    <span className="text-sm font-semibold text-white/90 tracking-wide">
                         Parallel Execution
                     </span>
                 </div>
                 <button
                     onClick={() => setShowConfig(!showConfig)}
-                    className="rounded p-1 transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                    className="rounded p-1.5 transition-colors text-white/40 hover:text-white/80 hover:bg-white/5"
                 >
-                    <Settings size={14} className="opacity-60 hover:opacity-100" style={{ color: 'var(--foreground-body)' }} />
+                    <Settings size={16} />
                 </button>
             </div>
 
@@ -86,11 +80,8 @@ const ParallelNode = ({ data, selected }: NodeProps<CustomParallelNode>) => {
             <Handle
                 type="target"
                 position={Position.Top}
-                className="!h-3 !w-3 !border-2 !transition-colors hover:!bg-blue-500"
-                style={{
-                    backgroundColor: 'var(--foreground)',
-                    borderColor: 'var(--background)'
-                }}
+                className="!h-3 !w-3 !bg-[#F0EEE9] !border-2"
+                style={{ borderColor: '#131313' }}
             />
 
             {/* Branch Outputs */}
@@ -104,12 +95,8 @@ const ParallelNode = ({ data, selected }: NodeProps<CustomParallelNode>) => {
                                 type="source"
                                 position={Position.Bottom}
                                 id={`branch-${index}`}
-                                className="!h-2.5 !w-2.5 !border-2 !transition-colors hover:!bg-blue-500"
-                                style={{
-                                    backgroundColor: 'var(--foreground)',
-                                    borderColor: 'var(--background)',
-                                    position: 'static'
-                                }}
+                                className="!h-2.5 !w-2.5 !bg-[#F0EEE9] !border-2"
+                                style={{ borderColor: '#131313', position: 'static' }}
                             />
                         </div>
                     );
@@ -124,12 +111,8 @@ const ParallelNode = ({ data, selected }: NodeProps<CustomParallelNode>) => {
                     type="source"
                     position={Position.Bottom}
                     id="merge"
-                    className="!h-3 !w-3 !border-2 !transition-colors hover:!bg-purple-500"
-                    style={{
-                        backgroundColor: 'var(--foreground)',
-                        borderColor: 'var(--background)',
-                        position: 'static'
-                    }}
+                    className="!h-3 !w-3 !bg-[#F0EEE9] !border-2"
+                    style={{ borderColor: '#131313', position: 'static' }}
                 />
             </div>
         </div>

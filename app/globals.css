@@ -3,15 +3,15 @@
 /* Cumulus Brand - Dark Mode Default */
 :root {
   /* Dark palette (default) */
-  --background: #141414;
+  --background: #131313;
   --foreground-body: #F0EEE9;
   /* Updated text color */
   --foreground-subtitle: #999999;
   --foreground-title: #F0EEE9;
   /* Match main text for titles or keep distinct if needed, using main text color for now as requested */
-  --sidebar-background: #141414;
-  --header-background: #141414;
-  --node-background: #1f1f1f;
+  --sidebar-background: #131313;
+  --header-background: #131313;
+  --node-background: #1a1a1f;
   --border-color: rgba(240, 238, 233, 0.15);
   /* Adjusted based on new text color */
   --accent-bg: rgba(240, 238, 233, 0.1);

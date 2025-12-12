@@ -222,6 +222,25 @@ export async function simulateWorkflow(
         result = { status: 'received', event: data.waitConfig?.event, data: { simulated: true } };
         addLog(nodeId, label, `Simulated event reception: ${data.waitConfig?.event}`, 'success', result);
       }
+      else if (label === 'Approval') {
+        result = { status: 'approved', approver: data.approvalConfig?.approverEmail };
+        addLog(nodeId, label, `Simulated approval from ${data.approvalConfig?.approverEmail}`, 'success', result);
+      }
+      else if (label === 'Stream') {
+        result = { status: 'streamed', message: data.streamConfig?.message };
+        addLog(nodeId, label, `Streamed: ${data.streamConfig?.message}`, 'success', result);
+      }
+      else if (label === 'Slack Message') {
+        result = { status: 'sent', channel: data.slackConfig?.channel };
+        addLog(nodeId, label, `Simulated Slack message sent`, 'success', result);
+      }
+      else if (label === 'Sleep') {
+        const duration = data.sleepConfig?.duration || '100ms';
+        const ms = parseInt(duration) || 100;
+        await new Promise(r => setTimeout(r, Math.min(ms, 100))); // Cap at 100ms for simulation
+        result = { status: 'completed', duration };
+        addLog(nodeId, label, `Sleep completed (${duration})`, 'success', result);
+      }
       // ... default behavior for others
       else if (label !== 'Start Workflow') {
         // Generic step fallback

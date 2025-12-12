@@ -24,23 +24,24 @@ export const NodeWrapper = memo(({ children, selected, className, style, handles
         <div
             ref={ref}
             className={`relative rounded-xl border-2 transition-colors duration-300 ${selected
-                ? 'border-blue-500 bg-[#0f172a] shadow-[0_0_20px_rgba(59,130,246,0.3)]'
-                : 'border-white/10 bg-[#0f172a]/80 hover:border-white/20'
+                ? 'border-white/30 shadow-[0_0_20px_rgba(255,255,255,0.1)]'
+                : 'border-white/10 hover:border-white/20'
                 } ${className}`}
             style={{
+                backgroundColor: '#111111',
                 backdropFilter: 'blur(10px)',
                 minWidth: '200px',
                 ...style
             }}
         >
             {/* Standard Handles if provided, otherwise children should render them */}
-            {handles.map((handle, index) => (
+            {handles?.map((handle, index) => (
                 <Handle
-                    key={`${handle.type}-${index}`}
+                    key={index}
                     type={handle.type}
                     position={handle.position}
                     id={handle.id}
-                    className="!bg-blue-500 !w-3 !h-3 !border-2 !border-[#0f172a]"
+                    className="!bg-[#F0EEE9] !w-3 !h-3 !border-2 !border-[#000000]"
                 />
             ))}
 
