@@ -404,7 +404,7 @@ const FlowBuilderContent = ({
                         color: 'white',
                         borderRadius: '8px',
                         padding: '4px'
-                    }} className="!shadow-2xl backdrop-blur-md [&>button]:!border-transparent [&>button:hover]:!bg-white/10" />
+                    }} className="!shadow-2xl backdrop-blur-md [&>button]:!bg-transparent [&>button]:!border-none [&>button:hover]:!bg-white/10" />
 
                     <Background
                         color="#4a4a5e"
