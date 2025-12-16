@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 
 export async function POST(req: NextRequest) {
     try {
-        const supabase = createServerSupabaseClient();
+        const supabase = createAdminClient();
         const body = await req.json();
         const { id, name, description, graph, code, user_id } = body;
 
@@ -93,7 +93,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
     try {
-        const supabase = createServerSupabaseClient();
+        const supabase = createAdminClient();
 
         // Optional: filter by user_id if we want to add that logic later
         const { data, error } = await supabase

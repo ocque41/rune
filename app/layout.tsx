@@ -4,6 +4,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from 'sonner';
 import React from 'react';
 import "./globals.css";
+import { TransitionCurtain } from "@/components/TransitionCurtain";
+import { AuthProvider } from "@/components/providers/auth-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,10 +17,13 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+
 export const metadata: Metadata = {
   title: "Cumulus Automation",
   description: "Precision workflow automation with clarity and customization",
 };
+
+// ... imports
 
 export default function RootLayout({
   children,
@@ -30,8 +35,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
-        <Toaster position="top-center" richColors />
+        <AuthProvider>
+          <TransitionCurtain />
+          {children}
+          <Toaster position="top-center" richColors />
+        </AuthProvider>
       </body>
     </html>
   );

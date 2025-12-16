@@ -1,187 +1,244 @@
 @import "tailwindcss";
 
-/* Cumulus Brand - Dark Mode Default */
+@font-face {
+  font-family: "Drafting Mono";
+  src: url("/DraftingMono-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Drafting Mono";
+  src: url("/DraftingMono-Italic.otf") format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Drafting Mono";
+  src: url("/DraftingMono-Medium.otf") format("opentype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Drafting Mono";
+  src: url("/DraftingMono-SemiBold.otf") format("opentype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Drafting Mono";
+  src: url("/DraftingMono-Bold.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  /* Dark palette (default) */
-  --background: #131313;
-  --foreground-body: #F0EEE9;
-  /* Updated text color */
-  --foreground-subtitle: #999999;
-  --foreground-title: #F0EEE9;
-  /* Match main text for titles or keep distinct if needed, using main text color for now as requested */
-  --sidebar-background: #131313;
-  --header-background: #131313;
-  --node-background: #1a1a1f;
-  --border-color: rgba(240, 238, 233, 0.15);
-  /* Adjusted based on new text color */
-  --accent-bg: rgba(240, 238, 233, 0.1);
+  color-scheme: dark;
+  --bg: #000000;
+  --fg: #E0E0E0;
+  --title: #FFFFFF;
+  --subtitle: #A0A0A0;
+  --text: #E0E0E0;
+  --muted: #555555;
 
-  /* Typography Variables */
-  --font-h1: 'Drafting Mono', monospace;
-  --font-h2: 'Drafting Mono', monospace;
-  --font-h3: 'Drafting Mono', monospace;
-  --font-body: 'Drafting Mono', monospace;
+  /* Cyber-Brutalist Palette */
+  --neon-green: #00FF00;
+  --hot-pink: #FF00FF;
+  --electric-blue: #00FFFF;
+  --warning-yellow: #FFFF00;
+  --pure-black: #000000;
+  --pure-white: #FFFFFF;
+
+  /* Structural Tokens */
+  --border-thick: 4px;
+  --border-thin: 2px;
+  --shadow-hard: 6px 6px 0px 0px;
+  --shadow-hard-sm: 4px 4px 0px 0px;
 }
 
-/* Light palette (opt-in) - Adjusted to invert logically if needed, but keeping user request focus on specific colors */
-:root[data-theme="light"] {
-  --background: #F0EEE9;
-  --foreground-body: #141414;
-  --foreground-subtitle: #333333;
-  --foreground-title: #141414;
-  --sidebar-background: #F0EEE9;
-  --header-background: #F0EEE9;
-  --node-background: #ffffff;
-  --border-color: rgba(20, 20, 20, 0.1);
-  --accent-bg: rgba(20, 20, 20, 0.05);
+[data-theme="light"] {
+  /* We are forcing a dark aesthetics for this specific artistic direction, 
+     but keeping light vars just in case, mapped to high contrast */
+  color-scheme: light;
+  --bg: #FFFFFF;
+  --fg: #000000;
+  --title: #000000;
+  --subtitle: #333333;
+  --text: #111111;
+  --muted: #888888;
 }
 
-/* Custom Fonts */
-@font-face {
-  font-family: 'Drafting Mono';
-  src: url('/DraftingMono-Thin.ttf') format('truetype');
-  font-weight: 100;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'Drafting Mono';
-  src: url('/DraftingMono-ThinItalic.ttf') format('truetype');
-  font-weight: 100;
-  font-style: italic;
-}
-
-@font-face {
-  font-family: 'Drafting Mono';
-  src: url('/DraftingMono-ExtraLight.ttf') format('truetype');
-  font-weight: 200;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'Drafting Mono';
-  src: url('/DraftingMono-ExtraLightItalic.ttf') format('truetype');
-  font-weight: 200;
-  font-style: italic;
-}
-
-@font-face {
-  font-family: 'Drafting Mono';
-  src: url('/DraftingMono-Light.ttf') format('truetype');
-  font-weight: 300;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'Drafting Mono';
-  src: url('/DraftingMono-LightItalic.ttf') format('truetype');
-  font-weight: 300;
-  font-style: italic;
-}
-
-@font-face {
-  font-family: 'Drafting Mono';
-  src: url('/DraftingMono-Regular.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'Drafting Mono';
-  src: url('/DraftingMono-Italic.ttf') format('truetype');
-  font-weight: 400;
-  font-style: italic;
-}
-
-@font-face {
-  font-family: 'Drafting Mono';
-  src: url('/DraftingMono-Medium.ttf') format('truetype');
-  font-weight: 500;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'Drafting Mono';
-  src: url('/DraftingMono-MediumItalic.ttf') format('truetype');
-  font-weight: 500;
-  font-style: italic;
-}
-
-@font-face {
-  font-family: 'Drafting Mono';
-  src: url('/DraftingMono-SemiBold.ttf') format('truetype');
-  font-weight: 600;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'Drafting Mono';
-  src: url('/DraftingMono-SemiBoldItalic.ttf') format('truetype');
-  font-weight: 600;
-  font-style: italic;
-}
-
-@font-face {
-  font-family: 'Drafting Mono';
-  src: url('/DraftingMono-Bold.ttf') format('truetype');
-  font-weight: 700;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'Drafting Mono';
-  src: url('/DraftingMono-BoldItalic.ttf') format('truetype');
-  font-weight: 700;
-  font-style: italic;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground-body);
-  --color-sidebar: var(--sidebar-background);
-  --color-header: var(--header-background);
-  --font-sans: 'Drafting Mono', var(--font-geist-sans), monospace;
-  --font-mono: 'Drafting Mono', var(--font-geist-mono), monospace;
-}
-
+html,
 body {
-  background: var(--background);
-  color: var(--foreground-body);
-  font-family: var(--font-body);
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  /* Text -1% */
-  line-height: 1.5;
-}
-
-/* Typography hierarchy */
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  font-family: var(--font-h1);
-  /* Using h1 font for all headings for now as they are the same family */
-  font-weight: 700;
-  letter-spacing: -0.05em;
-  /* Titles -5% */
-  color: var(--foreground-title);
-}
-
-.subtitle,
-[data-slot="subtitle"] {
+  background: transparent;
+  color: var(--text);
+  font-family: "Drafting Mono", monospace;
+  font-weight: 400;
   letter-spacing: -0.03em;
-  /* Subtitles -3% */
+  letter-spacing: -0.03em;
+  min-height: 100%;
+  overflow-x: hidden;
 }
 
-/* Accessibility: Focus rings */
-*:focus-visible {
-  outline: 2px solid var(--foreground-subtitle);
-  outline-offset: 2px;
+::selection {
+  background: var(--title);
+  color: var(--bg);
 }
 
-/* Accessibility: Reduced motion */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+a:hover:not(.no-underline):not(.card-link),
+a:focus-visible:not(.no-underline):not(.card-link) {
+  text-decoration: underline;
+  text-decoration-thickness: 0.5px;
+}
+
+.card-link {
+  text-decoration: none;
+}
+
+.card-link:hover,
+.card-link:focus-visible {
+  text-decoration: none;
+}
+
+button a,
+a[class*="inline-flex"] {
+  color: inherit !important;
+}
+
+.display {
+  font-size: clamp(3.2rem, 5vw + 1rem, 7rem);
+  line-height: 0.9;
+  letter-spacing: -0.1em;
+  font-weight: 700;
+  color: var(--title);
+}
+
+.lead {
+  font-size: clamp(1.2rem, 0.8vw + 1rem, 1.5rem);
+  letter-spacing: -0.06em;
+  font-weight: 600;
+  color: var(--subtitle);
+}
+
+.small {
+  font-size: 0.875rem;
+}
+
+.body {
+  font-size: 1.125rem;
+  letter-spacing: -0.03em;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
+@keyframes ambientGradient {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  25% {
+    background-position: 50% 100%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  75% {
+    background-position: 50% 0%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes ambientGradientReverse {
+  0% {
+    background-position: 100% 50%;
+  }
+
+  25% {
+    background-position: 50% 0%;
+  }
+
+  50% {
+    background-position: 0% 50%;
+  }
+
+  75% {
+    background-position: 50% 100%;
+  }
+
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes ambientGradientTilt {
+  0% {
+    background-position: 30% 0%;
+  }
+
+  20% {
+    background-position: 70% 40%;
+  }
+
+  50% {
+    background-position: 100% 80%;
+  }
+
+  80% {
+    background-position: 40% 100%;
+  }
+
+  100% {
+    background-position: 0% 60%;
+  }
+}
+
+@keyframes ambientGradientWave {
+  0% {
+    background-position: 50% 100%;
+  }
+
+  30% {
+    background-position: 70% 30%;
+  }
+
+  60% {
+    background-position: 30% 0%;
+  }
+
+  85% {
+    background-position: 0% 70%;
+  }
+
+  100% {
+    background-position: 50% 100%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
 
   *,
@@ -190,40 +247,82 @@ h6 {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
-/* Button base styles - pill/rounded CTAs */
-button {
-  font-family: 'Drafting Mono', monospace;
-  font-weight: 500;
-  border-radius: 24px;
+/* Glass-morphic card styles */
+.glass-card {
+  background: rgba(20, 20, 20, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1rem;
+  transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(20, 20, 20, 0.9);
+}
+
+.glass-card-highlight {
+  background: rgba(25, 25, 25, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 1rem;
+  transition: all 0.3s ease;
+}
+
+.glass-card-highlight:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(30, 30, 30, 0.9);
+}
+
+.glass-badge {
+  background: rgba(20, 20, 20, 0.9);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 9999px;
+}
+
+.glass-button {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
   transition: all 0.2s ease;
 }
 
-/* Links */
-a {
-  color: inherit;
-  text-decoration: none;
+.glass-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.glass-button-primary {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.5rem;
+  color: var(--fg);
   transition: all 0.2s ease;
 }
 
-a:hover {
-  text-decoration: underline;
+.glass-button-primary:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
-/* Input fields */
-input,
-textarea,
-select {
-  font-family: 'Drafting Mono', monospace;
-  font-weight: 400;
-  letter-spacing: -0.01em;
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
-/* Code blocks */
-code,
-pre {
-  font-family: var(--font-geist-mono), 'Courier New', monospace;
-  letter-spacing: -0.01em;
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
