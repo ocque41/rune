@@ -56,7 +56,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // 3. User State Listener
     useEffect(() => {
+        console.log("Rune AuthProvider: Initializing listener");
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            console.log("Rune AuthProvider: Auth Event:", event, session?.user?.email);
             setUser(session?.user ?? null)
             setIsLoading(false)
 

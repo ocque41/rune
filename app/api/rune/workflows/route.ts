@@ -28,13 +28,13 @@ export async function POST(req: NextRequest) {
         // We'll try to find it first.
 
         const { data: productData, error: productError } = await supabase
-            .from('products')
+            .from('ecosystem_products')
             .select('id')
-            .eq('slug', 'rune')
+            .eq('product_key', 'rune')
             .single();
 
         if (productError || !productData) {
-            console.warn("Could not find 'rune' product, ensure it exists in products table.");
+            console.warn("Could not find 'rune' product in ecosystem_products, ensure it exists.");
             // Fallback or error? We'll return error for safety.
             return NextResponse.json({ error: "Product 'rune' not found" }, { status: 500 });
         }
