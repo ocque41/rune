@@ -69,11 +69,13 @@ const getId = () => `dndnode_${crypto.randomUUID()}`;
 const FlowBuilderContent = ({
     onSave,
     onRun,
-    savedFilename
+    savedFilename,
+    initialWorkflowId
 }: {
     onSave?: (code: string) => void;
     onRun?: () => void;
     savedFilename?: string | null;
+    initialWorkflowId?: string | null;
 }) => {
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -218,6 +220,15 @@ const FlowBuilderContent = ({
             toast.success('Session cleared');
         }
     }, [clearSession, setNodes, setEdges]);
+
+
+
+    // Handle initial workflow load
+    useEffect(() => {
+        if (initialWorkflowId) {
+            onLoadWorkflow(initialWorkflowId);
+        }
+    }, [initialWorkflowId]); // removed onLoadWorkflow from deps to avoid double-call if it's unstable, though useCallback should be stable
 
     const onConnect = useCallback(
         (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -871,7 +882,7 @@ const FlowBuilderContent = ({
 
 
 
-export const FlowBuilder = () => {
+export const FlowBuilder = ({ initialWorkflowId }: { initialWorkflowId?: string | null }) => {
     const [savedFilename, setSavedFilename] = useState<string | null>(null);
 
     const handleSave = useCallback(async (code: string) => {
@@ -924,7 +935,12 @@ export const FlowBuilder = () => {
 
     return (
         <ReactFlowProvider>
-            <FlowBuilderContent onSave={handleSave} onRun={handleRun} savedFilename={savedFilename} />
+            <FlowBuilderContent
+                onSave={handleSave}
+                onRun={handleRun}
+                savedFilename={savedFilename}
+                initialWorkflowId={initialWorkflowId}
+            />
         </ReactFlowProvider>
     );
 };

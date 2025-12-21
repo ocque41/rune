@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 export default function Home() {
   const [activeTab, setActiveTab] = useState<'editor' | 'runs' | 'workflows'>('editor'); // Add 'workflows'
   const [selectedRunId, setSelectedRunId] = useState<string | undefined>();
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | undefined>();
 
   return (
     <div className="flex h-screen w-full flex-col" style={{ backgroundColor: 'var(--background)' }}>
@@ -106,12 +107,12 @@ export default function Home() {
       </header>
       <main className="flex-1 overflow-hidden">
         {activeTab === 'editor' ? (
-          <FlowBuilder />
+          <FlowBuilder initialWorkflowId={selectedWorkflowId} />
         ) : activeTab === 'workflows' ? (
           <WorkflowList onSelectWorkflow={(id, type) => {
-            // TODO: Implement loading workflow into editor
-            toast.info(`Selected ${type} workflow: ${id}`);
-            // In future: setNodes/Edges and switch to editor
+            setSelectedWorkflowId(id);
+            setActiveTab('editor');
+            toast.success(`Loading workflow...`);
           }} />
         ) : (
           <div className="flex h-full">
