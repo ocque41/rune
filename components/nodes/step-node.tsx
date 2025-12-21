@@ -267,9 +267,37 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                             </div>
                         )}
 
-                        {/* Slack Config (Example of styling update) */}
+                        {/* Slack Config */}
                         {data.label === 'Slack Message' && (
                             <div className="space-y-3">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Webhook URL</label>
+                                    <input
+                                        type="text"
+                                        placeholder="https://hooks.slack.com/..."
+                                        className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
+                                        value={slackConfig.webhookUrl}
+                                        onChange={(e) => {
+                                            const newVal = { ...slackConfig, webhookUrl: e.target.value };
+                                            setSlackConfig(newVal);
+                                            data.slackConfig = newVal;
+                                        }}
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Channel (Optional)</label>
+                                    <input
+                                        type="text"
+                                        placeholder="#general"
+                                        className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
+                                        value={slackConfig.channel}
+                                        onChange={(e) => {
+                                            const newVal = { ...slackConfig, channel: e.target.value };
+                                            setSlackConfig(newVal);
+                                            data.slackConfig = newVal;
+                                        }}
+                                    />
+                                </div>
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Message</label>
                                     <textarea
@@ -280,6 +308,143 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                                             const newVal = { ...slackConfig, message: e.target.value };
                                             setSlackConfig(newVal);
                                             data.slackConfig = newVal;
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Send Email Config */}
+                        {data.label === 'Send Email' && (
+                            <div className="space-y-3">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Recipient</label>
+                                    <input
+                                        type="email"
+                                        placeholder="user@example.com"
+                                        className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
+                                        value={emailConfig.recipient}
+                                        onChange={(e) => {
+                                            const newVal = { ...emailConfig, recipient: e.target.value };
+                                            setEmailConfig(newVal);
+                                            data.emailConfig = newVal;
+                                        }}
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Subject</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Subject line"
+                                        className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
+                                        value={emailConfig.subject}
+                                        onChange={(e) => {
+                                            const newVal = { ...emailConfig, subject: e.target.value };
+                                            setEmailConfig(newVal);
+                                            data.emailConfig = newVal;
+                                        }}
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Body</label>
+                                    <textarea
+                                        className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
+                                        rows={4}
+                                        value={emailConfig.body}
+                                        onChange={(e) => {
+                                            const newVal = { ...emailConfig, body: e.target.value };
+                                            setEmailConfig(newVal);
+                                            data.emailConfig = newVal;
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Database Query Config */}
+                        {data.label === 'Database Query' && (
+                            <div className="space-y-3">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Database Type</label>
+                                    <select
+                                        className="w-full rounded-lg bg-[#222222] border-none px-2 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
+                                        value={dbConfig.dbType}
+                                        onChange={(e) => {
+                                            const newVal = { ...dbConfig, dbType: e.target.value as any };
+                                            setDbConfig(newVal);
+                                            data.dbConfig = newVal;
+                                        }}
+                                    >
+                                        <option value="postgres">PostgreSQL</option>
+                                        <option value="mysql">MySQL</option>
+                                        <option value="mongodb">MongoDB</option>
+                                        <option value="generic">Generic</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Connection String</label>
+                                    <input
+                                        type="text"
+                                        placeholder="postgresql://user:pass@localhost:5432/db"
+                                        className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs font-mono text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
+                                        value={dbConfig.connectionString}
+                                        onChange={(e) => {
+                                            const newVal = { ...dbConfig, connectionString: e.target.value };
+                                            setDbConfig(newVal);
+                                            data.dbConfig = newVal;
+                                        }}
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Query</label>
+                                    <textarea
+                                        className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs font-mono text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
+                                        rows={4}
+                                        placeholder="SELECT * FROM users WHERE id = $1"
+                                        value={dbConfig.query}
+                                        onChange={(e) => {
+                                            const newVal = { ...dbConfig, query: e.target.value };
+                                            setDbConfig(newVal);
+                                            data.dbConfig = newVal;
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Run Script Config */}
+                        {data.label === 'Run Script' && (
+                            <div className="space-y-3">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Script (Node.js)</label>
+                                    <textarea
+                                        className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs font-mono text-blue-300 placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
+                                        rows={6}
+                                        placeholder="// console.log('Hello World');"
+                                        value={scriptConfig.code}
+                                        onChange={(e) => {
+                                            const newVal = { ...scriptConfig, code: e.target.value };
+                                            setScriptConfig(newVal);
+                                            data.scriptConfig = newVal;
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Stream Config */}
+                        {data.label === 'Stream' && (
+                            <div className="space-y-3">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Stream Message</label>
+                                    <textarea
+                                        className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
+                                        rows={2}
+                                        value={streamConfig.message}
+                                        onChange={(e) => {
+                                            const newVal = { ...streamConfig, message: e.target.value };
+                                            setStreamConfig(newVal);
+                                            data.streamConfig = newVal;
                                         }}
                                     />
                                 </div>
