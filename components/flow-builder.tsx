@@ -35,7 +35,7 @@ import { TransformNode } from './nodes/transform-node';
 import WebhookNode from './nodes/webhook-node';
 import { generateWorkflowCode } from '@/lib/workflow-generator';
 import { validateGraph, ValidationResult } from '@/lib/workflow-validator';
-import { LayoutTemplate, AlertCircle, X, Download, Upload, Trash2, HelpCircle, Play } from 'lucide-react';
+import { LayoutTemplate, AlertCircle, X, Download, Upload, Trash2, HelpCircle, Play, FolderOpen, Loader2, FileCode } from 'lucide-react';
 import { templates, Template } from '@/lib/templates';
 import { ExportedWorkflow } from '@/lib/types/export';
 import { toast } from 'sonner';
@@ -91,6 +91,89 @@ const FlowBuilderContent = ({
     const [simulationLogs, setSimulationLogs] = useState<SimulationLogEntry[]>([]);
     const [isSimulating, setIsSimulating] = useState(false);
     const [showSimulationPanel, setShowSimulationPanel] = useState(false);
+
+    // Open/Load Modal State
+    const [showOpenModal, setShowOpenModal] = useState(false);
+    const [workflowList, setWorkflowList] = useState<any[]>([]);
+    const [isLoadingList, setIsLoadingList] = useState(false);
+
+    const fetchWorkflows = useCallback(async () => {
+        setIsLoadingList(true);
+        try {
+            // Determine API based on environment or toggle? 
+            // For now, prioritize the 'rune' (cloud) API if we are in this specific context, 
+            // but the app has local dev mode too.
+            // Let's try to fetch cloud first as that's the production requirement.
+            const response = await fetch('/api/rune/workflows');
+            if (response.ok) {
+                const data = await response.json();
+                setWorkflowList(data.workflows || []);
+            } else {
+                // Fallback or error?
+                console.warn("Failed to fetch cloud workflows");
+                setWorkflowList([]);
+            }
+        } catch (error) {
+            console.error('Fetch workflows error:', error);
+            toast.error('Failed to load workflows');
+        } finally {
+            setIsLoadingList(false);
+        }
+    }, []);
+
+    const onLoadWorkflow = useCallback(async (id: string) => {
+        try {
+            const response = await fetch(`/api/rune/workflows/${id}`);
+            if (!response.ok) throw new Error('Failed to load workflow');
+
+            const data = await response.json();
+            const workflow = data.workflow;
+
+            if (!workflow) throw new Error('Workflow data missing');
+
+            // Restore state
+            // Logic to restore graph from workflow.graph_json
+            // We assume graph_json has { nodes, edges } structure
+            const graph = workflow.graph_json;
+            if (graph && graph.nodes && graph.edges) {
+                setNodes(graph.nodes);
+                setEdges(graph.edges);
+                setWorkflowName(workflow.name);
+                setWorkflowId(workflow.id); // Set ID so subsequent saves are updates
+
+                setShowOpenModal(false);
+                toast.success(`Loaded "${workflow.name}"`);
+            } else {
+                throw new Error('Invalid graph data');
+            }
+
+        } catch (error) {
+            console.error('Load error:', error);
+            toast.error('Failed to load workflow');
+        }
+    }, [setNodes, setEdges]);
+
+    const onDeleteWorkflow = useCallback(async (id: string, e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent triggering load
+        if (!confirm("Are you sure you want to delete this workflow?")) return;
+
+        try {
+            const response = await fetch(`/api/rune/workflows/${id}`, { method: 'DELETE' });
+            if (!response.ok) throw new Error('Failed to delete');
+
+            toast.success('Workflow deleted');
+            // Refresh list
+            fetchWorkflows();
+
+            // If deleting current workflow, maybe reset ID?
+            if (id === workflowId) {
+                setWorkflowId(null);
+            }
+        } catch (error) {
+            console.error('Delete error:', error);
+            toast.error('Failed to delete workflow');
+        }
+    }, [fetchWorkflows, workflowId]);
 
     const onSimulate = useCallback(async () => {
         setIsSimulating(true);
@@ -437,6 +520,17 @@ const FlowBuilderContent = ({
                             Help
                         </Link>
                         <button
+                            onClick={() => {
+                                setShowOpenModal(true);
+                                fetchWorkflows();
+                            }}
+                            className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                            style={{ color: 'var(--foreground-title)' }}
+                        >
+                            <FolderOpen size={14} />
+                            Open
+                        </button>
+                        <button
                             onClick={onClearSession}
                             className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
                             style={{ color: 'var(--foreground-title)' }}
@@ -705,6 +799,67 @@ const FlowBuilderContent = ({
                                     </div>
                                 ))
                             )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Open Workflow Modal */}
+                {showOpenModal && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <div className="w-[600px] max-h-[80vh] flex flex-col rounded-lg border shadow-xl" style={{
+                            backgroundColor: 'var(--node-background)',
+                            borderColor: 'var(--border-color)'
+                        }}>
+                            <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
+                                <h2 className="text-lg font-bold" style={{ color: 'var(--foreground-title)' }}>Open Workflow</h2>
+                                <button onClick={() => setShowOpenModal(false)} className="opacity-60 hover:opacity-100">
+                                    <X size={20} style={{ color: 'var(--foreground-title)' }} />
+                                </button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-4 min-h-[300px]">
+                                {isLoadingList ? (
+                                    <div className="flex flex-col items-center justify-center h-full opacity-50 gap-2">
+                                        <Loader2 size={24} className="animate-spin" style={{ color: 'var(--foreground-title)' }} />
+                                        <span style={{ color: 'var(--foreground-subtitle)' }}>Loading workflows...</span>
+                                    </div>
+                                ) : workflowList.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center h-full opacity-50 gap-2">
+                                        <FolderOpen size={32} style={{ color: 'var(--foreground-subtitle)' }} />
+                                        <span style={{ color: 'var(--foreground-subtitle)' }}>No saved workflows found.</span>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {workflowList.map((wf) => (
+                                            <div
+                                                key={wf.id}
+                                                onClick={() => onLoadWorkflow(wf.id)}
+                                                className="group flex items-center justify-between p-3 rounded-md border transition-all hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
+                                                style={{ borderColor: 'var(--border-color)' }}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 rounded bg-blue-500/10 text-blue-500">
+                                                        <FileCode size={16} />
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-medium" style={{ color: 'var(--foreground-title)' }}>{wf.name}</div>
+                                                        <div className="text-xs opacity-60" style={{ color: 'var(--foreground-subtitle)' }}>
+                                                            Last updated: {new Date(wf.updated_at).toLocaleDateString()}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={(e) => onDeleteWorkflow(wf.id, e)}
+                                                    className="p-2 rounded opacity-0 group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-500 transition-all"
+                                                    title="Delete workflow"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )}
