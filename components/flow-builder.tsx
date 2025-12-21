@@ -41,6 +41,7 @@ import { ExportedWorkflow } from '@/lib/types/export';
 import { toast } from 'sonner';
 import { useLocalWorkflowSession } from '@/hooks/useLocalWorkflowSession';
 import { simulateWorkflow, SimulationLogEntry } from '@/lib/workflow-simulator';
+import { DeploymentSuccessDialog } from './deployment-success-dialog';
 
 const nodeTypes = {
     step: StepNode,
@@ -696,6 +697,12 @@ const FlowBuilderContent = ({
                         </button>
                     </div>
                 </ReactFlow>
+
+                <DeploymentSuccessDialog
+                    open={showDeployModal}
+                    onClose={() => setShowDeployModal(false)}
+                    result={deployResult}
+                />
 
                 {/* Export Modal */}
                 {exportUrl && (
