@@ -1,210 +1,186 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import fs from 'fs/promises';
-import path from 'path';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { saveRun, getRun, updateStepExecution, setRunWaiting, resumeRun, getWaitingRuns, WorkflowRun } from '@/lib/run-store';
 
-// Mock the fs module before importing run-store
-vi.mock('fs/promises', () => ({
-    default: {
-        access: vi.fn(),
-        readFile: vi.fn(),
-        writeFile: vi.fn()
-    }
+// Mock Supabase
+const mockSelect = vi.fn();
+const mockInsert = vi.fn();
+const mockUpdate = vi.fn();
+const mockUpsert = vi.fn();
+const mockEq = vi.fn();
+const mockSingle = vi.fn();
+const mockOrder = vi.fn();
+const mockLimit = vi.fn();
+const mockDelete = vi.fn();
+const mockFrom = vi.fn();
+
+const mockSupabase = {
+    from: mockFrom,
+};
+
+// Chainable mocks - default setup
+mockFrom.mockReturnValue({
+    select: mockSelect,
+    insert: mockInsert,
+    update: mockUpdate,
+    upsert: mockUpsert,
+    delete: mockDelete,
+});
+
+mockSelect.mockReturnValue({
+    eq: mockEq,
+    order: mockOrder,
+});
+
+mockEq.mockReturnValue({
+    single: mockSingle,
+    eq: mockEq, // For chaining multiple eqs
+});
+
+mockOrder.mockReturnValue({
+    limit: mockLimit,
+});
+
+mockDelete.mockReturnValue({
+    eq: mockEq,
+    in: mockEq, // reusing mockEq for 'in' since it returns chainable
+    lt: mockEq,
+});
+
+// Mock the server client creator
+vi.mock('@/lib/supabase/server', () => ({
+    createAdminClient: () => mockSupabase
 }));
 
 describe('Run Store', () => {
-    let runStore: typeof import('@/lib/run-store');
-
-    beforeEach(async () => {
+    beforeEach(() => {
         vi.clearAllMocks();
-        // Reset module cache to get fresh import
-        vi.resetModules();
-        runStore = await import('@/lib/run-store');
+        // Reset default return values just in case
+        mockSelect.mockReturnValue({ eq: mockEq, order: mockOrder });
+        mockEq.mockReturnValue({ single: mockSingle, eq: mockEq });
+
+        // Ensure upsert returns a promise that resolves to success by default
+        // Supabase upsert returns a Promise that resolves to { data, error }
+        mockUpsert.mockResolvedValue({ error: null });
+    });
+
+    // Helper to create a mock run in DB format
+    const createMockRun = (id: string): any => ({
+        id,
+        workflow_name: 'Test Workflow',
+        status: 'running',
+        start_time: new Date().toISOString(),
+        logs: [],
+        steps: [],
+        args: [],
+        waiting_for: null
     });
 
     describe('StepExecution tracking', () => {
         it('should updateStepExecution add a new step', async () => {
-            const mockRuns = [{
-                id: 'run-1',
-                workflowName: 'test',
-                status: 'running' as const,
-                startTime: new Date().toISOString(),
-                args: [],
-                logs: [],
-                steps: []
-            }];
+            const runId = 'run-1';
+            const mockRun = createMockRun(runId);
 
-            vi.mocked(fs.access).mockResolvedValue(undefined);
-            vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(mockRuns));
-            vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+            // Mock getRun response
+            mockSingle.mockResolvedValueOnce({ data: mockRun, error: null });
 
-            await runStore.updateStepExecution('run-1', {
+            const newStep = {
                 stepId: 'step-1',
-                stepLabel: 'HTTP Request',
-                status: 'completed',
-                durationMs: 150,
-                result: { status: 200 }
-            });
+                stepLabel: 'Test Step',
+                status: 'running' as const,
+                startTime: new Date().toISOString()
+            };
 
-            expect(fs.writeFile).toHaveBeenCalled();
-            const writtenData = JSON.parse(vi.mocked(fs.writeFile).mock.calls[0][1] as string);
-            expect(writtenData[0].steps).toHaveLength(1);
-            expect(writtenData[0].steps[0].stepLabel).toBe('HTTP Request');
+            await updateStepExecution(runId, newStep);
+
+            // Verify fetched
+            expect(mockFrom).toHaveBeenCalledWith('rune_workflow_runs');
+
+            // Verify upsert called with new step
+            expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({
+                id: runId,
+                steps: [newStep]
+            }));
         });
 
         it('should update existing step instead of adding duplicate', async () => {
-            const mockRuns = [{
-                id: 'run-1',
-                workflowName: 'test',
-                status: 'running' as const,
-                startTime: new Date().toISOString(),
-                args: [],
-                logs: [],
-                steps: [{
-                    stepId: 'step-1',
-                    stepLabel: 'HTTP Request',
-                    status: 'running' as const
-                }]
-            }];
-
-            vi.mocked(fs.access).mockResolvedValue(undefined);
-            vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(mockRuns));
-            vi.mocked(fs.writeFile).mockResolvedValue(undefined);
-
-            await runStore.updateStepExecution('run-1', {
+            const runId = 'run-1';
+            const existingStep = {
                 stepId: 'step-1',
-                stepLabel: 'HTTP Request',
-                status: 'completed',
-                durationMs: 150
-            });
+                stepLabel: 'Test Step',
+                status: 'running' as const,
+                startTime: new Date().toISOString()
+            };
+            const mockRun = createMockRun(runId);
+            mockRun.steps = [existingStep];
 
-            const writtenData = JSON.parse(vi.mocked(fs.writeFile).mock.calls[0][1] as string);
-            expect(writtenData[0].steps).toHaveLength(1); // Not 2
-            expect(writtenData[0].steps[0].status).toBe('completed');
+            mockSingle.mockResolvedValueOnce({ data: mockRun, error: null });
+
+            const updatedStep = {
+                ...existingStep,
+                status: 'completed' as const,
+                endTime: new Date().toISOString()
+            };
+
+            await updateStepExecution(runId, updatedStep);
+
+            expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({
+                id: runId,
+                steps: [updatedStep]
+            }));
         });
     });
 
     describe('WaitingFor state management', () => {
         it('should setRunWaiting update run status and waitingFor', async () => {
-            const mockRuns = [{
-                id: 'run-1',
-                workflowName: 'test',
-                status: 'running' as const,
-                startTime: new Date().toISOString(),
-                args: [],
-                logs: []
-            }];
+            const runId = 'run-1';
+            const mockRun = createMockRun(runId);
+            mockSingle.mockResolvedValueOnce({ data: mockRun, error: null });
 
-            vi.mocked(fs.access).mockResolvedValue(undefined);
-            vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(mockRuns));
-            vi.mocked(fs.writeFile).mockResolvedValue(undefined);
-
-            await runStore.setRunWaiting('run-1', {
-                type: 'approval',
-                identifier: 'approval-manager@example.com',
+            const waitingFor = {
+                type: 'event' as const,
+                identifier: 'test-event',
                 since: new Date().toISOString()
-            });
+            };
 
-            const writtenData = JSON.parse(vi.mocked(fs.writeFile).mock.calls[0][1] as string);
-            expect(writtenData[0].status).toBe('waiting');
-            expect(writtenData[0].waitingFor.type).toBe('approval');
+            await setRunWaiting(runId, waitingFor);
+
+            expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({
+                id: runId,
+                status: 'waiting',
+                waiting_for: waitingFor
+            }));
         });
 
         it('should resumeRun clear waiting state', async () => {
-            const mockRuns = [{
-                id: 'run-1',
-                workflowName: 'test',
-                status: 'waiting' as const,
-                startTime: new Date().toISOString(),
-                args: [],
-                logs: [],
-                waitingFor: {
-                    type: 'event' as const,
-                    identifier: 'payment_received',
-                    since: new Date().toISOString()
-                }
-            }];
+            const runId = 'run-1';
+            const mockRun = createMockRun(runId);
+            mockRun.status = 'waiting';
+            mockRun.waiting_for = { type: 'event', identifier: 'test' };
 
-            vi.mocked(fs.access).mockResolvedValue(undefined);
-            vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(mockRuns));
-            vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+            mockSingle.mockResolvedValueOnce({ data: mockRun, error: null });
 
-            await runStore.resumeRun('run-1');
+            await resumeRun(runId);
 
-            const writtenData = JSON.parse(vi.mocked(fs.writeFile).mock.calls[0][1] as string);
-            expect(writtenData[0].status).toBe('running');
-            expect(writtenData[0].waitingFor).toBeUndefined();
+            expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({
+                id: runId,
+                status: 'running',
+                waiting_for: undefined
+            }));
         });
 
         it('should getWaitingRuns filter by type', async () => {
-            const mockRuns = [
-                {
-                    id: 'run-1',
-                    workflowName: 'test1',
-                    status: 'waiting' as const,
-                    startTime: new Date().toISOString(),
-                    args: [],
-                    logs: [],
-                    waitingFor: { type: 'approval' as const, identifier: 'user@test.com', since: '' }
-                },
-                {
-                    id: 'run-2',
-                    workflowName: 'test2',
-                    status: 'waiting' as const,
-                    startTime: new Date().toISOString(),
-                    args: [],
-                    logs: [],
-                    waitingFor: { type: 'event' as const, identifier: 'payment', since: '' }
-                },
-                {
-                    id: 'run-3',
-                    workflowName: 'test3',
-                    status: 'running' as const,
-                    startTime: new Date().toISOString(),
-                    args: [],
-                    logs: []
-                }
-            ];
+            const mockRuns = [createMockRun('run-1')];
 
-            vi.mocked(fs.access).mockResolvedValue(undefined);
-            vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(mockRuns));
+            // Setup chain for getWaitingRuns: select -> eq -> eq
+            mockEq.mockReturnValue({
+                eq: mockEq,
+                then: (resolve: any) => resolve({ data: mockRuns, error: null }),
+                single: mockSingle,
+            });
 
-            const approvalRuns = await runStore.getWaitingRuns('approval');
-            expect(approvalRuns).toHaveLength(1);
-            expect(approvalRuns[0].id).toBe('run-1');
-
-            const eventRuns = await runStore.getWaitingRuns('event');
-            expect(eventRuns).toHaveLength(1);
-            expect(eventRuns[0].id).toBe('run-2');
-        });
-
-        it('should getWaitingRuns filter by identifier', async () => {
-            const mockRuns = [
-                {
-                    id: 'run-1',
-                    status: 'waiting' as const,
-                    startTime: '',
-                    workflowName: 'test',
-                    args: [],
-                    logs: [],
-                    waitingFor: { type: 'event' as const, identifier: 'payment', since: '' }
-                },
-                {
-                    id: 'run-2',
-                    status: 'waiting' as const,
-                    startTime: '',
-                    workflowName: 'test',
-                    args: [],
-                    logs: [],
-                    waitingFor: { type: 'event' as const, identifier: 'shipment', since: '' }
-                }
-            ];
-
-            vi.mocked(fs.access).mockResolvedValue(undefined);
-            vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(mockRuns));
-
-            const paymentRuns = await runStore.getWaitingRuns('event', 'payment');
-            expect(paymentRuns).toHaveLength(1);
-            expect(paymentRuns[0].id).toBe('run-1');
+            const results = await getWaitingRuns('event', 'test-event');
+            expect(results).toHaveLength(1);
+            expect(results[0].id).toBe('run-1');
         });
     });
 });

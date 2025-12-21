@@ -1,6 +1,7 @@
-import fs from 'fs/promises';
-import path from 'path';
+import { createAdminClient } from '@/lib/supabase/server';
+import { PostgrestError } from '@supabase/supabase-js';
 
+// Types
 export interface RunLog {
     timestamp: string;
     level: 'info' | 'warn' | 'error';
@@ -26,6 +27,7 @@ export interface WaitingFor {
 
 export interface WorkflowRun {
     id: string;
+    workflowId?: string; // Added optional field
     workflowName: string;
     status: 'pending' | 'running' | 'completed' | 'failed' | 'waiting';
     startTime: string;
@@ -39,85 +41,121 @@ export interface WorkflowRun {
     waitingFor?: WaitingFor;
 }
 
-
-const RUNS_FILE = path.join(process.cwd(), '.runs.json');
-
-// Ensure runs file exists
-async function ensureRunsFile() {
-    try {
-        await fs.access(RUNS_FILE);
-    } catch {
-        await fs.writeFile(RUNS_FILE, JSON.stringify([]), 'utf-8');
-    }
-}
-
-// Read all runs
-async function readRuns(): Promise<WorkflowRun[]> {
-    await ensureRunsFile();
-    try {
-        const data = await fs.readFile(RUNS_FILE, 'utf-8');
-        return JSON.parse(data);
-    } catch (error) {
-        console.error('Error reading runs file:', error);
-        return [];
-    }
-}
-
-// Write all runs
-async function writeRuns(runs: WorkflowRun[]): Promise<void> {
-    await fs.writeFile(RUNS_FILE, JSON.stringify(runs, null, 2), 'utf-8');
-}
-
 /**
  * Save a new run or update an existing one
  */
 export async function saveRun(run: WorkflowRun): Promise<void> {
-    const runs = await readRuns();
-    const index = runs.findIndex(r => r.id === run.id);
+    const supabase = createAdminClient();
 
-    if (index >= 0) {
-        runs[index] = run;
-    } else {
-        runs.unshift(run); // Add new runs to the beginning
+    const runData = {
+        id: run.id,
+        workflow_id: run.workflowId || null,
+        workflow_name: run.workflowName,
+        status: run.status,
+        start_time: run.startTime,
+        end_time: run.endTime,
+        duration: run.duration,
+        args: run.args,
+        result: run.result,
+        error: run.error,
+        logs: run.logs,
+        steps: run.steps,
+        waiting_for: run.waitingFor,
+        // user_id will default to 0000... if not provided by RLS or default
+    };
+
+    const { error } = await supabase
+        .from('rune_workflow_runs')
+        .upsert(runData);
+
+    if (error) {
+        console.error('Error saving run to Supabase:', error);
+        throw error;
     }
-
-    // Limit to last 100 runs to prevent file from growing too large
-    if (runs.length > 100) {
-        runs.length = 100;
-    }
-
-    await writeRuns(runs);
 }
 
 /**
  * Get a specific run by ID
  */
 export async function getRun(id: string): Promise<WorkflowRun | null> {
-    const runs = await readRuns();
-    return runs.find(r => r.id === id) || null;
+    const supabase = createAdminClient();
+
+    const { data: run, error } = await supabase
+        .from('rune_workflow_runs')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+    if (error) {
+        console.error('Error fetching run from Supabase:', error);
+        return null;
+    }
+
+    if (!run) return null;
+
+    return {
+        id: run.id,
+        workflowId: run.workflow_id,
+        workflowName: run.workflow_name,
+        status: run.status as WorkflowRun['status'],
+        startTime: run.start_time,
+        endTime: run.end_time,
+        duration: run.duration,
+        args: run.args as any[],
+        result: run.result,
+        error: run.error,
+        logs: (run.logs as unknown as RunLog[]) || [],
+        steps: (run.steps as unknown as StepExecution[]) || [],
+        waitingFor: run.waiting_for as unknown as WaitingFor | undefined
+    };
 }
 
 /**
  * List all runs
  */
 export async function listRuns(): Promise<WorkflowRun[]> {
-    return readRuns();
+    const supabase = createAdminClient();
+
+    const { data: runs, error } = await supabase
+        .from('rune_workflow_runs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+    if (error) {
+        console.error('Error listing runs from Supabase:', error);
+        return [];
+    }
+
+    return (runs || []).map(run => ({
+        id: run.id,
+        workflowId: run.workflow_id,
+        workflowName: run.workflow_name,
+        status: run.status as WorkflowRun['status'],
+        startTime: run.start_time,
+        endTime: run.end_time,
+        duration: run.duration,
+        args: run.args as any[],
+        result: run.result,
+        error: run.error,
+        logs: (run.logs as unknown as RunLog[]) || [],
+        steps: (run.steps as unknown as StepExecution[]) || [],
+        waitingFor: run.waiting_for as unknown as WaitingFor | undefined
+    }));
 }
 
 /**
  * Append a log entry to a run
  */
 export async function appendLog(runId: string, message: string, level: 'info' | 'warn' | 'error' = 'info'): Promise<void> {
-    const runs = await readRuns();
-    const run = runs.find(r => r.id === runId);
-
+    const run = await getRun(runId);
     if (run) {
         run.logs.push({
             timestamp: new Date().toISOString(),
             level,
             message
         });
-        await writeRuns(runs);
+        await saveRun(run);
     }
 }
 
@@ -130,19 +168,19 @@ export async function updateRunStatus(
     result?: any,
     error?: string
 ): Promise<void> {
-    const runs = await readRuns();
-    const run = runs.find(r => r.id === runId);
-
+    const run = await getRun(runId);
     if (run) {
         run.status = status;
         if (status === 'completed' || status === 'failed') {
             run.endTime = new Date().toISOString();
-            run.duration = new Date(run.endTime).getTime() - new Date(run.startTime).getTime();
+            if (run.startTime) {
+                run.duration = new Date(run.endTime).getTime() - new Date(run.startTime).getTime();
+            }
         }
         if (result !== undefined) run.result = result;
         if (error !== undefined) run.error = error;
 
-        await writeRuns(runs);
+        await saveRun(run);
     }
 }
 
@@ -153,9 +191,7 @@ export async function updateStepExecution(
     runId: string,
     stepExecution: StepExecution
 ): Promise<void> {
-    const runs = await readRuns();
-    const run = runs.find(r => r.id === runId);
-
+    const run = await getRun(runId);
     if (run) {
         if (!run.steps) {
             run.steps = [];
@@ -168,7 +204,7 @@ export async function updateStepExecution(
             run.steps.push(stepExecution);
         }
 
-        await writeRuns(runs);
+        await saveRun(run);
     }
 }
 
@@ -179,13 +215,11 @@ export async function setRunWaiting(
     runId: string,
     waitingFor: WaitingFor
 ): Promise<void> {
-    const runs = await readRuns();
-    const run = runs.find(r => r.id === runId);
-
+    const run = await getRun(runId);
     if (run) {
         run.status = 'waiting';
         run.waitingFor = waitingFor;
-        await writeRuns(runs);
+        await saveRun(run);
     }
 }
 
@@ -193,13 +227,11 @@ export async function setRunWaiting(
  * Resume a waiting run (clear the waiting state)
  */
 export async function resumeRun(runId: string): Promise<void> {
-    const runs = await readRuns();
-    const run = runs.find(r => r.id === runId);
-
+    const run = await getRun(runId);
     if (run && run.status === 'waiting') {
         run.status = 'running';
         run.waitingFor = undefined;
-        await writeRuns(runs);
+        await saveRun(run);
     }
 }
 
@@ -210,60 +242,82 @@ export async function getWaitingRuns(
     type: 'event' | 'approval',
     identifier?: string
 ): Promise<WorkflowRun[]> {
-    const runs = await readRuns();
-    return runs.filter(r =>
-        r.status === 'waiting' &&
-        r.waitingFor?.type === type &&
-        (identifier === undefined || r.waitingFor.identifier === identifier)
-    );
+    const supabase = createAdminClient();
+
+    let query = supabase
+        .from('rune_workflow_runs')
+        .select('*')
+        .eq('status', 'waiting')
+        .eq('waiting_for->>type', type);
+
+    if (identifier) {
+        query = query.eq('waiting_for->>identifier', identifier);
+    }
+
+    const { data: runs, error } = await query;
+
+    if (error) {
+        console.error('Error fetching waiting runs:', error);
+        return [];
+    }
+
+    return (runs || []).map(run => ({
+        id: run.id,
+        workflowId: run.workflow_id,
+        workflowName: run.workflow_name,
+        status: run.status as WorkflowRun['status'],
+        startTime: run.start_time,
+        endTime: run.end_time,
+        duration: run.duration,
+        args: run.args as any[],
+        result: run.result,
+        error: run.error,
+        logs: (run.logs as unknown as RunLog[]) || [],
+        steps: (run.steps as unknown as StepExecution[]) || [],
+        waitingFor: run.waiting_for as unknown as WaitingFor | undefined
+    }));
 }
 
 /**
  * Purge completed runs older than the specified age.
- * 
- * TODO: When moving to DB, replace with proper archival/retention policy.
- * 
- * @param maxAgeMs - Maximum age in milliseconds. Runs older than this will be deleted.
- *                   Default: 7 days (604800000ms)
- * @returns Number of runs purged
  */
 export async function purgeOldRuns(maxAgeMs: number = 7 * 24 * 60 * 60 * 1000): Promise<number> {
-    const runs = await readRuns();
-    const now = Date.now();
+    const supabase = createAdminClient();
+    const cutoffDate = new Date(Date.now() - maxAgeMs).toISOString();
 
-    const filtered = runs.filter(run => {
-        // Keep waiting/running runs regardless of age
-        if (run.status === 'waiting' || run.status === 'running' || run.status === 'pending') {
-            return true;
-        }
+    const { error, count } = await supabase
+        .from('rune_workflow_runs')
+        .delete({ count: 'exact' })
+        .in('status', ['completed', 'failed'])
+        .lt('created_at', cutoffDate);
 
-        // Check age of completed/failed runs
-        const runTime = new Date(run.endTime || run.startTime).getTime();
-        return (now - runTime) < maxAgeMs;
-    });
-
-    const purgedCount = runs.length - filtered.length;
-
-    if (purgedCount > 0) {
-        await writeRuns(filtered);
-        console.log(`[Run Store] Purged ${purgedCount} old runs`);
+    if (error) {
+        console.error('Error purging old runs:', error);
+        return 0;
     }
 
-    return purgedCount;
+    if (count && count > 0) {
+        console.log(`[Run Store] Purged ${count} old runs`);
+    }
+
+    return count || 0;
 }
 
 /**
- * Clear all completed/failed runs (keep pending/running/waiting).
- * Use with caution - this is destructive.
+ * Clear all completed/failed runs.
  */
 export async function clearCompletedRuns(): Promise<number> {
-    const runs = await readRuns();
-    const active = runs.filter(r =>
-        r.status === 'pending' || r.status === 'running' || r.status === 'waiting'
-    );
+    const supabase = createAdminClient();
 
-    const clearedCount = runs.length - active.length;
-    await writeRuns(active);
+    const { error, count } = await supabase
+        .from('rune_workflow_runs')
+        .delete({ count: 'exact' })
+        .in('status', ['completed', 'failed']);
 
-    return clearedCount;
+    if (error) {
+        console.error('Error clearing completed runs:', error);
+        return 0;
+    }
+
+    return count || 0;
 }
