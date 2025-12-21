@@ -97,7 +97,19 @@ const FlowBuilderContent = ({
     // Open/Load Modal State
     const [showOpenModal, setShowOpenModal] = useState(false);
     const [workflowList, setWorkflowList] = useState<any[]>([]);
+
     const [isLoadingList, setIsLoadingList] = useState(false);
+
+    // Deployment Success Modal State
+    const [showDeployModal, setShowDeployModal] = useState(false);
+    const [deployResult, setDeployResult] = useState<{
+        version: number;
+        workflowId: string;
+        workflowName: string;
+        code: string;
+        graphJson: string;
+    } | null>(null);
+    const [deployTab, setDeployTab] = useState<'Integration' | 'Source Code' | 'JSON Definition'>('Integration');
 
     const fetchWorkflows = useCallback(async () => {
         setIsLoadingList(true);
@@ -351,6 +363,9 @@ const FlowBuilderContent = ({
             let currentWorkflowId = workflowId;
             let currentName = workflowName;
 
+            // Generate code once for use in saving and modal
+            const code = generateWorkflowCode(nodes, edges);
+
             if (!currentWorkflowId) {
                 const name = prompt("Enter workflow name to deploy:", workflowName);
                 if (name === null) return;
@@ -358,7 +373,6 @@ const FlowBuilderContent = ({
                 setWorkflowName(name);
 
                 setIsSaving(true);
-                const code = generateWorkflowCode(nodes, edges);
 
                 // Save first
                 const saveRes = await fetch('/api/rune/workflows', {
@@ -381,7 +395,6 @@ const FlowBuilderContent = ({
             } else {
                 // Determine if we should auto-save updates? Yes, usually deploy = save + deploy version
                 setIsSaving(true);
-                const code = generateWorkflowCode(nodes, edges);
                 await fetch('/api/rune/workflows', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -409,8 +422,19 @@ const FlowBuilderContent = ({
 
             const data = await response.json();
             console.log(`Deployed version ${data.version}`);
+
+            // Show success modal
+            setDeployResult({
+                version: data.version,
+                workflowId: currentWorkflowId || '',
+                workflowName: currentName,
+                code: code,
+                graphJson: JSON.stringify({ nodes, edges }, null, 2)
+            });
+            setShowDeployModal(true);
+
             toast.success(`Deployed version ${data.version} successfully!`, {
-                description: 'Your workflow is now live in production.'
+                description: 'Your workflow is now live.'
             });
         } catch (error) {
             console.error('Deploy error:', error);
