@@ -1,171 +1,96 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { NextRequest } from 'next/server';
-import fs from 'fs/promises';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { WorkflowEngine } from '@/lib/workflow-engine';
+import { Node, Edge } from '@xyflow/react';
 
-// Mock the fs module for run-store
-vi.mock('fs/promises', () => ({
-    default: {
-        access: vi.fn(),
-        readFile: vi.fn(),
-        writeFile: vi.fn()
-    }
+// Mock run-store
+vi.mock('@/lib/run-store', () => ({
+    saveRun: vi.fn(),
+    updateRunStatus: vi.fn(),
+    updateStepExecution: vi.fn(),
+    setRunWaiting: vi.fn(),
 }));
 
-// Mock the workflow/api module
-vi.mock('workflow/api', () => ({
-    start: vi.fn()
-}));
+// Mock fetch for HTTP steps
+const mockFetch = vi.fn();
+global.fetch = mockFetch;
 
-describe('Workflow Run API Route', () => {
-    let POST: (req: NextRequest) => Promise<Response>;
-    let mockStart: ReturnType<typeof vi.fn>;
-
-    beforeEach(async () => {
-        vi.clearAllMocks();
-        vi.resetModules();
-
-        // Setup fs mocks
-        vi.mocked(fs.access).mockResolvedValue(undefined);
-        vi.mocked(fs.readFile).mockResolvedValue('[]');
-        vi.mocked(fs.writeFile).mockResolvedValue(undefined);
-
-        // Get mock reference
-        const workflowApi = await import('workflow/api');
-        mockStart = vi.mocked(workflowApi.start);
-
-        // Import the route handler
-        const route = await import('@/app/api/workflows/run/route');
-        POST = route.POST;
-    });
-
-    afterEach(() => {
-        vi.clearAllMocks();
-    });
-
-    it('should return 400 if workflow name is missing', async () => {
-        const request = new NextRequest('http://localhost/api/workflows/run', {
-            method: 'POST',
-            body: JSON.stringify({})
-        });
-
-        const response = await POST(request);
-        const data = await response.json();
-
-        expect(response.status).toBe(400);
-        expect(data.error).toContain('Missing workflow name');
-    });
-
-    it('should return 404 if workflow module not found', async () => {
-        const request = new NextRequest('http://localhost/api/workflows/run', {
-            method: 'POST',
-            body: JSON.stringify({ name: 'nonexistent-workflow' })
-        });
-
-        const response = await POST(request);
-        const data = await response.json();
-
-        expect(response.status).toBe(404);
-        expect(data.error).toContain('not found');
-    });
-
-    it('should sanitize workflow name to prevent directory traversal', async () => {
-        const request = new NextRequest('http://localhost/api/workflows/run', {
-            method: 'POST',
-            body: JSON.stringify({ name: '../../../etc/passwd' })
-        });
-
-        const response = await POST(request);
-        // Should try to import a sanitized name, not the malicious path
-        // The import will fail, but it should not traverse directories
-        expect(response.status).toBe(404);
-    });
-
-    // Note: Tests that require actual workflow module imports would need
-    // full integration infrastructure with real workflow files in the
-    // workflows/ directory. For unit tests, we verify the mechanics
-    // through the lifecycle assertions below.
-});
-
-
-describe('Runner lifecycle assertions', () => {
+describe('WorkflowEngine', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        vi.resetModules();
-    });
-
-    it('run-store saveRun should be called with correct structure', async () => {
-        vi.mocked(fs.access).mockResolvedValue(undefined);
-        vi.mocked(fs.readFile).mockResolvedValue('[]');
-        vi.mocked(fs.writeFile).mockResolvedValue(undefined);
-
-        const { saveRun } = await import('@/lib/run-store');
-
-        await saveRun({
-            id: 'test-run-123',
-            workflowName: 'test-workflow',
-            status: 'running',
-            startTime: new Date().toISOString(),
-            args: [{ foo: 'bar' }],
-            logs: [{ timestamp: new Date().toISOString(), level: 'info', message: 'Started' }]
+        // Default success fetch response
+        mockFetch.mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => ({ simulated: true }),
+            headers: new Map([['content-type', 'application/json']]),
         });
+    });
 
-        const writeCall = vi.mocked(fs.writeFile).mock.calls[0];
-        const writtenData = JSON.parse(writeCall[1] as string);
+    it('should execute a simple linear workflow', async () => {
+        const nodes: Node[] = [
+            { id: 'start', type: 'step', data: { label: 'Start Workflow' }, position: { x: 0, y: 0 } },
+            { id: 'step1', type: 'step', data: { label: 'HTTP Request', httpRequest: { url: 'https://api.test.com', method: 'GET' } }, position: { x: 100, y: 0 } }
+        ];
+        const edges: Edge[] = [
+            { id: 'e1', source: 'start', target: 'step1' }
+        ];
 
-        expect(writtenData[0]).toMatchObject({
-            id: 'test-run-123',
-            workflowName: 'test-workflow',
-            status: 'running'
+        const engine = new WorkflowEngine('wf-1', 'Test Workflow', nodes, edges);
+        const result = await engine.run({ initial: 'data' });
+
+        expect(result.status).toBe('completed');
+        expect(mockFetch).toHaveBeenCalledWith('https://api.test.com', expect.any(Object));
+    });
+
+    it('should handle if/else condition (true path)', async () => {
+        const nodes: Node[] = [
+            { id: 'start', type: 'step', data: { label: 'Start Workflow' }, position: { x: 0, y: 0 } },
+            { id: 'if1', type: 'if', data: { label: 'If / Else', condition: 'params.value > 5' }, position: { x: 100, y: 0 } },
+            { id: 'trueNode', type: 'step', data: { label: 'Transform', transformConfig: { expression: 'return "path true"' } }, position: { x: 200, y: -50 } },
+            { id: 'falseNode', type: 'step', data: { label: 'Transform', transformConfig: { expression: 'return "path false"' } }, position: { x: 200, y: 50 } }
+        ];
+        const edges: Edge[] = [
+            { id: 'e1', source: 'start', target: 'if1' },
+            { id: 'e2', source: 'if1', target: 'trueNode', sourceHandle: 'true' }, // Match logic in engine
+            { id: 'e3', source: 'if1', target: 'falseNode', sourceHandle: 'false' }
+        ];
+
+        const engine = new WorkflowEngine('wf-if', 'Condition Workflow', nodes, edges);
+        const result = await engine.run({ value: 10 }); // 10 > 5 is true
+
+        expect(result.status).toBe('completed');
+        // trueNode should execute
+        // Check result of trueNode in final output? Engine returns context.inputs keyed by nodeId
+        // @ts-ignore
+        expect(result.result['trueNode']).toEqual({
+            status: 'success',
+            result: 'path true',
+            timing: expect.any(Object)
         });
-        expect(writtenData[0].logs).toHaveLength(1);
+        // falseNode should NOT execute
+        // @ts-ignore
+        expect(result.result['falseNode']).toBeUndefined();
     });
 
-    it('updateRunStatus should transition run to completed with result', async () => {
-        const existingRun = {
-            id: 'run-456',
-            workflowName: 'test',
-            status: 'running',
-            startTime: new Date().toISOString(),
-            args: [],
-            logs: []
-        };
+    it('should handle loop execution limit', async () => {
+        // self-loop to trigger limit
+        const nodes: Node[] = [
+            { id: 'start', type: 'step', data: { label: 'Start Workflow' }, position: { x: 0, y: 0 } },
+            { id: 'loop1', type: 'step', data: { label: 'Transform', transformConfig: { expression: 'return 1' } }, position: { x: 100, y: 0 } }
+        ];
+        const edges: Edge[] = [
+            { id: 'e1', source: 'start', target: 'loop1' },
+            { id: 'e2', source: 'loop1', target: 'loop1' } // Infinite loop
+        ];
 
-        vi.mocked(fs.access).mockResolvedValue(undefined);
-        vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify([existingRun]));
-        vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+        const engine = new WorkflowEngine('wf-loop', 'Loop Workflow', nodes, edges);
 
-        const { updateRunStatus } = await import('@/lib/run-store');
-        await updateRunStatus('run-456', 'completed', { output: 'success' });
+        // Mock console.log to avoid noise
+        const spyLog = vi.spyOn(console, 'log').mockImplementation(() => { });
 
-        const writtenData = JSON.parse(vi.mocked(fs.writeFile).mock.calls[0][1] as string);
+        await engine.run();
 
-        expect(writtenData[0].status).toBe('completed');
-        expect(writtenData[0].result).toEqual({ output: 'success' });
-        expect(writtenData[0].endTime).toBeDefined();
-        expect(writtenData[0].duration).toBeDefined();
-    });
-
-    it('updateRunStatus should transition run to failed with error', async () => {
-        const existingRun = {
-            id: 'run-789',
-            workflowName: 'test',
-            status: 'running',
-            startTime: new Date().toISOString(),
-            args: [],
-            logs: []
-        };
-
-        vi.mocked(fs.access).mockResolvedValue(undefined);
-        vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify([existingRun]));
-        vi.mocked(fs.writeFile).mockResolvedValue(undefined);
-
-        const { updateRunStatus } = await import('@/lib/run-store');
-        await updateRunStatus('run-789', 'failed', undefined, 'Network timeout');
-
-        const writtenData = JSON.parse(vi.mocked(fs.writeFile).mock.calls[0][1] as string);
-
-        expect(writtenData[0].status).toBe('failed');
-        expect(writtenData[0].error).toBe('Network timeout');
+        // Should complete without hanging, due to loop protection (10 limit)
+        expect(spyLog).toHaveBeenCalledWith(expect.stringContaining('execution limit reached'), expect.any(String));
     });
 });
-

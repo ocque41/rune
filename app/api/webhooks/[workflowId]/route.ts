@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { start } from 'workflow/api';
+import { createAdminClient } from '@/lib/supabase/server';
+import { WorkflowEngine } from '@/lib/workflow-engine';
 
 export async function POST(
     request: NextRequest,
@@ -23,89 +24,75 @@ export async function POST(
             // Body might be empty
         }
 
-        // Sanitize workflow ID
-        const sanitizedId = workflowId.replace(/[^a-zA-Z0-9_-]/g, '');
+        const supabase = createAdminClient();
 
-        // Try to import from the new structure (prod.ts)
-        // We need to use a dynamic import path that resolves correctly
-        // Since we can't easily use dynamic paths with 'import()', we might need to rely on the fact that
-        // Next.js/Webpack bundles these. However, dynamic imports with template strings are tricky.
-        // A better approach for this "runtime" execution in a Next.js app is difficult without a real backend.
-        // But sticking to the pattern we had:
+        // 1. Resolve Workflow ID (handle potential slug vs uuid if needed)
+        // For now, assume workflowId param is the UUID. 
+        // If we want to support slugs, we'd query rune_workflows by name first.
 
-        let modulePath = `@/workflows/${sanitizedId}/prod`;
+        // 2. Fetch Latest Deployed Version
+        // We want the deployed snapshot, not the current draft in rune_workflows
+        const { data: latestVersion, error } = await supabase
+            .from('rune_workflow_versions')
+            .select('*')
+            .eq('workflow_id', workflowId)
+            .order('version', { ascending: false })
+            .limit(1)
+            .single();
 
-        // Fallback for legacy flat files (if migration hasn't happened yet for some reason, though save handles it)
-        // But we should assume migration happens on save.
-        // If the user hasn't saved/migrated, the file might still be at workflows/slug.ts
-
-        let workflowModule;
-        try {
-            // workflowModule = await import(`@/workflows/${sanitizedId}/prod`);
-            throw new Error('Falback to legacy');
-        } catch (e) {
-            try {
-                // Try legacy path
-                workflowModule = await import(`@/workflows/${sanitizedId}`);
-            } catch (legacyError) {
-                console.error('Failed to import workflow:', legacyError);
-                return NextResponse.json(
-                    { success: false, error: `Workflow '${sanitizedId}' not found or not deployed` },
-                    { status: 404 }
-                );
-            }
+        if (error || !latestVersion) {
+            // Fallback: Check if the main workflow exists (maybe never deployed?)
+            // Or return 404
+            console.error('Workflow version lookup failed:', error);
+            return NextResponse.json(
+                { success: false, error: 'Workflow not found or not deployed' },
+                { status: 404 }
+            );
         }
 
-
-        const workflowFunction = workflowModule.workflow || workflowModule.default;
-
-        if (!workflowFunction || typeof workflowFunction !== 'function') {
+        const graph = latestVersion.graph_json;
+        if (!graph || !graph.nodes || !graph.edges) {
             return NextResponse.json(
-                { success: false, error: 'Workflow file does not export a workflow function' },
+                { success: false, error: 'Invalid workflow graph data' },
                 { status: 500 }
             );
         }
 
-        // Start the workflow
-        const run = await start(workflowFunction, [body]);
+        // 3. Initialize Engine
+        // We might need to fetch the workflow name from the parent table if not in version
+        // But let's verify if we need it. WorkflowEngine takes (id, name, nodes, edges).
+        // Version table doesn't usually store name.
 
-        // Save run details (reusing logic from run route would be better, but duplicating for now)
-        const runId = (run as any).id || `run-${Date.now()}`;
+        // Quick fetch for name
+        const { data: wfMeta } = await supabase
+            .from('rune_workflows')
+            .select('name')
+            .eq('id', workflowId)
+            .single();
 
-        try {
-            const { saveRun } = await import('@/lib/run-store');
-            await saveRun({
-                id: runId,
-                workflowName: sanitizedId,
-                status: 'running',
-                startTime: new Date().toISOString(),
-                args: [body],
-                logs: [{
-                    timestamp: new Date().toISOString(),
-                    level: 'info',
-                    message: `Workflow '${sanitizedId}' triggered via webhook`
-                }]
-            });
+        const workflowName = wfMeta?.name || 'Unknown Workflow';
 
-            // Update status if completed immediately
-            const { updateRunStatus } = await import('@/lib/run-store');
-            await updateRunStatus(runId, 'completed', run);
+        const engine = new WorkflowEngine(
+            workflowId,
+            workflowName,
+            graph.nodes,
+            graph.edges
+        );
 
-        } catch (err) {
-            console.error('Error saving run:', err);
-        }
+        // 4. Run Execution
+        const runResult = await engine.run(body);
 
         return NextResponse.json({
             success: true,
-            message: 'Workflow triggered successfully',
-            runId,
-            result: run
+            message: 'Workflow executed successfully',
+            runId: runResult.id,
+            result: runResult.result
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Webhook error:', error);
         return NextResponse.json(
-            { success: false, error: 'Failed to trigger workflow' },
+            { success: false, error: error.message || 'Failed to trigger workflow' },
             { status: 500 }
         );
     }

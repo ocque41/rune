@@ -1,5 +1,6 @@
-import { start } from 'workflow/api';
 import { NextRequest, NextResponse } from 'next/server';
+import { createAdminClient } from '@/lib/supabase/server';
+import { WorkflowEngine } from '@/lib/workflow-engine';
 
 export async function POST(req: NextRequest) {
     try {
@@ -9,96 +10,65 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Missing workflow name' }, { status: 400 });
         }
 
-        // Sanitize name to prevent directory traversal
-        const sanitized = name.replace(/[^a-zA-Z0-9_-]/g, '');
+        const supabase = createAdminClient();
 
-        // Dynamically import the workflow module using the Next.js alias
-        // This allows the workflow files to be picked up by the build system
-        const modulePath = `@/workflows/${sanitized}`;
+        // 1. Resolve workflow by name
+        const { data: workflow, error: wfError } = await supabase
+            .from('rune_workflows')
+            .select('id, name')
+            .eq('name', name)
+            .single();
 
-        let workflowModule;
-        try {
-            workflowModule = await import(modulePath);
-        } catch (importError) {
-            console.error('Failed to import workflow:', importError);
+        if (wfError || !workflow) {
             return NextResponse.json(
-                { error: `Workflow '${sanitized}' not found. Make sure it exists in the workflows/ directory and the server has been restarted.` },
+                { error: `Workflow '${name}' not found` },
                 { status: 404 }
             );
         }
 
-        // The workflow should export a function (matching the generated pattern)
-        const workflowFunction = workflowModule.workflow || workflowModule.default;
+        // 2. Fetch Latest Version
+        const { data: latestVersion, error: vError } = await supabase
+            .from('rune_workflow_versions')
+            .select('*')
+            .eq('workflow_id', workflow.id)
+            .order('version', { ascending: false })
+            .limit(1)
+            .single();
 
-        if (!workflowFunction || typeof workflowFunction !== 'function') {
+        if (vError || !latestVersion?.graph_json) {
             return NextResponse.json(
-                { error: 'Workflow file does not export a workflow function' },
-                { status: 500 }
+                { error: 'Workflow has no deployed versions' },
+                { status: 404 }
             );
         }
 
-        // Use the workflow library's start() function to execute
-        const run = await start(workflowFunction, args || []);
+        const graph = latestVersion.graph_json;
 
-        // Save initial run state
-        const runId = (run as any).id || `run-${Date.now()}`; // Fallback if start() doesn't return ID yet
+        // 3. Execution
+        const engine = new WorkflowEngine(
+            workflow.id,
+            workflow.name,
+            graph.nodes || [],
+            graph.edges || []
+        );
 
-        // Import dynamically to avoid circular dependencies if any
-        const { saveRun } = await import('@/lib/run-store');
+        // Map args array to initial payload if needed, or pass as object
+        // The simulator/engine often expects an object inputs
+        const inputPayload = Array.isArray(args) ? { args } : (args || {});
 
-        await saveRun({
-            id: runId,
-            workflowName: name,
-            status: 'running', // Assuming start() is async but returns immediately
-            startTime: new Date().toISOString(),
-            args: args || [],
-            logs: [{
-                timestamp: new Date().toISOString(),
-                level: 'info',
-                message: `Workflow '${name}' started`
-            }]
-        });
-
-        // Note: In a real production system, we would hook into the workflow's 
-        // events to update the status. For this side project, we might need 
-        // to poll or wrap the execution if start() awaits completion.
-
-        // If start() awaits completion (which it seems to based on previous context),
-        // we should update the status immediately.
-        // Let's assume start() returns the result directly for now based on previous usage.
-
-        // Update: The previous usage showed `const run = await start(...)`.
-        // If it returns a Run object, we can use that.
-        // If it returns the result directly, we mark as completed.
-
-        // Let's assume for now we want to return immediately and let it run in background
-        // But since we're in a serverless function (Next.js API), we actually have to wait 
-        // or use a background worker. For simplicity here, we'll wait and update.
-
-        try {
-            // Update run with success
-            const { updateRunStatus } = await import('@/lib/run-store');
-            await updateRunStatus(runId, 'completed', run);
-        } catch (err) {
-            const { updateRunStatus } = await import('@/lib/run-store');
-            await updateRunStatus(runId, 'failed', undefined, String(err));
-        }
+        const runResult = await engine.run(inputPayload);
 
         return NextResponse.json({
             success: true,
             message: 'Workflow executed successfully',
-            runId,
-            result: run
+            runId: runResult.id,
+            result: runResult.result
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error running workflow:', error);
-
-        // Try to record failure if we have a runId (we might not if error happened early)
-        // This is tricky without the ID in scope, but for now just return error
-
         return NextResponse.json(
-            { error: 'Failed to run workflow', details: error instanceof Error ? error.message : String(error) },
+            { error: 'Failed to run workflow', details: error.message },
             { status: 500 }
         );
     }
