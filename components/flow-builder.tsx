@@ -341,26 +341,65 @@ const FlowBuilderContent = ({
 
     const onDeploy = useCallback(async () => {
         try {
-            // Auto-save draft before deploying
-            const code = generateWorkflowCode(nodes, edges);
-            // Use saved filename if available, otherwise default
-            const filename = savedFilename ? (savedFilename.endsWith('.ts') ? savedFilename : `${savedFilename}.ts`) : 'my-workflow.ts';
+            if (!nodes.length) return;
 
-            const saveResponse = await fetch('/api/workflows/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, filename }),
-            });
+            // 1. Ensure it's saved to cloud first
+            // We can reuse onSaveCloud logic or call it directly if refactored, 
+            // but for now let's duplicate the essential save logic or prompt user if not saved.
+            // Better UX: Auto-save if ID exists, or prompt if new.
 
-            if (!saveResponse.ok) {
-                const err = await saveResponse.json().catch(() => ({ error: 'Unknown error' }));
-                throw new Error(`Failed to auto-save draft: ${err.error || saveResponse.statusText}`);
+            let currentWorkflowId = workflowId;
+            let currentName = workflowName;
+
+            if (!currentWorkflowId) {
+                const name = prompt("Enter workflow name to deploy:", workflowName);
+                if (name === null) return;
+                currentName = name;
+                setWorkflowName(name);
+
+                setIsSaving(true);
+                const code = generateWorkflowCode(nodes, edges);
+
+                // Save first
+                const saveRes = await fetch('/api/rune/workflows', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: currentName,
+                        description: 'Auto-saved before deploy',
+                        graph: { nodes, edges },
+                        code
+                    }),
+                });
+
+                const saveData = await saveRes.json();
+                setIsSaving(false);
+
+                if (!saveRes.ok) throw new Error(saveData.error || 'Failed to auto-save');
+                currentWorkflowId = saveData.workflow.id;
+                setWorkflowId(currentWorkflowId);
+            } else {
+                // Determine if we should auto-save updates? Yes, usually deploy = save + deploy version
+                setIsSaving(true);
+                const code = generateWorkflowCode(nodes, edges);
+                await fetch('/api/rune/workflows', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: currentWorkflowId,
+                        name: currentName,
+                        graph: { nodes, edges },
+                        code
+                    }),
+                });
+                setIsSaving(false);
             }
 
-            const response = await fetch('/api/workflows/deploy', {
+            // 2. Deploy
+            const response = await fetch('/api/rune/workflows/deploy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ slug: filename.replace(/\.ts$/, '') }),
+                body: JSON.stringify({ workflow_id: currentWorkflowId }),
             });
 
             if (!response.ok) {
@@ -376,8 +415,9 @@ const FlowBuilderContent = ({
         } catch (error) {
             console.error('Deploy error:', error);
             toast.error(error instanceof Error ? error.message : 'Failed to deploy');
+            setIsSaving(false);
         }
-    }, [nodes, edges]);
+    }, [nodes, edges, workflowId, workflowName]);
 
     const loadTemplate = useCallback((template: Template) => {
         setNodes(template.nodes);
