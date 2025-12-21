@@ -40,19 +40,21 @@ const IfNode = ({ data, selected }: NodeProps<CustomIfNode>) => {
             </div>
 
             <div className="p-4 space-y-4">
-                <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Condition (JS)</label>
-                    <input
-                        type="text"
-                        placeholder="e.g. params.value > 10"
-                        className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-sm font-mono text-purple-300 placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
-                        value={condition}
-                        onChange={(e) => {
-                            setCondition(e.target.value);
-                            data.condition = e.target.value;
-                        }}
-                    />
-                </div>
+                {showConfig && (
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Condition (JS)</label>
+                        <input
+                            type="text"
+                            placeholder="e.g. params.value > 10"
+                            className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-sm font-mono text-purple-300 placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
+                            value={condition}
+                            onChange={(e) => {
+                                setCondition(e.target.value);
+                                data.condition = e.target.value;
+                            }}
+                        />
+                    </div>
+                )}
             </div>
 
             {/* True Output */}

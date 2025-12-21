@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Folder, Cloud, HardDrive, RefreshCw } from 'lucide-react';
+import { Folder, Cloud, HardDrive, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Workflow {
@@ -47,6 +47,22 @@ export function WorkflowList({ onSelectWorkflow }: { onSelectWorkflow?: (id: str
             toast.error('Failed to load workflows');
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const onDeleteWorkflow = async (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!confirm("Are you sure you want to delete this workflow?")) return;
+
+        try {
+            const response = await fetch(`/api/rune/workflows/${id}`, { method: 'DELETE' });
+            if (!response.ok) throw new Error('Failed to delete');
+
+            toast.success('Workflow deleted');
+            fetchWorkflows();
+        } catch (error) {
+            console.error('Delete error:', error);
+            toast.error('Failed to delete workflow');
         }
     };
 
@@ -97,6 +113,15 @@ export function WorkflowList({ onSelectWorkflow }: { onSelectWorkflow?: (id: str
                                         {workflow.name}
                                     </span>
                                 </div>
+                                {activeTab === 'cloud' && (
+                                    <button
+                                        onClick={(e) => onDeleteWorkflow(workflow.id, e)}
+                                        className="absolute top-2 right-2 p-2 rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-500 transition-all"
+                                        title="Delete workflow"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                )}
                                 {workflow.description && (
                                     <p className="text-xs opacity-60 line-clamp-2 mb-2" style={{ color: 'var(--foreground-body)' }}>
                                         {workflow.description}

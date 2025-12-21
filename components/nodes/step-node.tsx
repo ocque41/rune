@@ -180,62 +180,62 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                     </p>
                 )}
 
-                {/* Duration input for Sleep nodes */}
-                {data.label === 'Sleep' && (
-                    <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">
-                            Duration
-                        </label>
-                        <input
-                            type="text"
-                            placeholder="e.g. 2s, 1m"
-                            className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
-                            value={duration}
-                            onChange={(e) => {
-                                setDuration(e.target.value);
-                                data.duration = e.target.value;
-                            }}
-                        />
-                    </div>
-                )}
-
-                {/* HTTP Request Configuration */}
-                {data.label === 'HTTP Request' && (
-                    <div className="space-y-3">
-                        <div className="grid grid-cols-[80px_1fr] gap-2">
+                {showConfig && (
+                    <>
+                        {/* Duration input for Sleep nodes */}
+                        {data.label === 'Sleep' && (
                             <div className="space-y-1.5">
-                                <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Method</label>
-                                <select
-                                    className="w-full rounded-lg bg-[#222222] border-none px-2 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
-                                    value={httpRequest.method}
-                                    onChange={(e) => {
-                                        const newVal = { ...httpRequest, method: e.target.value as any };
-                                        setHttpRequest(newVal);
-                                        data.httpRequest = newVal;
-                                    }}
-                                >
-                                    {['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map(m => (
-                                        <option key={m} value={m}>{m}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">URL</label>
+                                <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">
+                                    Duration
+                                </label>
                                 <input
                                     type="text"
-                                    placeholder="https://api..."
+                                    placeholder="e.g. 2s, 1m"
                                     className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
-                                    value={httpRequest.url}
+                                    value={duration}
                                     onChange={(e) => {
-                                        const newVal = { ...httpRequest, url: e.target.value };
-                                        setHttpRequest(newVal);
-                                        data.httpRequest = newVal;
+                                        setDuration(e.target.value);
+                                        data.duration = e.target.value;
                                     }}
                                 />
                             </div>
-                        </div>
-                        {showConfig && (
-                            <>
+                        )}
+
+                        {/* HTTP Request Configuration */}
+                        {data.label === 'HTTP Request' && (
+                            <div className="space-y-3">
+                                <div className="grid grid-cols-[80px_1fr] gap-2">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Method</label>
+                                        <select
+                                            className="w-full rounded-lg bg-[#222222] border-none px-2 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
+                                            value={httpRequest.method}
+                                            onChange={(e) => {
+                                                const newVal = { ...httpRequest, method: e.target.value as any };
+                                                setHttpRequest(newVal);
+                                                data.httpRequest = newVal;
+                                            }}
+                                        >
+                                            {['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map(m => (
+                                                <option key={m} value={m}>{m}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">URL</label>
+                                        <input
+                                            type="text"
+                                            placeholder="https://api..."
+                                            className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
+                                            value={httpRequest.url}
+                                            onChange={(e) => {
+                                                const newVal = { ...httpRequest, url: e.target.value };
+                                                setHttpRequest(newVal);
+                                                data.httpRequest = newVal;
+                                            }}
+                                        />
+                                    </div>
+                                </div>
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Headers</label>
                                     <textarea
@@ -264,47 +264,47 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                                         }}
                                     />
                                 </div>
-                            </>
+                            </div>
                         )}
-                    </div>
-                )}
 
-                {/* Slack Config (Example of styling update) */}
-                {data.label === 'Slack Message' && (
-                    <div className="space-y-3">
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Message</label>
-                            <textarea
-                                className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
-                                rows={2}
-                                value={slackConfig.message}
-                                onChange={(e) => {
-                                    const newVal = { ...slackConfig, message: e.target.value };
-                                    setSlackConfig(newVal);
-                                    data.slackConfig = newVal;
-                                }}
-                            />
-                        </div>
-                    </div>
-                )}
+                        {/* Slack Config (Example of styling update) */}
+                        {data.label === 'Slack Message' && (
+                            <div className="space-y-3">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Message</label>
+                                    <textarea
+                                        className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
+                                        rows={2}
+                                        value={slackConfig.message}
+                                        onChange={(e) => {
+                                            const newVal = { ...slackConfig, message: e.target.value };
+                                            setSlackConfig(newVal);
+                                            data.slackConfig = newVal;
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        )}
 
-                {/* AI Config */}
-                {data.label === 'AI Generation' && (
-                    <div className="space-y-3">
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Prompt</label>
-                            <textarea
-                                className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
-                                rows={3}
-                                value={aiConfig.promptTemplate}
-                                onChange={(e) => {
-                                    const newVal = { ...aiConfig, promptTemplate: e.target.value };
-                                    setAiConfig(newVal);
-                                    data.aiConfig = newVal;
-                                }}
-                            />
-                        </div>
-                    </div>
+                        {/* AI Config */}
+                        {data.label === 'AI Generation' && (
+                            <div className="space-y-3">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Prompt</label>
+                                    <textarea
+                                        className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
+                                        rows={3}
+                                        value={aiConfig.promptTemplate}
+                                        onChange={(e) => {
+                                            const newVal = { ...aiConfig, promptTemplate: e.target.value };
+                                            setAiConfig(newVal);
+                                            data.aiConfig = newVal;
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
 
                 {data.status && data.status !== 'idle' && (

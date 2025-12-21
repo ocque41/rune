@@ -41,19 +41,21 @@ const LoopNode = ({ data, selected }: NodeProps<CustomLoopNode>) => {
             </div>
 
             <div className="p-3">
-                <div className="mb-2">
-                    <label className="mb-1 block text-xs font-medium text-white/50">Items (Array)</label>
-                    <input
-                        type="text"
-                        placeholder="e.g. params.users"
-                        className="w-full rounded-lg bg-[#222222] border-none px-2 py-1.5 text-sm font-mono text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30"
-                        value={items}
-                        onChange={(e) => {
-                            setItems(e.target.value);
-                            data.items = e.target.value;
-                        }}
-                    />
-                </div>
+                {showConfig && (
+                    <div className="mb-2">
+                        <label className="mb-1 block text-xs font-medium text-white/50">Items (Array)</label>
+                        <input
+                            type="text"
+                            placeholder="e.g. params.users"
+                            className="w-full rounded-lg bg-[#222222] border-none px-2 py-1.5 text-sm font-mono text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30"
+                            value={items}
+                            onChange={(e) => {
+                                setItems(e.target.value);
+                                data.items = e.target.value;
+                            }}
+                        />
+                    </div>
+                )}
             </div>
 
             <Handle
