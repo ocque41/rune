@@ -228,30 +228,23 @@ export class WorkflowEngine {
 
     private async executeSendEmail(data: any, input: any) {
         const config = data.emailConfig;
-        // In simulation/sandbox, we might mock this.
-        // For real runner, implementation depends on configured providers.
-        // For now, logging behavior similar to simulator unless env vars exist.
 
-        if (process.env.RESEND_API_KEY) {
-            const response = await fetch('https://api.resend.com/emails', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    from: 'onboarding@resend.dev',
-                    to: config.recipient,
-                    subject: config.subject || 'Workflow Notification',
-                    html: config.body || JSON.stringify(input),
-                }),
+        // Dynamic import to avoid issues if running in edge runtime (though WorkflowEngine is Node/Server usually)
+        // But for safe measure in Next.js app directory structure:
+        const { sendEmail } = await import('./email');
+
+        try {
+            const result = await sendEmail({
+                from: config.sender || process.env.SMTP_FROM, // config.sender added to node data
+                to: config.recipient,
+                subject: config.subject || 'Workflow Notification',
+                html: config.body || JSON.stringify(input)
             });
-            if (!response.ok) throw new Error('Failed to send email via Resend');
-            return await response.json();
+            return result;
+        } catch (error: any) {
+            console.error('[Email] Failed:', error);
+            throw new Error(`Email failed: ${error.message}`);
         }
-
-        console.log('[Mock Email] Sent to:', config.recipient);
-        return { mock: true, recipient: config.recipient };
     }
 
     private async executeScript(data: any, input: any) {

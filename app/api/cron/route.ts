@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { WorkflowEngine } from '@/lib/workflow-engine';
+import cronParser from 'cron-parser';
 
 export const dynamic = 'force-dynamic'; // Prevent caching
 
@@ -46,16 +47,38 @@ export async function GET() {
             const scheduleNode = nodes.find((n: any) => n.type === 'schedule');
 
             if (scheduleNode) {
-                // Found a scheduled workflow!
-                // In a robust system, we would check the Cron Expression against current time here.
-                // For this implementation, we assume the external caller handles the timing
-                // or we run it "on tick" and let the engine handle checks (engine doesn't handle cron checks usually).
-
-                // We will Trigger it.
-                // TODO: Implement actual cron expression parsing check to avoid double-runs if called frequently.
-
+                // Check if we should run now
                 try {
-                    console.log(`[Cron] Triggering workflow ${wf.name} (${wf.id})`);
+                    const cronExpression = scheduleNode.data.cron || '0 0 * * *';
+                    const interval = cronParser.parseExpression(cronExpression);
+
+                    // We check if the *previous* scheduled time was within the last minute
+                    // This is a simple way to check "is it due now?" for a minutely cron job
+                    const prev = interval.prev();
+                    const prevDate = prev.toDate();
+                    const now = new Date();
+
+                    // If the previous scheduled run was less than 60 seconds ago, we run it.
+                    // This assumes the cron job runs at least every minute.
+                    const diffMs = now.getTime() - prevDate.getTime();
+                    const oneMinuteMs = 60 * 1000;
+
+                    if (diffMs > oneMinuteMs) {
+                        // Not due yet (or we missed it by a lot - simplistic check)
+                        // Actually, better logic for "triggering via Vercel Cron" which usually hits every minute:
+                        // If Vercel Cron hits at 12:00:00, and schedule is 12:00, diff is ~0.
+                        // If schedule is 12:00 and we hit at 12:01, diff is 60s.
+                        // So if diff is within reasonably small window (e.g. 70s to account for latency), run it.
+                        // AND we must ensure we haven't already run it? 
+                        // For MVP: Simple "Is it essentially now?" check. 
+                        // But wait, if cron is "Every Friday", prev() will be last Friday. diff will be huge. 
+                        // So we only run if diff is small.
+
+                        console.log(`[Cron] Skipping ${wf.name} - Not due. Last due: ${prevDate.toISOString()}`);
+                        continue;
+                    }
+
+                    console.log(`[Cron] Triggering workflow ${wf.name} (${wf.id}) - Due: ${prevDate.toISOString()}`);
                     const engine = new WorkflowEngine(
                         wf.id,
                         wf.name || 'Scheduled Workflow',
@@ -72,7 +95,7 @@ export async function GET() {
 
                     triggered.push(wf.name || wf.id);
                 } catch (e: any) {
-                    console.error(`[Cron] Failed to run workflow ${wf.id}:`, e);
+                    console.error(`[Cron] Failed to run/check workflow ${wf.id}:`, e);
                     errors.push({ id: wf.id, error: e.message });
                 }
             }

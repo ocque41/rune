@@ -17,6 +17,7 @@ export type StepNodeData = {
     };
     emailConfig?: {
         recipient: string;
+        sender?: string; // Optional custom sender
         subject: string;
         body: string;
     };
@@ -86,6 +87,7 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
     });
     const [emailConfig, setEmailConfig] = useState<NonNullable<StepNodeData['emailConfig']>>(data.emailConfig || {
         recipient: '',
+        sender: '',
         subject: '',
         body: ''
     });
@@ -326,6 +328,20 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                                         value={emailConfig.recipient}
                                         onChange={(e) => {
                                             const newVal = { ...emailConfig, recipient: e.target.value };
+                                            setEmailConfig(newVal);
+                                            data.emailConfig = newVal;
+                                        }}
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">From (Optional)</label>
+                                    <input
+                                        type="email"
+                                        placeholder="noreply@yourdomain.com"
+                                        className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
+                                        value={emailConfig.sender || ''}
+                                        onChange={(e) => {
+                                            const newVal = { ...emailConfig, sender: e.target.value };
                                             setEmailConfig(newVal);
                                             data.emailConfig = newVal;
                                         }}
