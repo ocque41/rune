@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
         // Send Email
         const mailInfo = await sendEmail({
-            from: process.env.SMTP_FROM || 'noreply@cumulus.run',
+            from: process.env.SMTP_FROM || 'hi@cumulush.com',
             to: email,
             subject: 'Verify your Sender Identity',
             html: `
