@@ -2,7 +2,8 @@
 
 import React, { memo, useState } from 'react';
 import { Handle, Position, Node, NodeProps } from '@xyflow/react';
-import { Play, Settings, AlertCircle, Clock, X } from 'lucide-react';
+import { Play, Settings, AlertCircle, Clock, X, ChevronDown, Plus, Check } from 'lucide-react';
+import { VerifiedSendersDrawer } from '../verified-senders-drawer';
 
 export type StepNodeData = {
     label: string;
@@ -136,6 +137,30 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
         model: 'gpt-4o',
         promptTemplate: ''
     });
+
+    // Email Verified Senders State
+    const [isSendersDrawerOpen, setIsSendersDrawerOpen] = useState(false);
+    const [verifiedSenders, setVerifiedSenders] = useState<{ email: string; status: string }[]>([]);
+
+    const fetchVerifiedSenders = async () => {
+        try {
+            const res = await fetch('/api/settings/email/list');
+            if (res.ok) {
+                const data = await res.json();
+                setVerifiedSenders(data.senders || []);
+            }
+        } catch (e) {
+            console.error('Failed to fetch verified senders', e);
+        }
+    };
+
+    // Auto-fetch on mount if it's an email node
+    const isEmailNode = data.label === 'Send Email';
+    React.useEffect(() => {
+        if (isEmailNode && showConfig) {
+            fetchVerifiedSenders();
+        }
+    }, [isEmailNode, showConfig]);
 
     const handleConfigChange = (key: keyof NonNullable<StepNodeData['config']>, value: string) => {
         const newConfig = { ...config, [key]: value };
@@ -334,18 +359,39 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">From (Optional)</label>
-                                    <input
-                                        type="email"
-                                        placeholder="noreply@yourdomain.com"
-                                        className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
-                                        value={emailConfig.sender || ''}
-                                        onChange={(e) => {
-                                            const newVal = { ...emailConfig, sender: e.target.value };
-                                            setEmailConfig(newVal);
-                                            data.emailConfig = newVal;
-                                        }}
-                                    />
+                                    <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">From (Verified)</label>
+                                    <div className="relative">
+                                        <select
+                                            className="w-full appearance-none rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors pr-8"
+                                            value={emailConfig.sender || ''}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                if (val === '__add_new__') {
+                                                    setIsSendersDrawerOpen(true);
+                                                    return;
+                                                }
+                                                const newVal = { ...emailConfig, sender: val };
+                                                setEmailConfig(newVal);
+                                                data.emailConfig = newVal;
+                                            }}
+                                        >
+                                            <option value="">Default (System Address)</option>
+                                            {verifiedSenders.filter(s => s.status === 'verified').map(s => (
+                                                <option key={s.email} value={s.email}>
+                                                    {s.email}
+                                                </option>
+                                            ))}
+                                            <option value="__add_new__">+ Add New Verified Sender...</option>
+                                        </select>
+                                        <ChevronDown className="absolute right-2 top-2.5 text-white/30 pointer-events-none" size={14} />
+                                    </div>
+                                    {/* Helper link if strictly empty, mostly covered by option */}
+                                    <div
+                                        onClick={() => setIsSendersDrawerOpen(true)}
+                                        className="text-[10px] text-blue-400 hover:underline cursor-pointer flex items-center gap-1 mt-1"
+                                    >
+                                        <Settings size={10} /> Manage Verified Senders
+                                    </div>
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Subject</label>
@@ -502,7 +548,16 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                     </div>
                 )}
             </div>
-        </NodeWrapper>
+
+            <VerifiedSendersDrawer
+                isOpen={isSendersDrawerOpen}
+                onClose={() => setIsSendersDrawerOpen(false)}
+                onSenderVerified={() => {
+                    fetchVerifiedSenders();
+                    // Optionally auto-select the new one? Simple refresh is enough for now.
+                }}
+            />
+        </NodeWrapper >
     );
 }
 

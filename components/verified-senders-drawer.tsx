@@ -1,0 +1,217 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { X, Plus, ShieldCheck, Mail, Loader2, Check } from 'lucide-react';
+import { toast } from 'sonner';
+
+type Sender = {
+    id: string;
+    email: string;
+    status: 'pending' | 'verified';
+};
+
+type Props = {
+    isOpen: boolean;
+    onClose: () => void;
+    onSenderVerified: () => void; // Callback to refresh parent
+};
+
+export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Props) {
+    const [senders, setSenders] = useState<Sender[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [view, setView] = useState<'list' | 'add' | 'verify'>('list');
+
+    // Form states
+    const [newEmail, setNewEmail] = useState('');
+    const [verificationCode, setVerificationCode] = useState('');
+    const [processing, setProcessing] = useState(false);
+
+    useEffect(() => {
+        if (isOpen) fetchSenders();
+    }, [isOpen]);
+
+    const fetchSenders = async () => {
+        setLoading(true);
+        try {
+            const res = await fetch('/api/settings/email/list');
+            if (!res.ok) throw new Error('Failed to load senders');
+            const data = await res.json();
+            setSenders(data.senders || []);
+        } catch (e) {
+            toast.error('Could not load verified senders');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSendVerification = async () => {
+        if (!newEmail) return;
+        setProcessing(true);
+        try {
+            const res = await fetch('/api/settings/email/send-verification', {
+                method: 'POST',
+                body: JSON.stringify({ email: newEmail }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+
+            toast.success('Verification code sent to ' + newEmail);
+            setView('verify');
+        } catch (e: any) {
+            toast.error(e.message);
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    const handleVerify = async () => {
+        if (!verificationCode) return;
+        setProcessing(true);
+        try {
+            const res = await fetch('/api/settings/email/verify', {
+                method: 'POST',
+                body: JSON.stringify({ email: newEmail, code: verificationCode }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+
+            toast.success('Sender verified successfully!');
+            await fetchSenders();
+            onSenderVerified(); // Notify parent
+            setView('list');
+            setNewEmail('');
+            setVerificationCode('');
+        } catch (e: any) {
+            toast.error(e.message);
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm" onClick={onClose}>
+            <div
+                className="w-[400px] bg-[#1a1a1a] border-l border-white/10 shadow-2xl p-6 overflow-y-auto"
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className="flex items-center justify-between mb-8">
+                    <div>
+                        <h2 className="text-lg font-semibold text-white">Verified Senders</h2>
+                        <p className="text-sm text-white/50">Manage allowed "From" addresses</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/50 hover:text-white">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {view === 'list' && (
+                    <div className="space-y-4">
+                        <button
+                            onClick={() => setView('add')}
+                            className="w-full flex items-center justify-center gap-2 py-3 border border-dashed border-white/20 rounded-lg text-sm text-white/60 hover:text-white hover:border-white/40 hover:bg-white/5 transition-all"
+                        >
+                            <Plus size={16} />
+                            Add New Sender
+                        </button>
+
+                        {loading ? (
+                            <div className="flex justify-center py-8"><Loader2 className="animate-spin text-white/30" /></div>
+                        ) : (
+                            <div className="space-y-2">
+                                {senders.length === 0 && (
+                                    <p className="text-center text-xs text-white/30 py-4">No verified senders yet.</p>
+                                )}
+                                {senders.map(s => (
+                                    <div key={s.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-blue-500/10 rounded-md text-blue-400">
+                                                <Mail size={16} />
+                                            </div>
+                                            <div>
+                                                <div className="text-sm text-white/90">{s.email}</div>
+                                                <div className={`text-[10px] font-medium uppercase tracking-wider ${s.status === 'verified' ? 'text-green-400' : 'text-yellow-400'}`}>
+                                                    {s.status}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {s.status === 'verified' && <ShieldCheck size={16} className="text-green-400" />}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {view === 'add' && (
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <label className="text-xs font-medium text-white/60">Email Address</label>
+                            <input
+                                type="email"
+                                placeholder="name@company.com"
+                                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                value={newEmail}
+                                onChange={e => setNewEmail(e.target.value)}
+                            />
+                            <p className="text-[10px] text-white/40">We will send a verification code to this address.</p>
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setView('list')}
+                                className="flex-1 py-2 text-sm text-white/60 hover:text-white hover:bg-white/5 rounded-lg"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSendVerification}
+                                disabled={processing || !newEmail}
+                                className="flex-1 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                            >
+                                {processing && <Loader2 size={14} className="animate-spin" />}
+                                Send Code
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {view === 'verify' && (
+                    <div className="space-y-4">
+                        <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm text-blue-200">
+                            Code sent to <strong>{newEmail}</strong>. Please check your inbox (and spam).
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-medium text-white/60">Verification Code</label>
+                            <input
+                                type="text"
+                                placeholder="123456"
+                                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono tracking-widest text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                value={verificationCode}
+                                onChange={e => setVerificationCode(e.target.value)}
+                            />
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setView('add')}
+                                className="flex-1 py-2 text-sm text-white/60 hover:text-white hover:bg-white/5 rounded-lg"
+                            >
+                                Back
+                            </button>
+                            <button
+                                onClick={handleVerify}
+                                disabled={processing || !verificationCode}
+                                className="flex-1 py-2 text-sm bg-green-600 hover:bg-green-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                            >
+                                {processing && <Loader2 size={14} className="animate-spin" />}
+                                Verify & Add
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+            </div>
+        </div>
+    );
+}
