@@ -56,5 +56,83 @@ export const templates: Template[] = [
             { id: 'e1-2', source: '1', target: '2' },
             { id: 'e2-3', source: '2', target: '3' },
         ]
+    },
+    {
+        id: 'order-processing',
+        name: 'Order Processing',
+        description: 'End-to-end order fulfillment with payments and notifications.',
+        nodes: [
+            {
+                id: '1',
+                type: 'trigger',
+                position: { x: 100, y: 100 },
+                data: { label: 'Order Created', type: 'webhook' }
+            },
+            {
+                id: '2',
+                type: 'step',
+                position: { x: 100, y: 200 },
+                data: {
+                    label: 'Validate Order',
+                    type: 'conditional',
+                    condition: 'event.total > 0 && event.items.length > 0'
+                }
+            },
+            {
+                id: '3',
+                type: 'step',
+                position: { x: 100, y: 300 },
+                data: {
+                    label: 'Process Payment',
+                    type: 'api-call',
+                    url: 'https://api.stripe.com/v1/charges',
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer {{secrets.STRIPE_KEY}}' },
+                    body: '{ "amount": {{event.total}}, "currency": "usd", "source": "{{event.token}}" }'
+                }
+            },
+            {
+                id: '4',
+                type: 'step',
+                position: { x: 100, y: 400 },
+                data: {
+                    label: 'Update Inventory',
+                    type: 'database',
+                    operation: 'update',
+                    table: 'inventory',
+                    query: 'UPDATE products SET stock = stock - 1 WHERE id = {{event.product_id}}'
+                }
+            },
+            {
+                id: '5',
+                type: 'step',
+                position: { x: 300, y: 500 },
+                data: {
+                    label: 'Send Confirmation',
+                    type: 'send-email',
+                    to: '{{event.customer_email}}',
+                    subject: 'Order Confirmation #{{event.order_id}}',
+                    body: 'Thank you for your order! Your payment of ${{event.total}} has been processed.'
+                }
+            },
+            {
+                id: '6',
+                type: 'step',
+                position: { x: -100, y: 500 },
+                data: {
+                    label: 'Notify Shipping',
+                    type: 'slack',
+                    channel: '#shipping',
+                    message: 'New order #{{event.order_id}} ready for fulfillment.'
+                }
+            }
+        ],
+        edges: [
+            { id: 'e1-2', source: '1', target: '2' },
+            { id: 'e2-3', source: '2', target: '3', sourceHandle: 'true' },
+            { id: 'e3-4', source: '3', target: '4' },
+            { id: 'e4-5', source: '4', target: '5' },
+            { id: 'e4-6', source: '4', target: '6' }
+        ]
     }
 ];
