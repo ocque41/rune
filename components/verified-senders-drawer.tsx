@@ -77,7 +77,10 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
     const handleConnectSMTP = async () => {
-        if (!newEmail || !smtpConfig.host || !smtpConfig.user || !smtpConfig.pass) return;
+        if (!newEmail || !smtpConfig.host || !smtpConfig.user || !smtpConfig.pass) {
+            toast.error('Please fill in all SMTP fields (Host, User, Password).');
+            return;
+        }
         setProcessing(true);
         try {
             const res = await fetch('/api/settings/email/connect-smtp', {
@@ -299,7 +302,7 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                                 </div>
                                 <div className="flex gap-2 mt-4">
                                     <button onClick={() => setView('list')} className="flex-1 py-2 text-sm text-white/60 hover:text-white hover:bg-white/5 rounded-lg">Cancel</button>
-                                    <button onClick={handleConnectSMTP} disabled={processing || !newEmail || !smtpConfig.host || !smtpConfig.user || !smtpConfig.pass} className="flex-1 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">
+                                    <button onClick={handleConnectSMTP} disabled={processing} className="flex-1 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">
                                         {processing && <Loader2 size={14} className="animate-spin" />}
                                         Connect & Save
                                     </button>

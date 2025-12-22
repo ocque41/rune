@@ -208,7 +208,10 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                 )}
 
                 {showConfig && (
-                    <div className="max-h-[320px] overflow-y-auto pr-2 space-y-4 nodrag custom-scrollbar">
+                    <div
+                        className="max-h-[320px] overflow-y-auto pr-2 space-y-4 nodrag custom-scrollbar"
+                        onWheelCapture={(e) => e.stopPropagation()}
+                    >
                         {/* Duration input for Sleep nodes */}
                         {data.label === 'Sleep' && (
                             <div className="space-y-1.5">
