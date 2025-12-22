@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Plus, ShieldCheck, Mail, Loader2, Check, Trash2 } from 'lucide-react';
+import { X, Plus, ShieldCheck, Mail, Loader2, Check, Trash2, HelpCircle, ChevronLeft, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 
 type Sender = {
@@ -35,6 +35,7 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
     const [newEmail, setNewEmail] = useState('');
     const [verificationCode, setVerificationCode] = useState('');
     const [processing, setProcessing] = useState(false);
+    const [showHelp, setShowHelp] = useState(false);
 
     useEffect(() => {
         if (isOpen) fetchSenders();
@@ -164,7 +165,7 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
     return (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm" onClick={onClose}>
             <div
-                className="w-[400px] bg-[#1a1a1a] border-l border-white/10 shadow-2xl p-6 overflow-y-auto"
+                className="w-[400px] bg-[#1a1a1a] border-l border-white/10 shadow-2xl p-6 overflow-y-auto relative"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
@@ -299,7 +300,12 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-xs font-medium text-white/60">Password (App Password)</label>
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-xs font-medium text-white/60">Password (App Password)</label>
+                                        <button onClick={() => setShowHelp(true)} className="text-[10px] text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 transition-colors">
+                                            <HelpCircle size={10} /> How to get?
+                                        </button>
+                                    </div>
                                     <input type="password" placeholder="xxxx xxxx xxxx xxxx" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500" value={smtpConfig.pass} onChange={e => setSmtpConfig({ ...smtpConfig, pass: e.target.value })} />
                                 </div>
                                 <div className="flex gap-2 mt-4">
@@ -360,6 +366,44 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                     </div>
                 )}
 
+
+                {showHelp && (
+                    <div className="absolute inset-0 z-20 bg-[#1a1a1a] p-6 animate-in slide-in-from-right duration-200">
+                        <div className="flex items-center gap-2 mb-6">
+                            <button onClick={() => setShowHelp(false)} className="p-2 -ml-2 hover:bg-white/10 rounded-full transition-colors text-white/60 hover:text-white">
+                                <ChevronLeft size={20} />
+                            </button>
+                            <h2 className="text-lg font-semibold text-white">How to connect</h2>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm text-blue-200">
+                                <p className="font-medium mb-1 flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
+                                    Gmail & Outlook
+                                </p>
+                                Most providers block normal passwords. You must use an <strong>App Password</strong>.
+                            </div>
+
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-medium text-white">For Gmail Users:</h3>
+                                <ol className="space-y-3 text-sm text-white/60 list-decimal pl-4">
+                                    <li>Go to your <a href="https://myaccount.google.com/security" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline inline-flex items-center gap-0.5">Google Account Security <ExternalLink size={10} /></a> page.</li>
+                                    <li>Enable <strong>2-Step Verification</strong> if not already on.</li>
+                                    <li>Search for <strong>"App passwords"</strong> (or find it under "How you sign in").</li>
+                                    <li>Create a new app password named <strong>"Rune"</strong>.</li>
+                                    <li>Copy the 16-character code and paste it here.</li>
+                                </ol>
+                            </div>
+
+                            <div className="pt-4 border-t border-white/10">
+                                <button onClick={() => setShowHelp(false)} className="w-full py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg text-sm font-medium transition-colors">
+                                    Got it, I have the password
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

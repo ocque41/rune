@@ -60,79 +60,161 @@ export const templates: Template[] = [
     {
         id: 'order-processing',
         name: 'Order Processing',
-        description: 'End-to-end order fulfillment with payments and notifications.',
+        description: 'End-to-end order fulfillment simulation: Validation, Inventory Check, Payment, and Notifications.',
         nodes: [
+            // 1. Start
             {
                 id: '1',
-                type: 'trigger',
-                position: { x: 100, y: 100 },
-                data: { label: 'Order Created', type: 'webhook' }
+                type: 'step',
+                position: { x: 250, y: 0 },
+                data: {
+                    label: 'Start Workflow',
+                    description: 'Triggered with { orderId, amount, email }'
+                }
             },
+            // 2. Validation Script
             {
                 id: '2',
                 type: 'step',
-                position: { x: 100, y: 200 },
+                position: { x: 250, y: 100 },
                 data: {
-                    label: 'Validate Order',
-                    type: 'conditional',
-                    condition: 'event.total > 0 && event.items.length > 0'
+                    label: 'Run Script',
+                    description: 'Validate Order Schema',
+                    scriptConfig: {
+                        code: `
+if (!params.amount || !params.email) {
+  throw new Error("Invalid Order: Missing amount or email");
+}
+return params;
+`
+                    }
                 }
             },
+            // 3. Mock Inventory Check
             {
                 id: '3',
                 type: 'step',
-                position: { x: 100, y: 300 },
+                position: { x: 250, y: 250 },
                 data: {
-                    label: 'Process Payment',
-                    type: 'api-call',
-                    url: 'https://api.stripe.com/v1/charges',
-                    method: 'POST',
-                    headers: { 'Authorization': 'Bearer {{secrets.STRIPE_KEY}}' },
-                    body: '{ "amount": {{event.total}}, "currency": "usd", "source": "{{event.token}}" }'
+                    label: 'HTTP Request',
+                    description: 'Check Inventory (Mock)',
+                    httpRequest: {
+                        method: 'GET',
+                        url: 'https://dummyjson.com/products/1', // Returns stock: 94
+                    }
                 }
             },
+            // 4. Decision: In Stock?
             {
                 id: '4',
-                type: 'step',
-                position: { x: 100, y: 400 },
+                type: 'if',
+                position: { x: 250, y: 400 },
                 data: {
-                    label: 'Update Inventory',
-                    type: 'database',
-                    operation: 'update',
-                    table: 'inventory',
-                    query: 'UPDATE products SET stock = stock - 1 WHERE id = {{event.product_id}}'
+                    label: 'In Stock?',
+                    condition: 'params.data.stock > 0'
                 }
             },
+            // --- Branch A: In Stock ---
+            // 5. Calculate Total
             {
                 id: '5',
-                type: 'step',
-                position: { x: 300, y: 500 },
+                type: 'transform',
+                position: { x: 50, y: 550 },
                 data: {
-                    label: 'Send Confirmation',
-                    type: 'send-email',
-                    to: '{{event.customer_email}}',
-                    subject: 'Order Confirmation #{{event.order_id}}',
-                    body: 'Thank you for your order! Your payment of ${{event.total}} has been processed.'
+                    label: 'Transform',
+                    mapping: `
+const tax = 0.10;
+const shipping = 15;
+const total = params.inputs['1'].amount * (1 + tax) + shipping;
+return { ...params.inputs['1'], total, status: 'confirmed' };
+`
                 }
             },
+            // 6. Process Payment (Mock)
             {
                 id: '6',
                 type: 'step',
-                position: { x: -100, y: 500 },
+                position: { x: 50, y: 700 },
                 data: {
-                    label: 'Notify Shipping',
-                    type: 'slack',
-                    channel: '#shipping',
-                    message: 'New order #{{event.order_id}} ready for fulfillment.'
+                    label: 'HTTP Request',
+                    description: 'Process Payment (Mock)',
+                    httpRequest: {
+                        method: 'POST',
+                        url: 'https://httpbin.org/post',
+                        body: '{"status": "paid", "amount": {{5.result.total}} }',
+                        headers: '{"Content-Type": "application/json"}'
+                    }
+                }
+            },
+            // 7. Success Email
+            {
+                id: '7',
+                type: 'step',
+                position: { x: 50, y: 850 },
+                data: {
+                    label: 'Send Email',
+                    emailConfig: {
+                        recipient: 'customer@example.com',
+                        subject: 'Order Confirmed',
+                        body: 'Your order has been confirmed and paid. Total: ${{5.result.total}}'
+                    }
+                }
+            },
+            // --- Branch B: Out of Stock ---
+            // 8. Log Error
+            {
+                id: '8',
+                type: 'step',
+                position: { x: 500, y: 550 },
+                data: {
+                    label: 'Run Script',
+                    description: 'Log Backorder',
+                    scriptConfig: {
+                        code: `console.log("Backorder for:", params.inputs['1']); return { status: 'backordered' };`
+                    }
+                }
+            },
+            // 9. Apology Email
+            {
+                id: '9',
+                type: 'step',
+                position: { x: 500, y: 700 },
+                data: {
+                    label: 'Send Email',
+                    emailConfig: {
+                        recipient: 'customer@example.com',
+                        subject: 'Order Delayed',
+                        body: 'We are sorry, but your item is currently out of stock.'
+                    }
+                }
+            },
+            // 10. Slack Notification (Common End)
+            {
+                id: '10',
+                type: 'step',
+                position: { x: 250, y: 1000 },
+                data: {
+                    label: 'Slack Message',
+                    slackConfig: {
+                        webhookUrl: 'https://hooks.slack.com/services/T000/B000/XXXX',
+                        message: 'Order processing completed.'
+                    }
                 }
             }
         ],
         edges: [
-            { id: 'e1-2', source: '1', target: '2' },
-            { id: 'e2-3', source: '2', target: '3', sourceHandle: 'true' },
-            { id: 'e3-4', source: '3', target: '4' },
-            { id: 'e4-5', source: '4', target: '5' },
-            { id: 'e4-6', source: '4', target: '6' }
+            { id: 'start-val', source: '1', target: '2' },
+            { id: 'val-inv', source: '2', target: '3' },
+            { id: 'inv-check', source: '3', target: '4' },
+            // True Path
+            { id: 'check-calc', source: '4', target: '5', sourceHandle: 'true', label: 'Yes' },
+            { id: 'calc-pay', source: '5', target: '6' },
+            { id: 'pay-email', source: '6', target: '7' },
+            { id: 'email-end', source: '7', target: '10' },
+            // False Path
+            { id: 'check-log', source: '4', target: '8', sourceHandle: 'false', label: 'No' },
+            { id: 'log-email', source: '8', target: '9' },
+            { id: 'email-end-2', source: '9', target: '10' }
         ]
     }
 ];
