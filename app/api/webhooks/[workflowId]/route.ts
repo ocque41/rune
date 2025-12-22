@@ -6,9 +6,31 @@ export async function POST(
     request: NextRequest,
     { params }: { params: Promise<{ workflowId: string }> }
 ) {
-    try {
-        const { workflowId } = await params;
+    const { workflowId } = await params;
 
+    // Parse body if present
+    let body = {};
+    try {
+        body = await request.json();
+    } catch {
+        // Body might be empty
+    }
+
+    return handleWorkflowTrigger(workflowId, body);
+}
+
+export async function GET(
+    request: NextRequest,
+    { params }: { params: Promise<{ workflowId: string }> }
+) {
+    const { workflowId } = await params;
+    // GET requests usually don't have a body, pass empty object or query params
+    const searchParams = Object.fromEntries(request.nextUrl.searchParams);
+    return handleWorkflowTrigger(workflowId, searchParams);
+}
+
+async function handleWorkflowTrigger(workflowId: string, payload: any) {
+    try {
         if (!workflowId) {
             return NextResponse.json(
                 { success: false, error: 'Workflow ID is required' },
@@ -16,22 +38,9 @@ export async function POST(
             );
         }
 
-        // Parse body if present
-        let body = {};
-        try {
-            body = await request.json();
-        } catch {
-            // Body might be empty
-        }
-
         const supabase = createAdminClient();
 
-        // 1. Resolve Workflow ID (handle potential slug vs uuid if needed)
-        // For now, assume workflowId param is the UUID. 
-        // If we want to support slugs, we'd query rune_workflows by name first.
-
-        // 2. Fetch Latest Deployed Version
-        // We want the deployed snapshot, not the current draft in rune_workflows
+        // 1. Fetch Latest Deployed Version
         const { data: latestVersion, error } = await supabase
             .from('rune_workflow_versions')
             .select('*')
@@ -41,8 +50,6 @@ export async function POST(
             .single();
 
         if (error || !latestVersion) {
-            // Fallback: Check if the main workflow exists (maybe never deployed?)
-            // Or return 404
             console.error('Workflow version lookup failed:', error);
             return NextResponse.json(
                 { success: false, error: 'Workflow not found or not deployed' },
@@ -58,12 +65,7 @@ export async function POST(
             );
         }
 
-        // 3. Initialize Engine
-        // We might need to fetch the workflow name from the parent table if not in version
-        // But let's verify if we need it. WorkflowEngine takes (id, name, nodes, edges).
-        // Version table doesn't usually store name.
-
-        // Quick fetch for name
+        // 2. Fetch Workflow Name
         const { data: wfMeta } = await supabase
             .from('rune_workflows')
             .select('name')
@@ -72,6 +74,7 @@ export async function POST(
 
         const workflowName = wfMeta?.name || 'Unknown Workflow';
 
+        // 3. Initialize Engine
         const engine = new WorkflowEngine(
             workflowId,
             workflowName,
@@ -80,7 +83,7 @@ export async function POST(
         );
 
         // 4. Run Execution
-        const runResult = await engine.run(body);
+        const runResult = await engine.run(payload);
 
         return NextResponse.json({
             success: true,
