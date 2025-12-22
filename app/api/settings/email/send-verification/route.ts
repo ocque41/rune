@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
         if (dbError) throw dbError;
 
         // Send Email
-        await sendEmail({
+        const mailInfo = await sendEmail({
             from: process.env.SMTP_FROM || 'noreply@cumulus.run',
             to: email,
             subject: 'Verify your Sender Identity',
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
             text: `Your verification code is: ${code}`
         });
 
-        return NextResponse.json({ success: true });
+        return NextResponse.json({ success: true, debug: mailInfo });
 
     } catch (error: any) {
         console.error('Send verification failed:', error);

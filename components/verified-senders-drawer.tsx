@@ -44,9 +44,12 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
         }
     };
 
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
     const handleSendVerification = async () => {
         if (!newEmail) return;
         setProcessing(true);
+        setPreviewUrl(null);
         try {
             const res = await fetch('/api/settings/email/send-verification', {
                 method: 'POST',
@@ -56,6 +59,11 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
             if (!res.ok) throw new Error(data.error);
 
             toast.success('Verification code sent to ' + newEmail);
+            if (data.debug?.preview) {
+                setPreviewUrl(data.debug.preview);
+                // Also open in new tab automatically for convenience? Maybe not, popups might block.
+                // window.open(data.debug.preview, '_blank');
+            }
             setView('verify');
         } catch (e: any) {
             toast.error(e.message);
@@ -181,6 +189,19 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                     <div className="space-y-4">
                         <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm text-blue-200">
                             Code sent to <strong>{newEmail}</strong>. Please check your inbox (and spam).
+                            {previewUrl && (
+                                <div className="mt-3 pt-3 border-t border-blue-500/20">
+                                    <span className="text-xs opacity-70 block mb-1">Development Mode Detected:</span>
+                                    <a
+                                        href={previewUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-white underline hover:text-blue-100 flex items-center gap-1 font-semibold"
+                                    >
+                                        View Email (Ethereal) &rarr;
+                                    </a>
+                                </div>
+                            )}
                         </div>
                         <div className="space-y-2">
                             <label className="text-xs font-medium text-white/60">Verification Code</label>
