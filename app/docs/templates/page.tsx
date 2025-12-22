@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Copy, Mail, Webhook, Database, MessageSquare, Clock, Zap } from 'lucide-react';
+import { ArrowLeft, Copy, Mail, Webhook, Database, MessageSquare, Clock, Zap, ShoppingBag } from 'lucide-react';
 
 const templates = [
     {
@@ -64,6 +64,16 @@ const templates = [
         nodes: 7,
         category: 'Data',
         href: '/docs/templates/data-pipeline'
+    },
+    {
+        id: 'order-processing',
+        title: 'Order Processing',
+        description: 'End-to-end order fulfillment workflow with payments and notifications',
+        icon: ShoppingBag,
+        difficulty: 'Advanced',
+        nodes: 6,
+        category: 'Integration',
+        href: '/docs/templates/order-processing'
     }
 ];
 

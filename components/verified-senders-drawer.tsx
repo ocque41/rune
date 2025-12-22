@@ -77,8 +77,9 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
     const handleConnectSMTP = async () => {
-        if (!newEmail || !smtpConfig.host || !smtpConfig.user || !smtpConfig.pass) {
-            toast.error('Please fill in all SMTP fields (Host, User, Password).');
+        // We use the Email Address (newEmail) as the SMTP User
+        if (!newEmail || !smtpConfig.host || !smtpConfig.pass) {
+            toast.error('Please fill in all SMTP fields (Host, Email/User, Password).');
             return;
         }
         setProcessing(true);
@@ -88,6 +89,7 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                 body: JSON.stringify({
                     email: newEmail,
                     ...smtpConfig,
+                    user: newEmail, // Use the email input as the username
                     port: parseInt(smtpConfig.port)
                 }),
             });

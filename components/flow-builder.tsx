@@ -35,7 +35,7 @@ import { TransformNode } from './nodes/transform-node';
 import WebhookNode from './nodes/webhook-node';
 import { generateWorkflowCode } from '@/lib/workflow-generator';
 import { validateGraph, ValidationResult } from '@/lib/workflow-validator';
-import { LayoutTemplate, AlertCircle, X, Download, Upload, Trash2, HelpCircle, Play, FolderOpen, Loader2, FileCode } from 'lucide-react';
+import { LayoutTemplate, AlertCircle, X, Download, Upload, Trash2, HelpCircle, Play, FolderOpen, Loader2, FileCode, Plus, Save } from 'lucide-react';
 import { templates, Template } from '@/lib/templates';
 import { ExportedWorkflow } from '@/lib/types/export';
 import { toast } from 'sonner';
@@ -111,6 +111,76 @@ const FlowBuilderContent = ({
         graphJson: string;
     } | null>(null);
     const [deployTab, setDeployTab] = useState<'Integration' | 'Source Code' | 'JSON Definition'>('Integration');
+
+    // User Templates State
+    const [templateTab, setTemplateTab] = useState<'system' | 'my'>('system');
+    const [userTemplates, setUserTemplates] = useState<any[]>([]);
+    const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+    const [templateForm, setTemplateForm] = useState({ name: '', description: '' });
+    const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+
+    const fetchUserTemplates = useCallback(async () => {
+        try {
+            const response = await fetch('/api/rune/templates');
+            if (response.ok) {
+                const data = await response.json();
+                setUserTemplates(data.templates || []);
+            }
+        } catch (error) {
+            console.error('Fetch user templates error:', error);
+        }
+    }, []);
+
+    const onSaveTemplate = useCallback(async () => {
+        if (!nodes.length) return;
+        setIsSavingTemplate(true);
+        try {
+            const response = await fetch('/api/rune/templates', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: templateForm.name,
+                    description: templateForm.description,
+                    graph_json: { nodes, edges }
+                }),
+            });
+
+            if (!response.ok) throw new Error('Failed to save template');
+
+            toast.success('Template saved successfully');
+            setShowSaveTemplateModal(false);
+            setTemplateForm({ name: '', description: '' });
+            fetchUserTemplates(); // Refresh list
+        } catch (error) {
+            console.error('Save template error:', error);
+            toast.error('Failed to save template');
+        } finally {
+            setIsSavingTemplate(false);
+        }
+    }, [nodes, edges, templateForm, fetchUserTemplates]);
+
+    const onDeleteTemplate = useCallback(async (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!confirm("Delete this template?")) return;
+        try {
+            const response = await fetch(`/api/rune/templates/${id}`, { method: 'DELETE' });
+            if (!response.ok) throw new Error('Failed to delete');
+            toast.success('Template deleted');
+            fetchUserTemplates();
+        } catch (error) {
+            console.error('Delete template error:', error);
+            toast.error('Failed to delete template');
+        }
+    }, [fetchUserTemplates]);
+
+    const loadUserTemplate = useCallback((template: any) => {
+        if (template.graph_json?.nodes && template.graph_json?.edges) {
+            setNodes(template.graph_json.nodes);
+            setEdges(template.graph_json.edges);
+            setShowTemplates(false);
+            toast.success(`Template "${template.name}" loaded`);
+        }
+    }, [setNodes, setEdges]);
 
     const fetchWorkflows = useCallback(async () => {
         setIsLoadingList(true);
@@ -618,12 +688,26 @@ const FlowBuilderContent = ({
                             Clear
                         </button>
                         <button
-                            onClick={() => setShowTemplates(true)}
+                            onClick={() => {
+                                setShowTemplates(true);
+                                fetchUserTemplates();
+                            }}
                             className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
                             style={{ color: 'var(--foreground-title)' }}
                         >
                             <LayoutTemplate size={14} />
                             Templates
+                        </button>
+                        <button
+                            onClick={() => {
+                                setTemplateForm({ name: workflowName || 'My Template', description: '' });
+                                setShowSaveTemplateModal(true);
+                            }}
+                            className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                            style={{ color: 'var(--foreground-title)' }}
+                        >
+                            <Save size={14} />
+                            Add as Template
                         </button>
                         <button
                             onClick={() => {
@@ -758,18 +842,133 @@ const FlowBuilderContent = ({
                                     <X size={20} />
                                 </button>
                             </div>
-                            <div className="grid gap-4">
-                                {templates.map(template => (
+                            <div className="flex gap-4 mb-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
+                                <button
+                                    className={`pb-2 text-sm font-medium transition-colors ${templateTab === 'system' ? 'border-b-2' : 'opacity-60'}`}
+                                    style={{
+                                        borderColor: templateTab === 'system' ? 'var(--foreground-title)' : 'transparent',
+                                        color: 'var(--foreground-title)'
+                                    }}
+                                    onClick={() => setTemplateTab('system')}
+                                >
+                                    System Templates
+                                </button>
+                                <button
+                                    className={`pb-2 text-sm font-medium transition-colors ${templateTab === 'my' ? 'border-b-2' : 'opacity-60'}`}
+                                    style={{
+                                        borderColor: templateTab === 'my' ? 'var(--foreground-title)' : 'transparent',
+                                        color: 'var(--foreground-title)'
+                                    }}
+                                    onClick={() => setTemplateTab('my')}
+                                >
+                                    My Templates
+                                </button>
+                            </div>
+
+                            <div className="grid gap-4 max-h-[400px] overflow-y-auto">
+                                {templateTab === 'system' ? (
+                                    templates.map(template => (
+                                        <button
+                                            key={template.id}
+                                            onClick={() => loadTemplate(template)}
+                                            className="flex flex-col items-start rounded-lg border p-4 text-left transition-all hover:bg-black/5 dark:hover:bg-white/5"
+                                            style={{ borderColor: 'var(--border-color)' }}
+                                        >
+                                            <span className="font-medium" style={{ color: 'var(--foreground-title)' }}>{template.name}</span>
+                                            <span className="text-sm opacity-60" style={{ color: 'var(--foreground-subtitle)' }}>{template.description}</span>
+                                        </button>
+                                    ))
+                                ) : (
+                                    userTemplates.length > 0 ? (
+                                        userTemplates.map(template => (
+                                            <div
+                                                key={template.id}
+                                                className="group relative flex flex-col items-start rounded-lg border p-4 text-left transition-all hover:bg-black/5 dark:hover:bg-white/5"
+                                                style={{ borderColor: 'var(--border-color)', cursor: 'pointer' }}
+                                                onClick={() => loadUserTemplate(template)}
+                                            >
+                                                <div className="flex w-full justify-between items-start">
+                                                    <div>
+                                                        <span className="font-medium" style={{ color: 'var(--foreground-title)' }}>{template.name}</span>
+                                                        <p className="text-sm opacity-60" style={{ color: 'var(--foreground-subtitle)' }}>{template.description || 'No description'}</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => onDeleteTemplate(template.id, e)}
+                                                        className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-opacity"
+                                                        title="Delete Template"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-center text-sm opacity-60 py-8" style={{ color: 'var(--foreground-subtitle)' }}>
+                                            No templates saved yet.
+                                        </p>
+                                    )
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Save Template Modal */}
+                {showSaveTemplateModal && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <div className="w-[400px] rounded-lg border p-6 shadow-xl" style={{
+                            backgroundColor: 'var(--node-background)',
+                            borderColor: 'var(--border-color)'
+                        }}>
+                            <div className="mb-4 flex items-center justify-between">
+                                <h2 className="text-lg font-bold" style={{ color: 'var(--foreground-title)' }}>Save as Template</h2>
+                                <button onClick={() => setShowSaveTemplateModal(false)} className="opacity-60 hover:opacity-100">
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1" style={{ color: 'var(--foreground-subtitle)' }}>
+                                        Template Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        className="w-full rounded border px-3 py-2 text-sm bg-transparent"
+                                        style={{ borderColor: 'var(--border-color)', color: 'var(--foreground-body)' }}
+                                        value={templateForm.name}
+                                        onChange={e => setTemplateForm({ ...templateForm, name: e.target.value })}
+                                        placeholder="My Awesome Template"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1" style={{ color: 'var(--foreground-subtitle)' }}>
+                                        Description
+                                    </label>
+                                    <textarea
+                                        className="w-full rounded border px-3 py-2 text-sm bg-transparent"
+                                        style={{ borderColor: 'var(--border-color)', color: 'var(--foreground-body)' }}
+                                        rows={3}
+                                        value={templateForm.description}
+                                        onChange={e => setTemplateForm({ ...templateForm, description: e.target.value })}
+                                        placeholder="What does this workflow do?"
+                                    />
+                                </div>
+                                <div className="flex justify-end gap-2 pt-2">
                                     <button
-                                        key={template.id}
-                                        onClick={() => loadTemplate(template)}
-                                        className="flex flex-col items-start rounded-lg border p-4 text-left transition-all hover:bg-black/5 dark:hover:bg-white/5"
-                                        style={{ borderColor: 'var(--border-color)' }}
+                                        onClick={() => setShowSaveTemplateModal(false)}
+                                        className="px-4 py-2 text-sm font-medium rounded hover:bg-black/5 dark:hover:bg-white/5"
+                                        style={{ color: 'var(--foreground-body)' }}
                                     >
-                                        <span className="font-medium" style={{ color: 'var(--foreground-title)' }}>{template.name}</span>
-                                        <span className="text-sm opacity-60" style={{ color: 'var(--foreground-subtitle)' }}>{template.description}</span>
+                                        Cancel
                                     </button>
-                                ))}
+                                    <button
+                                        onClick={onSaveTemplate}
+                                        disabled={isSavingTemplate || !templateForm.name.trim()}
+                                        className="px-4 py-2 text-sm font-medium rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                                    >
+                                        {isSavingTemplate ? 'Saving...' : 'Save Template'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
