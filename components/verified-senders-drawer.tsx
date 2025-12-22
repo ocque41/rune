@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 type Sender = {
     id: string;
     email: string;
-    status: 'pending' | 'verified';
+    status: 'pending' | 'verified' | 'connected';
 };
 
 type Props = {
@@ -20,6 +20,16 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
     const [senders, setSenders] = useState<Sender[]>([]);
     const [loading, setLoading] = useState(true);
     const [view, setView] = useState<'list' | 'add' | 'verify'>('list');
+
+    // SMTP Form states
+    const [smtpConfig, setSmtpConfig] = useState({
+        host: '',
+        port: '587',
+        user: '',
+        pass: '',
+        secure: false
+    });
+    const [addTab, setAddTab] = useState<'verify' | 'connect'>('verify');
 
     // Form states
     const [newEmail, setNewEmail] = useState('');
@@ -65,6 +75,34 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
     };
 
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+    const handleConnectSMTP = async () => {
+        if (!newEmail || !smtpConfig.host || !smtpConfig.user || !smtpConfig.pass) return;
+        setProcessing(true);
+        try {
+            const res = await fetch('/api/settings/email/connect-smtp', {
+                method: 'POST',
+                body: JSON.stringify({
+                    email: newEmail,
+                    ...smtpConfig,
+                    port: parseInt(smtpConfig.port)
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+
+            toast.success('SMTP Connected successfully!');
+            await fetchSenders();
+            onSenderVerified();
+            setView('list');
+            setNewEmail('');
+            setSmtpConfig({ host: '', port: '587', user: '', pass: '', secure: false });
+        } catch (e: any) {
+            toast.error(e.message);
+        } finally {
+            setProcessing(false);
+        }
+    };
 
     const handleSendVerification = async () => {
         if (!newEmail) return;
@@ -160,13 +198,15 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                                             </div>
                                             <div>
                                                 <div className="text-sm text-white/90">{s.email}</div>
-                                                <div className={`text-[10px] font-medium uppercase tracking-wider ${s.status === 'verified' ? 'text-green-400' : 'text-yellow-400'}`}>
-                                                    {s.status}
+                                                <div className={`text-[10px] font-medium uppercase tracking-wider ${s.status === 'verified' ? 'text-green-400' :
+                                                        s.status === 'connected' ? 'text-blue-400' : 'text-yellow-400'
+                                                    }`}>
+                                                    {s.status === 'connected' ? 'SMTP Connected' : s.status}
                                                 </div>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            {s.status === 'verified' && <ShieldCheck size={16} className="text-green-400" />}
+                                            {(s.status === 'verified' || s.status === 'connected') && <ShieldCheck size={16} className={s.status === 'connected' ? "text-blue-400" : "text-green-400"} />}
                                             <button
                                                 onClick={() => handleDelete(s.id, s.email)}
                                                 className="p-1.5 text-white/20 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors opacity-0 group-hover:opacity-100"
@@ -183,34 +223,89 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                 )}
 
                 {view === 'add' && (
-                    <div className="space-y-4">
-                        <div className="space-y-2">
-                            <label className="text-xs font-medium text-white/60">Email Address</label>
-                            <input
-                                type="email"
-                                placeholder="name@company.com"
-                                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                value={newEmail}
-                                onChange={e => setNewEmail(e.target.value)}
-                            />
-                            <p className="text-[10px] text-white/40">We will send a verification code to this address.</p>
-                        </div>
-                        <div className="flex gap-2">
+                    <div className="space-y-6">
+                        <div className="flex bg-white/5 p-1 rounded-lg">
                             <button
-                                onClick={() => setView('list')}
-                                className="flex-1 py-2 text-sm text-white/60 hover:text-white hover:bg-white/5 rounded-lg"
+                                onClick={() => setAddTab('verify')}
+                                className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${addTab === 'verify' ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/60'}`}
                             >
-                                Cancel
+                                Verify Domain (Code)
                             </button>
                             <button
-                                onClick={handleSendVerification}
-                                disabled={processing || !newEmail}
-                                className="flex-1 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                                onClick={() => setAddTab('connect')}
+                                className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${addTab === 'connect' ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/60'}`}
                             >
-                                {processing && <Loader2 size={14} className="animate-spin" />}
-                                Send Code
+                                Connect SMTP (Full Access)
                             </button>
                         </div>
+
+                        {addTab === 'verify' ? (
+                            <div className="space-y-4">
+                                <div className="p-3 bg-white/5 border border-white/10 rounded-lg text-xs text-white/60">
+                                    Best for domains you own (e.g. <code>@company.com</code>).
+                                    Sends using system default.
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-medium text-white/60">Email Address</label>
+                                    <input
+                                        type="email"
+                                        placeholder="name@company.com"
+                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        value={newEmail}
+                                        onChange={e => setNewEmail(e.target.value)}
+                                    />
+                                    <p className="text-[10px] text-white/40">We will send a verification code to this address.</p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setView('list')}
+                                        className="flex-1 py-2 text-sm text-white/60 hover:text-white hover:bg-white/5 rounded-lg"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleSendVerification}
+                                        disabled={processing || !newEmail}
+                                        className="flex-1 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                                    >
+                                        {processing && <Loader2 size={14} className="animate-spin" />}
+                                        Send Code
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <div className="p-3 bg-white/5 border border-white/10 rounded-lg text-xs text-white/60">
+                                    Best for Gmail, Outlook, etc. Requires <strong>App Password</strong>.
+                                    Sends *actually* from your account.
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-medium text-white/60">Email Address (Username)</label>
+                                    <input type="email" placeholder="you@gmail.com" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500" value={newEmail} onChange={e => setNewEmail(e.target.value)} />
+                                </div>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div className="col-span-2 space-y-2">
+                                        <label className="text-xs font-medium text-white/60">Host</label>
+                                        <input type="text" placeholder="smtp.gmail.com" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500" value={smtpConfig.host} onChange={e => setSmtpConfig({ ...smtpConfig, host: e.target.value })} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-medium text-white/60">Port</label>
+                                        <input type="text" placeholder="587" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500" value={smtpConfig.port} onChange={e => setSmtpConfig({ ...smtpConfig, port: e.target.value })} />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-medium text-white/60">Password (App Password)</label>
+                                    <input type="password" placeholder="xxxx xxxx xxxx xxxx" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500" value={smtpConfig.pass} onChange={e => setSmtpConfig({ ...smtpConfig, pass: e.target.value })} />
+                                </div>
+                                <div className="flex gap-2 mt-4">
+                                    <button onClick={() => setView('list')} className="flex-1 py-2 text-sm text-white/60 hover:text-white hover:bg-white/5 rounded-lg">Cancel</button>
+                                    <button onClick={handleConnectSMTP} disabled={processing || !newEmail || !smtpConfig.pass} className="flex-1 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">
+                                        {processing && <Loader2 size={14} className="animate-spin" />}
+                                        Connect & Save
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 

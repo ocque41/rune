@@ -7,10 +7,40 @@ type EmailConfig = {
     subject: string;
     html: string;
     text?: string;
+    smtpConfig?: {
+        host: string;
+        port: number;
+        user: string;
+        pass: string;
+        secure?: boolean;
+    };
 };
 
 export async function sendEmail(config: EmailConfig) {
-    // 1. SMTP Provider (Highest Priority)
+    // 0. Custom User SMTP (Highest Priority - BYO-SMTP)
+    if (config.smtpConfig) {
+        const transporter = nodemailer.createTransport({
+            host: config.smtpConfig.host,
+            port: config.smtpConfig.port,
+            auth: {
+                user: config.smtpConfig.user,
+                pass: config.smtpConfig.pass,
+            },
+            secure: config.smtpConfig.secure === true,
+        });
+
+        // When using custom SMTP, the 'from' header MUST match the user (generally)
+        // or whatever they configured. We trust the input 'from' here, or default to the user.
+        return await transporter.sendMail({
+            from: config.from || config.smtpConfig.user,
+            to: config.to,
+            subject: config.subject,
+            text: config.text || config.html.replace(/<[^>]*>?/gm, ''),
+            html: config.html,
+        });
+    }
+
+    // 1. SMTP Provider (System Default)
     if (process.env.SMTP_HOST) {
         const transporter = nodemailer.createTransport({
             host: process.env.SMTP_HOST,
