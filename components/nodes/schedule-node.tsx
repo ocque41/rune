@@ -75,6 +75,13 @@ export const ScheduleNode = (props: NodeProps<any>) => {
 
             {/* Output Handle */}
             <Handle
+                type="target"
+                position={Position.Top}
+                isConnectable={isConnectable}
+                className="!h-3 !w-3 !bg-[#F0EEE9]"
+                style={{ border: '2px solid #131313' }}
+            />
+            <Handle
                 type="source"
                 position={Position.Bottom}
                 isConnectable={isConnectable}
