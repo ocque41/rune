@@ -51,35 +51,9 @@ export class WorkflowEngine {
 
         try {
             // Find Start Node
-            // Find Start Node
-            // Priority:
-            // 1. Explicit "Start Workflow" or "Webhook" node
-            // 2. "Schedule" node (common for simple recurring flows used manually)
-            // 3. Root nodes (no incoming edges)
-
-            let startNode = this.nodes.find(n =>
-                n.data.label === 'Start Workflow' ||
-                n.data.label === 'Webhook' ||
-                n.data.label === 'Manual Trigger'
-            );
-
+            const startNode = this.nodes.find(n => n.data.label === 'Start Workflow');
             if (!startNode) {
-                startNode = this.nodes.find(n => n.data.label === 'Schedule');
-            }
-
-            if (!startNode) {
-                // Find root nodes (no incoming edges)
-                const targetNodeIds = new Set(this.edges.map(e => e.target));
-                startNode = this.nodes.find(n => !targetNodeIds.has(n.id));
-            }
-
-            if (!startNode && this.nodes.length > 0) {
-                // Fallback: Use the first node if the graph has cycles or is weird
-                startNode = this.nodes[0];
-            }
-
-            if (!startNode) {
-                throw new Error('No valid start node found in workflow');
+                throw new Error('No "Start Workflow" node found');
             }
 
             this.context.inputs[startNode.id] = initialPayload;

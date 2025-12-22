@@ -536,11 +536,14 @@ const FlowBuilderContent = ({
         input.click();
     }, [setNodes, setEdges]);
 
+    // Check if start node exists
+    const hasStartNode = nodes.some(n => n.data.label === 'Start Workflow');
+
     return (
         <div className="flex h-[calc(100vh-64px)] w-full flex-row overflow-hidden relative" style={{
             backgroundColor: '#000000'
         }}>
-            <Sidebar />
+            <Sidebar hasStartNode={hasStartNode} />
             <div className="flex-grow h-full relative" ref={reactFlowWrapper}>
                 <AnimatedGridBackground />
                 <ReactFlow

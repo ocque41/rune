@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { DragEvent } from 'react';
-import { MessageSquare, Mail, Database, Globe, Clock, Code, PauseCircle, Split, Repeat, Lock, GitMerge, Workflow, Info, ChevronDown, UserCheck, Sparkles, Box } from 'lucide-react';
+import { MessageSquare, Mail, Database, Globe, Clock, Code, PauseCircle, Split, Repeat, Lock, GitMerge, Workflow, Info, ChevronDown, UserCheck, Sparkles, Box, Play } from 'lucide-react';
 
-export const Sidebar = () => {
+export const Sidebar = ({ hasStartNode }: { hasStartNode: boolean }) => {
     const [showSecrets, setShowSecrets] = useState(false);
     const [secrets, setSecrets] = useState<string[]>([]);
     const [secretsLoading, setSecretsLoading] = useState(true);
@@ -51,6 +51,8 @@ export const Sidebar = () => {
     ];
 
     const controlFlow = [
+        // Start Workflow can only be added if one doesn't exist
+        { type: 'step', label: 'Start Workflow', icon: Play, disabled: hasStartNode },
         { type: 'webhook', label: 'Webhook', icon: Globe },
         { type: 'schedule', label: 'Schedule', icon: Clock },
         { type: 'step', label: 'Sleep', icon: Clock },
@@ -104,19 +106,20 @@ export const Sidebar = () => {
 
 // Compact button component with label
 const SidebarIconButton = ({ item, onDragStart }: { item: any, onDragStart: any }) => {
+    const isDisabled = item.disabled;
+
     return (
-        <button
-            className="w-full flex items-center gap-2 px-2 py-1.5 cursor-grab active:cursor-grabbing transition-all hover:opacity-80"
-            style={{
-                backgroundColor: '#222222',
-                borderRadius: '5px',
-                color: '#F0EEE9',
-            }}
-            draggable
-            onDragStart={(e) => onDragStart(e, item.type, item.label)}
+        <div
+            className={`w-full flex items-center gap-2 px-2 py-1.5 transition-all text-xs font-medium truncate rounded-[5px]
+                ${isDisabled
+                    ? 'opacity-40 cursor-not-allowed bg-[#222222]/50 text-white/50'
+                    : 'cursor-grab active:cursor-grabbing hover:opacity-80 bg-[#222222] text-[#F0EEE9]'
+                }`}
+            draggable={!isDisabled}
+            onDragStart={(e) => !isDisabled && onDragStart(e, item.type, item.label)}
         >
             <item.icon size={14} className="shrink-0" />
-            <span className="text-xs font-medium truncate">{item.label}</span>
-        </button>
+            <span>{item.label}</span>
+        </div>
     );
 };
