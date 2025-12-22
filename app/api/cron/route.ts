@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { WorkflowEngine } from '@/lib/workflow-engine';
-import cronParser from 'cron-parser';
+import { parseExpression } from 'cron-parser';
 
 export const dynamic = 'force-dynamic'; // Prevent caching
 
@@ -50,7 +50,7 @@ export async function GET() {
                 // Check if we should run now
                 try {
                     const cronExpression = scheduleNode.data.cron || '0 0 * * *';
-                    const interval = cronParser.parseExpression(cronExpression);
+                    const interval = parseExpression(cronExpression);
 
                     // We check if the *previous* scheduled time was within the last minute
                     // This is a simple way to check "is it due now?" for a minutely cron job
