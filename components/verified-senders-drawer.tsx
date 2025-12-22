@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Plus, ShieldCheck, Mail, Loader2, Check } from 'lucide-react';
+import { X, Plus, ShieldCheck, Mail, Loader2, Check, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 type Sender = {
@@ -40,6 +40,26 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
         } catch (e) {
             toast.error('Could not load verified senders');
         } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDelete = async (id: string, email: string) => {
+        if (!confirm(`Are you sure you want to remove ${email}?`)) return;
+
+        setLoading(true);
+        try {
+            const res = await fetch('/api/settings/email/delete', {
+                method: 'DELETE',
+                body: JSON.stringify({ id }),
+            });
+            if (!res.ok) throw new Error('Failed to delete sender');
+
+            toast.success('Sender removed');
+            await fetchSenders();
+            onSenderVerified(); // Refresh parent list
+        } catch (e: any) {
+            toast.error(e.message);
             setLoading(false);
         }
     };
@@ -133,7 +153,7 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                                     <p className="text-center text-xs text-white/30 py-4">No verified senders yet.</p>
                                 )}
                                 {senders.map(s => (
-                                    <div key={s.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
+                                    <div key={s.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5 group">
                                         <div className="flex items-center gap-3">
                                             <div className="p-2 bg-blue-500/10 rounded-md text-blue-400">
                                                 <Mail size={16} />
@@ -145,7 +165,16 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                                                 </div>
                                             </div>
                                         </div>
-                                        {s.status === 'verified' && <ShieldCheck size={16} className="text-green-400" />}
+                                        <div className="flex items-center gap-2">
+                                            {s.status === 'verified' && <ShieldCheck size={16} className="text-green-400" />}
+                                            <button
+                                                onClick={() => handleDelete(s.id, s.email)}
+                                                className="p-1.5 text-white/20 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                                title="Delete sender"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -191,7 +220,6 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                             Code sent to <strong>{newEmail}</strong>. Please check your inbox (and spam).
                             {previewUrl && (
                                 <div className="mt-3 pt-3 border-t border-blue-500/20">
-                                    <span className="text-xs opacity-70 block mb-1">Development Mode Detected:</span>
                                     <a
                                         href={previewUrl}
                                         target="_blank"
