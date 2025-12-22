@@ -229,16 +229,44 @@ export class WorkflowEngine {
     private async executeSendEmail(data: any, input: any) {
         const config = data.emailConfig;
 
-        // Dynamic import to avoid issues if running in edge runtime (though WorkflowEngine is Node/Server usually)
-        // But for safe measure in Next.js app directory structure:
+        // Lazy load dependencies
         const { sendEmail } = await import('./email');
+        let smtpConfig = undefined;
+
+        // Attempt to fetch SMTP config for the sender
+        // We catch errors here because depending on execution context (cron vs user-triggered),
+        // we might not have access to the DB or Auth context.
+        if (config.sender) {
+            try {
+                // Dynamically import to avoid build-time issues if any
+                const { createClient } = await import('@/lib/supabase/server');
+                const supabase = await createClient();
+
+                // Note: RLS policies might hide this row if we are running as a background task (cron) without a user session.
+                // For a robust system, we would need to pass the owner_id or use a signed execution token.
+                // For this MVP, we assume User-triggered runs (Manual/Webhook with context).
+                const { data: senderData } = await supabase
+                    .from('verified_senders')
+                    .select('smtp_config')
+                    .eq('email', config.sender)
+                    .single();
+
+                if (senderData?.smtp_config) {
+                    smtpConfig = senderData.smtp_config;
+                }
+            } catch (err) {
+                // Ignore DB errors, fallback to default sending
+                console.warn('[WorkflowEngine] Could not fetch sender config:', err);
+            }
+        }
 
         try {
             const result = await sendEmail({
-                from: config.sender || process.env.SMTP_FROM, // config.sender added to node data
+                from: config.sender || process.env.SMTP_FROM,
                 to: config.recipient,
                 subject: config.subject || 'Workflow Notification',
-                html: config.body || JSON.stringify(input)
+                html: config.body || JSON.stringify(input),
+                smtpConfig
             });
             return result;
         } catch (error: any) {

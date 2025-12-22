@@ -208,7 +208,7 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                 )}
 
                 {showConfig && (
-                    <>
+                    <div className="max-h-[320px] overflow-y-auto pr-2 space-y-4 nodrag custom-scrollbar">
                         {/* Duration input for Sleep nodes */}
                         {data.label === 'Sleep' && (
                             <div className="space-y-1.5">
@@ -385,7 +385,6 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                                         </select>
                                         <ChevronDown className="absolute right-2 top-2.5 text-white/30 pointer-events-none" size={14} />
                                     </div>
-                                    {/* Helper link if strictly empty, mostly covered by option */}
                                     <div
                                         onClick={() => setIsSendersDrawerOpen(true)}
                                         className="text-[10px] text-blue-400 hover:underline cursor-pointer flex items-center gap-1 mt-1"
@@ -531,7 +530,7 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                                 </div>
                             </div>
                         )}
-                    </>
+                    </div>
                 )}
 
                 {data.status && data.status !== 'idle' && (
