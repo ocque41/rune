@@ -1,7 +1,8 @@
 import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 type EmailConfig = {
-    from: string;
+    from?: string; // Optional, can default based on provider
     to: string;
     subject: string;
     html: string;
@@ -9,11 +10,9 @@ type EmailConfig = {
 };
 
 export async function sendEmail(config: EmailConfig) {
-    let transporter;
-
-    // 1. Check for Production SMTP
+    // 1. SMTP Provider (Highest Priority)
     if (process.env.SMTP_HOST) {
-        transporter = nodemailer.createTransport({
+        const transporter = nodemailer.createTransport({
             host: process.env.SMTP_HOST,
             port: parseInt(process.env.SMTP_PORT || '587'),
             auth: {
@@ -22,41 +21,70 @@ export async function sendEmail(config: EmailConfig) {
             },
             secure: process.env.SMTP_SECURE === 'true',
         });
-    } else {
-        // 2. Fallback to Ethereal (Development/Test)
-        // This creates a disposable account on the fly if needed, or uses one if hardcoded.
-        // For simplicity/speed in dev, we often just create one per run or use a hardcoded dev account if available.
-        // Here we ensure an account exists.
-        const testAccount = await nodemailer.createTestAccount();
 
-        transporter = nodemailer.createTransport({
-            host: 'smtp.ethereal.email',
-            port: 587,
-            secure: false, // true for 465, false for other ports
-            auth: {
-                user: testAccount.user, // generated ethereal user
-                pass: testAccount.pass, // generated ethereal password
-            },
+        return await transporter.sendMail({
+            from: config.from || process.env.SMTP_FROM || '"Workflow System" <noreply@example.com>',
+            to: config.to,
+            subject: config.subject,
+            text: config.text || config.html.replace(/<[^>]*>?/gm, ''),
+            html: config.html,
         });
     }
 
+    // 2. Resend API
+    if (process.env.RESEND_API_KEY) {
+        const resend = new Resend(process.env.RESEND_API_KEY);
+
+        // Resend "From" requirements:
+        // Free tier: MUST be 'onboarding@resend.dev'
+        // Paid/Verified: Can be 'anything@yourverifieddomain.com'
+        // We default to onboarding if no specific 'from' is provided, OR if the provided 'from' is likely invalid for free tier
+        // Ideally, we respect the config.from if provided, but warn user if it fails.
+        // For 'system' emails (verification codes), let's default to onboarding if not strictly set.
+
+        const fromAddress = config.from || 'onboarding@resend.dev';
+
+        const { data, error } = await resend.emails.send({
+            from: fromAddress,
+            to: config.to,
+            subject: config.subject,
+            html: config.html,
+            text: config.text || config.html.replace(/<[^>]*>?/gm, ''),
+        });
+
+        if (error) {
+            console.error('[Email] Resend API Error:', error);
+            throw new Error(`Resend Error: ${error.message}`);
+        }
+
+        return data; // Returns { id: string }
+    }
+
+    // 3. Fallback to Ethereal (Development/Test)
+    const testAccount = await nodemailer.createTestAccount();
+    const transporter = nodemailer.createTransport({
+        host: 'smtp.ethereal.email',
+        port: 587,
+        secure: false,
+        auth: {
+            user: testAccount.user,
+            pass: testAccount.pass,
+        },
+    });
+
     const info = await transporter.sendMail({
-        from: config.from || process.env.SMTP_FROM || '"Workflow System" <noreply@example.com>',
+        from: config.from || '"Workflow Local" <onboarding@ethereal.email>',
         to: config.to,
         subject: config.subject,
-        text: config.text || config.html.replace(/<[^>]*>?/gm, ''), // fallback strip tags
+        text: config.text || config.html.replace(/<[^>]*>?/gm, ''),
         html: config.html,
     });
 
     // If using Ethereal, log the preview URL
-    if (!process.env.SMTP_HOST) {
-        console.log('[Email] Preview URL: %s', nodemailer.getTestMessageUrl(info));
-        return {
-            id: info.messageId,
-            preview: nodemailer.getTestMessageUrl(info),
-            mock: true
-        };
-    }
-
-    return info;
+    console.log('[Email] Preview URL: %s', nodemailer.getTestMessageUrl(info));
+    return {
+        id: info.messageId,
+        preview: nodemailer.getTestMessageUrl(info),
+        mock: true
+    };
 }
