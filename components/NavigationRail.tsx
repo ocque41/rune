@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 
 const NAV_ITEMS = [
     { label: "HUB", href: "/", external: false },
@@ -57,9 +58,13 @@ export function NavigationRail() {
 
     return (
         <nav className="fixed left-0 top-0 bottom-0 w-24 bg-zinc-900 border-r-4 border-black flex flex-col items-center py-8 z-40">
-            <div className="mb-12 font-mono text-2xl font-black text-white rotate-180" style={{ writingMode: 'vertical-rl' }}>
-                CUMULUSH
-            </div>
+            <a
+                href="https://cumulush.com/dashboard"
+                className="mb-12 text-white hover:text-[var(--neon-green)] transition-colors duration-200"
+                aria-label="Back to Dashboard"
+            >
+                <ArrowLeft className="w-8 h-8" />
+            </a>
 
             <div className="flex flex-col gap-6 w-full px-2">
                 {NAV_ITEMS.map((item) => (

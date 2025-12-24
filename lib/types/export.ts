@@ -17,6 +17,9 @@ export interface ExportedWorkflow {
     /** Format version for future compatibility */
     version: string;
 
+    /** Unique Identifier for the workflow */
+    id: string;
+
     /** Workflow metadata */
     meta: WorkflowMeta;
 
