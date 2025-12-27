@@ -531,9 +531,10 @@ const FlowBuilderContent = ({
             const code = generateWorkflowCode(nodes, edges);
 
             const exportData: ExportedWorkflow = {
+                id: workflowId || crypto.randomUUID(),
                 version: '1.0.0',
                 meta: {
-                    name: 'Workflow Export',
+                    name: workflowName || 'Workflow Export',
                     description: 'Exported workflow from Flow Builder',
                     createdAt: new Date().toISOString(),
                 },
