@@ -31,7 +31,8 @@
     "resend": "^6.6.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
-    "workflow": "^4.0.1-beta.22"
+    "workflow": "^4.0.1-beta.22",
+    "zustand": "^5.0.9"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -21,7 +21,14 @@ import { createPortal } from "react-dom"
 import { animate } from "animejs"
 
 
-export function Playground() {
+import { LLMConfig, PlaygroundSnapshot } from '@/lib/types/agent';
+
+interface PlaygroundProps {
+    onSubmit: (input: string, config: LLMConfig) => Promise<ReadableStream>;
+    onSave: (snapshot: PlaygroundSnapshot) => void;
+}
+
+export function Playground({ onSubmit, onSave }: PlaygroundProps) {
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
     const [dragCurrent, setDragCurrent] = useState<{ x: number, y: number } | null>(null);
@@ -58,19 +65,29 @@ export function Playground() {
         setIsGenerating(true);
         setOutput("");
 
-        // Simulating a response stream
-        const dummyResponse = "Here is a creative tagline for your ice cream shop:\n\n'Scoops of Joy, Cones of Wonder.'\n\nAlternatively:\n- 'Frozen Happiness in Every Bite'\n- 'The Sweetest Chill on Earth'\n\nLet me know if you'd like more options!";
+        const config: LLMConfig = {
+            model: "gpt-4", // Use state if mapped
+            temperature: temperature[0],
+            systemPrompt: systemPrompt,
+        };
 
-        const chunks = dummyResponse.split("");
+        try {
+            const responseStream = await onSubmit(input, config);
+            const reader = responseStream.getReader();
+            const decoder = new TextDecoder();
 
-        for (let i = 0; i < chunks.length; i++) {
-            // Check if still generating (in case stopped)
-            // In a real app we'd use an AbortController, here we just rely on state ref if possible or just let it run (simple sim)
-            await new Promise(resolve => setTimeout(resolve, 15 + Math.random() * 30)); // Random typing speed
-            setOutput(prev => prev + chunks[i]);
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                const chunk = decoder.decode(value, { stream: true });
+                setOutput(prev => prev + chunk);
+            }
+        } catch (error) {
+            console.error("Generation failed:", error);
+            setOutput(prev => prev + "\n[Error generating response]");
+        } finally {
+            setIsGenerating(false);
         }
-
-        setIsGenerating(false);
     };
 
     const handleCopy = () => {
@@ -82,6 +99,18 @@ export function Playground() {
     const [copied, setCopied] = useState(false);
 
     const handleSave = () => {
+        const snapshot: PlaygroundSnapshot = {
+            config: {
+                model: "gpt-4",
+                temperature: temperature[0],
+                systemPrompt: systemPrompt
+            },
+            messages: [
+                { role: 'user', content: input },
+                { role: 'assistant', content: output }
+            ]
+        };
+        onSave(snapshot);
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
     };

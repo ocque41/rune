@@ -1,39 +1,21 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { DragEvent } from 'react';
-import { MessageSquare, Mail, Database, Globe, Clock, Code, PauseCircle, Split, Repeat, Lock, GitMerge, Workflow, Info, ChevronDown, UserCheck, Sparkles, Box, Play } from 'lucide-react';
+import { MessageSquare, Mail, Database, Globe, Clock, Code, PauseCircle, Split, Repeat, Lock, GitMerge, Workflow, Info, ChevronDown, UserCheck, Sparkles, Box, Play, Layers, Bot } from 'lucide-react';
+import { AutoPilotContainer } from '@/components/playground/auto-pilot-container';
+import { LLMConfig } from '@/lib/types/agent';
+import { cn } from '@/lib/utils';
 
-export const Sidebar = ({ hasStartNode }: { hasStartNode: boolean }) => {
-    const [showSecrets, setShowSecrets] = useState(false);
-    const [secrets, setSecrets] = useState<string[]>([]);
-    const [secretsLoading, setSecretsLoading] = useState(true);
-    const [secretsError, setSecretsError] = useState<string | null>(null);
+interface SidebarProps {
+    hasStartNode: boolean;
+}
 
-    // Fetch available secrets on mount
-    useEffect(() => {
-        const fetchSecrets = async () => {
-            try {
-                const response = await fetch('/api/secrets/list');
-                const data = await response.json();
-
-                if (data.success) {
-                    setSecrets(data.keys);
-                } else {
-                    setSecretsError(data.error || 'Failed to load secrets');
-                }
-            } catch (error) {
-                console.error('Error fetching secrets:', error);
-                setSecretsError('Failed to connect to secrets API');
-            } finally {
-                setSecretsLoading(false);
-            }
-        };
-
-        fetchSecrets();
-    }, []);
+export const Sidebar = ({ hasStartNode }: SidebarProps) => {
+    const [activeTab, setActiveTab] = useState<'steps' | 'agent'>('steps');
 
     const onDragStart = (event: DragEvent, nodeType: string, label: string) => {
+        // ... (existing implementation)
         if (event.dataTransfer) {
             event.dataTransfer.setData('application/reactflow', nodeType);
             event.dataTransfer.setData('application/reactflow/label', label);
@@ -68,37 +50,80 @@ export const Sidebar = ({ hasStartNode }: { hasStartNode: boolean }) => {
 
     return (
         <aside
-            className="h-full w-48 border-r flex flex-col py-4 px-2 z-20"
+            className="h-full w-56 border-r flex flex-col z-20 transition-all duration-300"
             style={{
                 backgroundColor: '#131313',
                 borderColor: 'rgba(255, 255, 255, 0.1)'
             }}
         >
-            {/* Workflow Steps */}
-            <div className="flex flex-col gap-1 mb-4">
-                <span className="text-[9px] uppercase tracking-wider text-white/30 mb-2 px-1">Steps</span>
-                {steps.map((step) => (
-                    <SidebarIconButton
-                        key={step.label}
-                        item={step}
-                        onDragStart={onDragStart}
-                    />
-                ))}
+            {/* Tab Switcher */}
+            <div className="flex p-2 gap-1 border-b border-white/5">
+                <button
+                    onClick={() => setActiveTab('steps')}
+                    className={cn(
+                        "flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-xs font-medium transition-all",
+                        activeTab === 'steps'
+                            ? "bg-white/10 text-white shadow-sm"
+                            : "text-white/40 hover:text-white/70 hover:bg-white/5"
+                    )}
+                >
+                    <Layers size={14} />
+                    <span>Steps</span>
+                </button>
+                <button
+                    onClick={() => setActiveTab('agent')}
+                    className={cn(
+                        "flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-xs font-medium transition-all",
+                        activeTab === 'agent'
+                            ? "bg-blue-500/20 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.2)] border border-blue-500/20"
+                            : "text-white/40 hover:text-blue-400/70 hover:bg-blue-500/10"
+                    )}
+                >
+                    <Bot size={14} />
+                    <span>Agent</span>
+                </button>
             </div>
 
-            {/* Divider */}
-            <div className="w-8 h-px bg-white/10 my-2" />
+            {/* Content Area */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col">
+                {activeTab === 'steps' ? (
+                    <div className="p-2 animate-in fade-in slide-in-from-left-4 duration-300">
+                        {/* Workflow Steps */}
+                        <div className="flex flex-col gap-1 mb-4">
+                            <span className="text-[9px] uppercase tracking-wider text-white/30 mb-2 px-1 font-mono">Operations</span>
+                            <div className="grid grid-cols-1 gap-1">
+                                {steps.map((step) => (
+                                    <SidebarIconButton
+                                        key={step.label}
+                                        item={step}
+                                        onDragStart={onDragStart}
+                                    />
+                                ))}
+                            </div>
+                        </div>
 
-            {/* Control Flow */}
-            <div className="flex flex-col gap-1">
-                <span className="text-[9px] uppercase tracking-wider text-white/30 mb-2 px-1">Flow</span>
-                {controlFlow.map((control) => (
-                    <SidebarIconButton
-                        key={control.label}
-                        item={control}
-                        onDragStart={onDragStart}
-                    />
-                ))}
+                        {/* Divider */}
+                        <div className="w-8 h-px bg-white/10 my-4" />
+
+                        {/* Control Flow */}
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[9px] uppercase tracking-wider text-white/30 mb-2 px-1 font-mono">Control Flow</span>
+                            <div className="grid grid-cols-1 gap-1">
+                                {controlFlow.map((control) => (
+                                    <SidebarIconButton
+                                        key={control.label}
+                                        item={control}
+                                        onDragStart={onDragStart}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="h-full animate-in fade-in slide-in-from-right-4 duration-300">
+                        <AutoPilotContainer />
+                    </div>
+                )}
             </div>
         </aside>
     );
@@ -110,16 +135,17 @@ const SidebarIconButton = ({ item, onDragStart }: { item: any, onDragStart: any 
 
     return (
         <div
-            className={`w-full flex items-center gap-2 px-2 py-1.5 transition-all text-xs font-medium truncate rounded-[5px]
+            className={`w-full flex items-center gap-3 px-3 py-2 transition-all text-xs font-medium truncate rounded-[6px] border border-transparent group
                 ${isDisabled
                     ? 'opacity-40 cursor-not-allowed bg-[#222222]/50 text-white/50'
-                    : 'cursor-grab active:cursor-grabbing hover:opacity-80 bg-[#222222] text-[#F0EEE9]'
+                    : 'cursor-grab active:cursor-grabbing hover:bg-white/5 hover:border-white/10 text-zinc-400 hover:text-zinc-100'
                 }`}
             draggable={!isDisabled}
             onDragStart={(e) => !isDisabled && onDragStart(e, item.type, item.label)}
         >
-            <item.icon size={14} className="shrink-0" />
+            <item.icon size={15} className={`shrink-0 transition-colors ${!isDisabled && 'group-hover:text-[var(--neon-green)]'}`} />
             <span>{item.label}</span>
         </div>
     );
 };
+
