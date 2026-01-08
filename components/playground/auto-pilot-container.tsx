@@ -2,16 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { ShimmeringJunoConfig } from './shimmering-juno-config';
 import { ToolSelector, Tool } from './tool-selector';
 import { toast } from 'sonner';
+import { useAgentStore } from './store';
 
 import { LLMConfig } from '@/lib/types/agent';
 
-interface AutoPilotContainerProps {
-    config: LLMConfig;
-    onChange: (config: LLMConfig) => void;
+export interface AutoPilotContainerProps {
     onMcpConfigure?: () => void;
 }
 
-export function AutoPilotContainer({ config, onChange, onMcpConfigure }: AutoPilotContainerProps) {
+export function AutoPilotContainer({ onMcpConfigure }: AutoPilotContainerProps) {
+    const { config, updateConfig } = useAgentStore();
     const [availableModels, setAvailableModels] = useState<string[]>([]);
     const [isLoadingModels, setIsLoadingModels] = useState(false);
 
@@ -68,14 +68,14 @@ export function AutoPilotContainer({ config, onChange, onMcpConfigure }: AutoPil
     };
 
     const handleToolSelection = (selectedIds: string[]) => {
-        onChange({ ...config, tools: selectedIds });
+        updateConfig({ tools: selectedIds });
     };
 
     return (
         <>
             <ShimmeringJunoConfig
                 config={config}
-                onChange={onChange}
+                onChange={updateConfig}
                 onMcpConfigure={() => setToolSelectorOpen(true)}
             />
 

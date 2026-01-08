@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { McpModal } from "@/components/mcp-modal"
+import { McpModal } from "./mcp-modal"
 import { Textarea } from "@/components/ui/textarea"
 import {
     Select,

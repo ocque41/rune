@@ -1,0 +1,33 @@
+@layer base {
+    :root {
+        --rune-bg: #000000;
+        --rune-fg: #E0E0E0;
+        --rune-title: #FFFFFF;
+        --rune-subtitle: #A0A0A0;
+        --rune-text: #E0E0E0;
+        --rune-muted: #555555;
+
+        /* Cyber-Brutalist Palette */
+        --rune-neon-green: #00FF00;
+        --rune-hot-pink: #FF00FF;
+        --rune-electric-blue: #00FFFF;
+        --rune-warning-yellow: #FFFF00;
+        --rune-pure-black: #000000;
+        --rune-pure-white: #FFFFFF;
+
+        /* Structural Tokens */
+        --rune-border-thick: 4px;
+        --rune-border-thin: 2px;
+        --rune-shadow-hard: 6px 6px 0px 0px;
+        --rune-shadow-hard-sm: 4px 4px 0px 0px;
+    }
+
+    [data-theme="light"] {
+        --rune-bg: #FFFFFF;
+        --rune-fg: #000000;
+        --rune-title: #000000;
+        --rune-subtitle: #333333;
+        --rune-text: #111111;
+        --rune-muted: #888888;
+    }
+}

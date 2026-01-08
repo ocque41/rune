@@ -377,13 +377,8 @@ const FlowBuilderContent = ({
                     id: workflowId,
                     name: finalName,
                     description: 'Created via Flow Builder',
-                    name: finalName,
-                    description: 'Created via Flow Builder',
                     graph: { nodes, edges, agentConfig },
                     code,
-                    // user_id: '...' // Handled on server/dummy for now
-                    code,
-                    // user_id: '...' // Handled on server/dummy for now
                 }),
             });
 
@@ -478,691 +473,690 @@ const FlowBuilderContent = ({
                 await fetch('/api/rune/workflows', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    id: currentWorkflowId,
-                    name: currentName,
-                    graph: { nodes, edges, agentConfig },
-                    code
-                }),
+                    body: JSON.stringify({
+                        id: currentWorkflowId,
+                        name: currentName,
+                        graph: { nodes, edges, agentConfig },
+                        code
+                    }),
                 });
-    setIsSaving(false);
-}
+                setIsSaving(false);
+            }
 
-// 2. Deploy
-const response = await fetch('/api/rune/workflows/deploy', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ workflow_id: currentWorkflowId }),
-});
+            // 2. Deploy
+            const response = await fetch('/api/rune/workflows/deploy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workflow_id: currentWorkflowId }),
+            });
 
-if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || 'Failed to deploy');
-}
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Failed to deploy');
+            }
 
-const data = await response.json();
-console.log(`Deployed version ${data.version}`);
+            const data = await response.json();
+            console.log(`Deployed version ${data.version}`);
 
-// Show success modal
-setDeployResult({
-    version: data.version,
-    workflowId: currentWorkflowId || '',
-    workflowName: currentName,
-    code: code,
-    workflowName: currentName,
-    code: code,
-    graphJson: JSON.stringify({ nodes, edges, agentConfig }, null, 2)
-});
-setShowDeployModal(true);
+            // Show success modal
+            setDeployResult({
+                version: data.version,
+                workflowId: currentWorkflowId || '',
+                workflowName: currentName,
+                code: code,
+                graphJson: JSON.stringify({ nodes, edges, agentConfig }, null, 2)
+            });
+            setShowDeployModal(true);
 
-toast.success(`Deployed version ${data.version} successfully!`, {
-    description: 'Your workflow is now live.'
-});
+            toast.success(`Deployed version ${data.version} successfully!`, {
+                description: 'Your workflow is now live.'
+            });
         } catch (error) {
-    console.error('Deploy error:', error);
-    toast.error(error instanceof Error ? error.message : 'Failed to deploy');
-    setIsSaving(false);
-}
+            console.error('Deploy error:', error);
+            toast.error(error instanceof Error ? error.message : 'Failed to deploy');
+            setIsSaving(false);
+        }
     }, [nodes, edges, workflowId, workflowName]);
 
-const loadTemplate = useCallback((template: Template) => {
-    setNodes(template.nodes);
-    setEdges(template.edges);
-    setShowTemplates(false);
-    toast.success(`Template "${template.name}" loaded`);
-}, [setNodes, setEdges]);
+    const loadTemplate = useCallback((template: Template) => {
+        setNodes(template.nodes);
+        setEdges(template.edges);
+        setShowTemplates(false);
+        toast.success(`Template "${template.name}" loaded`);
+    }, [setNodes, setEdges]);
 
-const [exportUrl, setExportUrl] = useState<string | null>(null);
-const [exportFilename, setExportFilename] = useState<string | null>(null);
+    const [exportUrl, setExportUrl] = useState<string | null>(null);
+    const [exportFilename, setExportFilename] = useState<string | null>(null);
 
-// Export workflow - show modal with manual download link
-const onExport = useCallback(() => {
-    try {
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-        const code = generateWorkflowCode(nodes, edges);
+    // Export workflow - show modal with manual download link
+    const onExport = useCallback(() => {
+        try {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            const code = generateWorkflowCode(nodes, edges);
 
-        const exportData: ExportedWorkflow = {
-            id: workflowId || crypto.randomUUID(),
-            version: '1.0.0',
-            meta: {
-                name: workflowName || 'Workflow Export',
-                description: 'Exported workflow from Flow Builder',
-                createdAt: new Date().toISOString(),
-            },
-            nodes,
-            edges,
-            code,
+            const exportData: ExportedWorkflow = {
+                id: workflowId || crypto.randomUUID(),
+                version: '1.0.0',
+                meta: {
+                    name: workflowName || 'Workflow Export',
+                    description: 'Exported workflow from Flow Builder',
+                    createdAt: new Date().toISOString(),
+                },
+                nodes,
+                edges,
+                code,
+            };
+
+            const json = JSON.stringify(exportData, null, 2);
+            const filename = `workflow-${timestamp}.json`;
+
+            // Create blob URL
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            setExportUrl(url);
+            setExportFilename(filename);
+
+        } catch (error) {
+            console.error('Export error:', error);
+            toast.error('Failed to export workflow');
+        }
+    }, [nodes, edges]);
+
+    const closeExportModal = useCallback(() => {
+        if (exportUrl) {
+            URL.revokeObjectURL(exportUrl);
+        }
+        setExportUrl(null);
+        setExportFilename(null);
+    }, [exportUrl]);
+
+    // Import workflow from JSON file
+    const onImport = useCallback(() => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+
+        input.onchange = async (e: Event) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (!file) return;
+
+            try {
+                const text = await file.text();
+                const data = JSON.parse(text) as ExportedWorkflow;
+
+                // Validate required fields
+                if (!data.version) {
+                    throw new Error('Invalid workflow file: missing version field');
+                }
+                if (!data.nodes || !Array.isArray(data.nodes)) {
+                    throw new Error('Invalid workflow file: missing or invalid nodes array');
+                }
+                if (!data.edges || !Array.isArray(data.edges)) {
+                    throw new Error('Invalid workflow file: missing or invalid edges array');
+                }
+
+                // Replace current workflow with imported data
+                setNodes(data.nodes);
+                setEdges(data.edges);
+
+                toast.success('Workflow imported successfully!');
+            } catch (error) {
+                console.error('Import error:', error);
+                const message = error instanceof Error ? error.message : 'Failed to import workflow';
+                toast.error(message);
+            }
         };
 
-        const json = JSON.stringify(exportData, null, 2);
-        const filename = `workflow-${timestamp}.json`;
+        input.click();
+    }, [setNodes, setEdges]);
 
-        // Create blob URL
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
+    // Check if start node exists
+    const hasStartNode = nodes.some(n => n.data.label === 'Start Workflow');
 
-        setExportUrl(url);
-        setExportFilename(filename);
-
-    } catch (error) {
-        console.error('Export error:', error);
-        toast.error('Failed to export workflow');
-    }
-}, [nodes, edges]);
-
-const closeExportModal = useCallback(() => {
-    if (exportUrl) {
-        URL.revokeObjectURL(exportUrl);
-    }
-    setExportUrl(null);
-    setExportFilename(null);
-}, [exportUrl]);
-
-// Import workflow from JSON file
-const onImport = useCallback(() => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-
-    input.onchange = async (e: Event) => {
-        const file = (e.target as HTMLInputElement).files?.[0];
-        if (!file) return;
-
-        try {
-            const text = await file.text();
-            const data = JSON.parse(text) as ExportedWorkflow;
-
-            // Validate required fields
-            if (!data.version) {
-                throw new Error('Invalid workflow file: missing version field');
-            }
-            if (!data.nodes || !Array.isArray(data.nodes)) {
-                throw new Error('Invalid workflow file: missing or invalid nodes array');
-            }
-            if (!data.edges || !Array.isArray(data.edges)) {
-                throw new Error('Invalid workflow file: missing or invalid edges array');
-            }
-
-            // Replace current workflow with imported data
-            setNodes(data.nodes);
-            setEdges(data.edges);
-
-            toast.success('Workflow imported successfully!');
-        } catch (error) {
-            console.error('Import error:', error);
-            const message = error instanceof Error ? error.message : 'Failed to import workflow';
-            toast.error(message);
-        }
-    };
-
-    input.click();
-}, [setNodes, setEdges]);
-
-// Check if start node exists
-const hasStartNode = nodes.some(n => n.data.label === 'Start Workflow');
-
-return (
-    <div className="flex h-[calc(100vh-64px)] w-full flex-row overflow-hidden relative" style={{
-        backgroundColor: '#000000'
-    }}>
-        <Sidebar
-            hasStartNode={hasStartNode}
-        />
-        <div className="flex-grow h-full relative" ref={reactFlowWrapper}>
-            <AnimatedGridBackground />
-            <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
-                onInit={setReactFlowInstance}
-                onDrop={onDrop}
-                onDragOver={onDragOver}
-                nodeTypes={nodeTypes}
-                fitView
-                className="transition-opacity duration-500" // Smooth load
-                style={{ backgroundColor: 'transparent' }} // Let radial gradient show
-            >
-                <Controls style={{
-                    backgroundColor: 'rgba(20, 20, 25, 0.9)',
-                    borderColor: 'rgba(255, 255, 255, 0.1)',
-                    color: 'white',
-                    borderRadius: '8px',
-                    padding: '4px'
-                }} className="!shadow-2xl backdrop-blur-md [&>button]:!bg-transparent [&>button]:!border-none [&>button:hover]:!bg-white/10" />
-
-                <Background
-                    color="#4a4a5e"
-                    gap={24}
-                    size={1}
-                    variant={BackgroundVariant.Dots}
-                    className="opacity-5"
-                />
-
-                <MiniMap
-                    style={{
+    return (
+        <div className="flex h-[calc(100vh-64px)] w-full flex-row overflow-hidden relative" style={{
+            backgroundColor: '#000000'
+        }}>
+            <Sidebar
+                hasStartNode={hasStartNode}
+            />
+            <div className="flex-grow h-full relative" ref={reactFlowWrapper}>
+                <AnimatedGridBackground />
+                <ReactFlow
+                    nodes={nodes}
+                    edges={edges}
+                    onNodesChange={onNodesChange}
+                    onEdgesChange={onEdgesChange}
+                    onConnect={onConnect}
+                    onInit={setReactFlowInstance}
+                    onDrop={onDrop}
+                    onDragOver={onDragOver}
+                    nodeTypes={nodeTypes}
+                    fitView
+                    className="transition-opacity duration-500" // Smooth load
+                    style={{ backgroundColor: 'transparent' }} // Let radial gradient show
+                >
+                    <Controls style={{
                         backgroundColor: 'rgba(20, 20, 25, 0.9)',
                         borderColor: 'rgba(255, 255, 255, 0.1)',
-                        borderRadius: '12px'
-                    }}
-                    className="!shadow-2xl backdrop-blur-md m-4"
-                    nodeColor={(n) => {
-                        return '#3b82f6'; // Neon blue nodes
-                    }}
-                    maskColor="rgba(0, 0, 0, 0.6)"
-                />
-                <div className="absolute right-4 top-4 z-10 flex gap-3">
-                    <Link
-                        href="/docs/quickstart"
-                        target="_blank"
-                        className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-                        style={{ color: 'var(--foreground-title)' }}
-                    >
-                        <HelpCircle size={14} />
-                        Help
-                    </Link>
-                    <button
-                        onClick={() => {
-                            setShowOpenModal(true);
-                            fetchWorkflows();
-                        }}
-                        className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-                        style={{ color: 'var(--foreground-title)' }}
-                    >
-                        <FolderOpen size={14} />
-                        Open
-                    </button>
-                    <button
-                        onClick={onClearSession}
-                        className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-                        style={{ color: 'var(--foreground-title)' }}
-                    >
-                        <Trash2 size={14} />
-                        Clear
-                    </button>
-                    <button
-                        onClick={() => {
-                            setShowTemplates(true);
-                            fetchUserTemplates();
-                        }}
-                        className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-                        style={{ color: 'var(--foreground-title)' }}
-                    >
-                        <LayoutTemplate size={14} />
-                        Templates
-                    </button>
-                    <button
-                        onClick={() => {
-                            setTemplateForm({ name: workflowName || 'My Template', description: '' });
-                            setShowSaveTemplateModal(true);
-                        }}
-                        className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-                        style={{ color: 'var(--foreground-title)' }}
-                    >
-                        <Save size={14} />
-                        Add as Template
-                    </button>
-                    <button
-                        onClick={() => {
-                            const result = validateGraph(getNodes(), getEdges());
-                            setValidationResult(result);
-                            setShowValidation(true);
-                        }}
-                        className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-                        style={{ color: 'var(--foreground-title)' }}
-                    >
-                        <AlertCircle size={14} />
-                        Validate
-                    </button>
-                    <button
-                        onClick={onExport}
-                        className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-                        style={{ color: 'var(--foreground-title)' }}
-                    >
-                        <Download size={14} />
-                        Export
-                    </button>
-                    <button
-                        onClick={onImport}
-                        className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-                        style={{ color: 'var(--foreground-title)' }}
-                    >
-                        <Upload size={14} />
-                        Import
-                    </button>
-                    <button
-                        onClick={() => {
-                            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                            if (isLocal) {
-                                onSaveDraft();
-                            } else {
-                                onSaveCloud();
-                            }
-                        }}
-                        disabled={isSaving}
-                        className="flex items-center gap-2 rounded px-4 py-2 text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50"
+                        color: 'white',
+                        borderRadius: '8px',
+                        padding: '4px'
+                    }} className="!shadow-2xl backdrop-blur-md [&>button]:!bg-transparent [&>button]:!border-none [&>button:hover]:!bg-white/10" />
+
+                    <Background
+                        color="#4a4a5e"
+                        gap={24}
+                        size={1}
+                        variant={BackgroundVariant.Dots}
+                        className="opacity-5"
+                    />
+
+                    <MiniMap
                         style={{
-                            backgroundColor: 'var(--foreground-title)',
-                            color: 'var(--background)',
+                            backgroundColor: 'rgba(20, 20, 25, 0.9)',
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            borderRadius: '12px'
                         }}
-                    >
-                        <Cloud size={14} />
-                        {isSaving ? 'Saving...' : 'Save'}
-                    </button>
-                    <button
-                        onClick={onSimulate}
-                        disabled={isSimulating}
-                        className="flex items-center gap-2 rounded px-4 py-2 text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50"
-                        style={{
-                            backgroundColor: 'var(--accent-bg)',
-                            color: 'var(--foreground-title)',
-                            border: '1px solid var(--border-color)'
+                        className="!shadow-2xl backdrop-blur-md m-4"
+                        nodeColor={(n) => {
+                            return '#3b82f6'; // Neon blue nodes
                         }}
-                    >
-                        <Play size={14} />
-                        {isSimulating ? 'Simulating...' : 'Simulate'}
-                    </button>
-
-                    <button
-                        onClick={onDeploy}
-                        className="px-6 py-2 text-sm font-medium transition-all"
-                        style={{
-                            backgroundColor: 'var(--foreground-body)',
-                            color: 'var(--background)',
-                            letterSpacing: '0.05em',
-                            textTransform: 'uppercase'
-                        }}
-                    >
-                        Deploy
-                    </button>
-                </div>
-            </ReactFlow>
-
-            <DeploymentSuccessDialog
-                open={showDeployModal}
-                onClose={() => setShowDeployModal(false)}
-                result={deployResult}
-            />
-
-            {/* Export Modal */}
-            {exportUrl && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                    <div className="w-[400px] rounded-lg border p-6 shadow-xl" style={{
-                        backgroundColor: 'var(--node-background)',
-                        borderColor: 'var(--border-color)'
-                    }}>
-                        <div className="mb-4 flex items-center justify-between">
-                            <h2 className="text-lg font-bold" style={{ color: 'var(--foreground-title)' }}>Export Ready</h2>
-                            <button onClick={closeExportModal} className="opacity-60 hover:opacity-100">
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <div className="flex flex-col gap-4">
-                            <p className="text-sm opacity-80" style={{ color: 'var(--foreground-body)' }}>
-                                Your workflow has been serialized successfully. Click the button below to download the JSON file.
-                            </p>
-                            <a
-                                href={exportUrl}
-                                download={exportFilename || 'workflow.json'}
-                                className="flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-medium transition-all hover:opacity-90"
-                                style={{
-                                    backgroundColor: 'var(--foreground-title)',
-                                    color: 'var(--background)',
-                                }}
-                                onClick={(e) => {
-                                    // Optional: close modal after download
-                                    // setTimeout(closeExportModal, 1000);
-                                }}
-                            >
-                                <Download size={16} />
-                                Download {exportFilename}
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Templates Modal */}
-            {showTemplates && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                    <div className="w-[600px] rounded-lg border p-6 shadow-xl" style={{
-                        backgroundColor: 'var(--node-background)',
-                        borderColor: 'var(--border-color)'
-                    }}>
-                        <div className="mb-4 flex items-center justify-between">
-                            <h2 className="text-lg font-bold" style={{ color: 'var(--foreground-title)' }}>Choose a Template</h2>
-                            <button onClick={() => setShowTemplates(false)} className="opacity-60 hover:opacity-100">
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <div className="flex gap-4 mb-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
-                            <button
-                                className={`pb-2 text-sm font-medium transition-colors ${templateTab === 'system' ? 'border-b-2' : 'opacity-60'}`}
-                                style={{
-                                    borderColor: templateTab === 'system' ? 'var(--foreground-title)' : 'transparent',
-                                    color: 'var(--foreground-title)'
-                                }}
-                                onClick={() => setTemplateTab('system')}
-                            >
-                                System Templates
-                            </button>
-                            <button
-                                className={`pb-2 text-sm font-medium transition-colors ${templateTab === 'my' ? 'border-b-2' : 'opacity-60'}`}
-                                style={{
-                                    borderColor: templateTab === 'my' ? 'var(--foreground-title)' : 'transparent',
-                                    color: 'var(--foreground-title)'
-                                }}
-                                onClick={() => setTemplateTab('my')}
-                            >
-                                My Templates
-                            </button>
-                        </div>
-
-                        <div className="grid gap-4 max-h-[400px] overflow-y-auto">
-                            {templateTab === 'system' ? (
-                                templates.map(template => (
-                                    <button
-                                        key={template.id}
-                                        onClick={() => loadTemplate(template)}
-                                        className="flex flex-col items-start rounded-lg border p-4 text-left transition-all hover:bg-black/5 dark:hover:bg-white/5"
-                                        style={{ borderColor: 'var(--border-color)' }}
-                                    >
-                                        <span className="font-medium" style={{ color: 'var(--foreground-title)' }}>{template.name}</span>
-                                        <span className="text-sm opacity-60" style={{ color: 'var(--foreground-subtitle)' }}>{template.description}</span>
-                                    </button>
-                                ))
-                            ) : (
-                                userTemplates.length > 0 ? (
-                                    userTemplates.map(template => (
-                                        <div
-                                            key={template.id}
-                                            className="group relative flex flex-col items-start rounded-lg border p-4 text-left transition-all hover:bg-black/5 dark:hover:bg-white/5"
-                                            style={{ borderColor: 'var(--border-color)', cursor: 'pointer' }}
-                                            onClick={() => loadUserTemplate(template)}
-                                        >
-                                            <div className="flex w-full justify-between items-start">
-                                                <div>
-                                                    <span className="font-medium" style={{ color: 'var(--foreground-title)' }}>{template.name}</span>
-                                                    <p className="text-sm opacity-60" style={{ color: 'var(--foreground-subtitle)' }}>{template.description || 'No description'}</p>
-                                                </div>
-                                                <button
-                                                    onClick={(e) => onDeleteTemplate(template.id, e)}
-                                                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-opacity"
-                                                    title="Delete Template"
-                                                >
-                                                    <Trash2 size={14} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <p className="text-center text-sm opacity-60 py-8" style={{ color: 'var(--foreground-subtitle)' }}>
-                                        No templates saved yet.
-                                    </p>
-                                )
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Save Template Modal */}
-            {showSaveTemplateModal && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                    <div className="w-[400px] rounded-lg border p-6 shadow-xl" style={{
-                        backgroundColor: 'var(--node-background)',
-                        borderColor: 'var(--border-color)'
-                    }}>
-                        <div className="mb-4 flex items-center justify-between">
-                            <h2 className="text-lg font-bold" style={{ color: 'var(--foreground-title)' }}>Save as Template</h2>
-                            <button onClick={() => setShowSaveTemplateModal(false)} className="opacity-60 hover:opacity-100">
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--foreground-subtitle)' }}>
-                                    Template Name
-                                </label>
-                                <input
-                                    type="text"
-                                    className="w-full rounded border px-3 py-2 text-sm bg-transparent"
-                                    style={{ borderColor: 'var(--border-color)', color: 'var(--foreground-body)' }}
-                                    value={templateForm.name}
-                                    onChange={e => setTemplateForm({ ...templateForm, name: e.target.value })}
-                                    placeholder="My Awesome Template"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--foreground-subtitle)' }}>
-                                    Description
-                                </label>
-                                <textarea
-                                    className="w-full rounded border px-3 py-2 text-sm bg-transparent"
-                                    style={{ borderColor: 'var(--border-color)', color: 'var(--foreground-body)' }}
-                                    rows={3}
-                                    value={templateForm.description}
-                                    onChange={e => setTemplateForm({ ...templateForm, description: e.target.value })}
-                                    placeholder="What does this workflow do?"
-                                />
-                            </div>
-                            <div className="flex justify-end gap-2 pt-2">
-                                <button
-                                    onClick={() => setShowSaveTemplateModal(false)}
-                                    className="px-4 py-2 text-sm font-medium rounded hover:bg-black/5 dark:hover:bg-white/5"
-                                    style={{ color: 'var(--foreground-body)' }}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={onSaveTemplate}
-                                    disabled={isSavingTemplate || !templateForm.name.trim()}
-                                    className="px-4 py-2 text-sm font-medium rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-                                >
-                                    {isSavingTemplate ? 'Saving...' : 'Save Template'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Validation Panel (existing) */}
-            {showValidation && validationResult && (
-                <div className="absolute bottom-4 left-4 z-50 w-80 rounded-lg border p-4 shadow-lg" style={{
-                    backgroundColor: 'var(--node-background)',
-                    borderColor: validationResult.valid ? 'green' : 'red'
-                }}>
-                    <div className="mb-2 flex items-center justify-between">
-                        <h3 className="font-bold" style={{ color: validationResult.valid ? 'green' : 'red' }}>
-                            {validationResult.valid ? 'Valid Workflow' : 'Validation Errors'}
-                        </h3>
-                        <button onClick={() => setShowValidation(false)}>
-                            <X size={16} />
+                        maskColor="rgba(0, 0, 0, 0.6)"
+                    />
+                    <div className="absolute right-4 top-4 z-10 flex gap-3">
+                        <Link
+                            href="/docs/quickstart"
+                            target="_blank"
+                            className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                            style={{ color: 'var(--foreground-title)' }}
+                        >
+                            <HelpCircle size={14} />
+                            Help
+                        </Link>
+                        <button
+                            onClick={() => {
+                                setShowOpenModal(true);
+                                fetchWorkflows();
+                            }}
+                            className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                            style={{ color: 'var(--foreground-title)' }}
+                        >
+                            <FolderOpen size={14} />
+                            Open
                         </button>
-                        {!validationResult.valid && validationResult.errors.length > 0 && (
-                            <div className="space-y-2">
-                                {validationResult.errors.map((error, idx) => (
-                                    <div key={idx} className="flex items-start gap-2 p-2 rounded" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)' }}>
-                                        <span style={{ color: '#ef4444' }}>✕</span>
-                                        <div className="flex-1">
-                                            <div className="text-sm font-medium" style={{ color: '#ef4444' }}>Error</div>
-                                            <div className="text-xs" style={{ color: 'var(--foreground-body)' }}>{error.message}</div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        <button
+                            onClick={onClearSession}
+                            className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                            style={{ color: 'var(--foreground-title)' }}
+                        >
+                            <Trash2 size={14} />
+                            Clear
+                        </button>
+                        <button
+                            onClick={() => {
+                                setShowTemplates(true);
+                                fetchUserTemplates();
+                            }}
+                            className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                            style={{ color: 'var(--foreground-title)' }}
+                        >
+                            <LayoutTemplate size={14} />
+                            Templates
+                        </button>
+                        <button
+                            onClick={() => {
+                                setTemplateForm({ name: workflowName || 'My Template', description: '' });
+                                setShowSaveTemplateModal(true);
+                            }}
+                            className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                            style={{ color: 'var(--foreground-title)' }}
+                        >
+                            <Save size={14} />
+                            Add as Template
+                        </button>
+                        <button
+                            onClick={() => {
+                                const result = validateGraph(getNodes(), getEdges());
+                                setValidationResult(result);
+                                setShowValidation(true);
+                            }}
+                            className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                            style={{ color: 'var(--foreground-title)' }}
+                        >
+                            <AlertCircle size={14} />
+                            Validate
+                        </button>
+                        <button
+                            onClick={onExport}
+                            className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                            style={{ color: 'var(--foreground-title)' }}
+                        >
+                            <Download size={14} />
+                            Export
+                        </button>
+                        <button
+                            onClick={onImport}
+                            className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                            style={{ color: 'var(--foreground-title)' }}
+                        >
+                            <Upload size={14} />
+                            Import
+                        </button>
+                        <button
+                            onClick={() => {
+                                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                                if (isLocal) {
+                                    onSaveDraft();
+                                } else {
+                                    onSaveCloud();
+                                }
+                            }}
+                            disabled={isSaving}
+                            className="flex items-center gap-2 rounded px-4 py-2 text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50"
+                            style={{
+                                backgroundColor: 'var(--foreground-title)',
+                                color: 'var(--background)',
+                            }}
+                        >
+                            <Cloud size={14} />
+                            {isSaving ? 'Saving...' : 'Save'}
+                        </button>
+                        <button
+                            onClick={onSimulate}
+                            disabled={isSimulating}
+                            className="flex items-center gap-2 rounded px-4 py-2 text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50"
+                            style={{
+                                backgroundColor: 'var(--accent-bg)',
+                                color: 'var(--foreground-title)',
+                                border: '1px solid var(--border-color)'
+                            }}
+                        >
+                            <Play size={14} />
+                            {isSimulating ? 'Simulating...' : 'Simulate'}
+                        </button>
 
-                        {validationResult.warnings.length > 0 && (
-                            <div className="mt-2 space-y-2">
-                                {validationResult.warnings.map((warning, idx) => (
-                                    <div key={idx} className="flex items-start gap-2 p-2 rounded" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)' }}>
-                                        <span style={{ color: '#f59e0b' }}>⚠</span>
-                                        <div className="flex-1">
-                                            <div className="text-sm font-medium" style={{ color: '#f59e0b' }}>Warning</div>
-                                            <div className="text-xs" style={{ color: 'var(--foreground-body)' }}>{warning.message}</div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        <button
+                            onClick={onDeploy}
+                            className="px-6 py-2 text-sm font-medium transition-all"
+                            style={{
+                                backgroundColor: 'var(--foreground-body)',
+                                color: 'var(--background)',
+                                letterSpacing: '0.05em',
+                                textTransform: 'uppercase'
+                            }}
+                        >
+                            Deploy
+                        </button>
                     </div>
-                </div>
-            )}
-            {/* Simulation Logs Panel */}
-            {showSimulationPanel && (
-                <div className="absolute bottom-0 left-0 right-0 z-40 border-t shadow-xl flex flex-col transition-all duration-300 ease-in-out" style={{
-                    backgroundColor: 'var(--node-background)',
-                    borderColor: 'var(--border-color)',
-                    height: '350px',
-                    maxHeight: '40vh'
-                }}>
-                    <div className="flex items-center justify-between border-b px-4 py-2" style={{ borderColor: 'var(--border-color)' }}>
-                        <div className="flex items-center gap-2">
-                            <Play size={14} className="text-blue-500" />
-                            <span className="font-bold text-sm" style={{ color: 'var(--foreground-title)' }}>Simulation Logs</span>
-                            <span className="text-xs opacity-50 ml-2" style={{ color: 'var(--foreground-subtitle)' }}>
-                                {simulationLogs.length} steps
-                            </span>
-                        </div>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setSimulationLogs([])}
-                                title="Clear Logs"
-                                className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded opacity-60 hover:opacity-100"
-                            >
-                                <Trash2 size={14} style={{ color: 'var(--foreground-title)' }} />
-                            </button>
-                            <button onClick={() => setShowSimulationPanel(false)} className="opacity-60 hover:opacity-100 p-1">
-                                <X size={16} style={{ color: 'var(--foreground-title)' }} />
-                            </button>
-                        </div>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-4 space-y-2 font-mono text-xs">
-                        {simulationLogs.length === 0 ? (
-                            <div className="text-center opacity-50 italic py-4">
-                                {isSimulating ? 'Running simulation...' : 'Ready to simulate'}
+                </ReactFlow>
+
+                <DeploymentSuccessDialog
+                    open={showDeployModal}
+                    onClose={() => setShowDeployModal(false)}
+                    result={deployResult}
+                />
+
+                {/* Export Modal */}
+                {exportUrl && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <div className="w-[400px] rounded-lg border p-6 shadow-xl" style={{
+                            backgroundColor: 'var(--node-background)',
+                            borderColor: 'var(--border-color)'
+                        }}>
+                            <div className="mb-4 flex items-center justify-between">
+                                <h2 className="text-lg font-bold" style={{ color: 'var(--foreground-title)' }}>Export Ready</h2>
+                                <button onClick={closeExportModal} className="opacity-60 hover:opacity-100">
+                                    <X size={20} />
+                                </button>
                             </div>
-                        ) : (
-                            simulationLogs.map((log, i) => (
-                                <div key={i} className="flex gap-3 group animate-in fade-in slide-in-from-bottom-1 duration-200">
-                                    <span className="opacity-40 shrink-0 select-none w-16 text-right" style={{ color: 'var(--foreground-subtitle)' }}>
-                                        {new Date(log.timestamp).toLocaleTimeString().split(' ')[0]}
-                                    </span>
-                                    <div className="flex-1 border-l pl-3" style={{ borderColor: 'var(--border-color)' }}>
-                                        <div className="flex items-center gap-2">
-                                            <span className={`font-bold uppercase text-[10px] px-1.5 py-0.5 rounded ${log.type === 'error' ? 'bg-red-500/10 text-red-500' :
-                                                log.type === 'success' ? 'bg-green-500/10 text-green-500' :
-                                                    log.type === 'warning' ? 'bg-yellow-500/10 text-yellow-500' :
-                                                        'bg-blue-500/10 text-blue-500'
-                                                }`}>
-                                                {log.type}
-                                            </span>
-                                            <span className="font-semibold" style={{ color: 'var(--foreground-title)' }}>
-                                                {log.stepLabel}
-                                            </span>
-                                        </div>
-                                        <div className="mt-1" style={{ color: 'var(--foreground-body)' }}>
-                                            {log.message}
-                                        </div>
-
-                                        {log.data && Object.keys(log.data).length > 0 && (
-                                            <pre className="mt-2 block overflow-x-auto rounded bg-black/5 dark:bg-white/5 p-2 text-[10px] opacity-80" style={{ color: 'var(--foreground-body)' }}>
-                                                {JSON.stringify(log.data, null, 2)}
-                                            </pre>
-                                        )}
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Open Workflow Modal */}
-            {showOpenModal && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                    <div className="w-[600px] max-h-[80vh] flex flex-col rounded-lg border shadow-xl" style={{
-                        backgroundColor: 'var(--node-background)',
-                        borderColor: 'var(--border-color)'
-                    }}>
-                        <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
-                            <h2 className="text-lg font-bold" style={{ color: 'var(--foreground-title)' }}>Open Workflow</h2>
-                            <button onClick={() => setShowOpenModal(false)} className="opacity-60 hover:opacity-100">
-                                <X size={20} style={{ color: 'var(--foreground-title)' }} />
-                            </button>
+                            <div className="flex flex-col gap-4">
+                                <p className="text-sm opacity-80" style={{ color: 'var(--foreground-body)' }}>
+                                    Your workflow has been serialized successfully. Click the button below to download the JSON file.
+                                </p>
+                                <a
+                                    href={exportUrl}
+                                    download={exportFilename || 'workflow.json'}
+                                    className="flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-medium transition-all hover:opacity-90"
+                                    style={{
+                                        backgroundColor: 'var(--foreground-title)',
+                                        color: 'var(--background)',
+                                    }}
+                                    onClick={(e) => {
+                                        // Optional: close modal after download
+                                        // setTimeout(closeExportModal, 1000);
+                                    }}
+                                >
+                                    <Download size={16} />
+                                    Download {exportFilename}
+                                </a>
+                            </div>
                         </div>
+                    </div>
+                )}
 
-                        <div className="flex-1 overflow-y-auto p-4 min-h-[300px]">
-                            {isLoadingList ? (
-                                <div className="flex flex-col items-center justify-center h-full opacity-50 gap-2">
-                                    <Loader2 size={24} className="animate-spin" style={{ color: 'var(--foreground-title)' }} />
-                                    <span style={{ color: 'var(--foreground-subtitle)' }}>Loading workflows...</span>
-                                </div>
-                            ) : workflowList.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center h-full opacity-50 gap-2">
-                                    <FolderOpen size={32} style={{ color: 'var(--foreground-subtitle)' }} />
-                                    <span style={{ color: 'var(--foreground-subtitle)' }}>No saved workflows found.</span>
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    {workflowList.map((wf) => (
-                                        <div
-                                            key={wf.id}
-                                            onClick={() => onLoadWorkflow(wf.id)}
-                                            className="group flex items-center justify-between p-3 rounded-md border transition-all hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
+                {/* Templates Modal */}
+                {showTemplates && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <div className="w-[600px] rounded-lg border p-6 shadow-xl" style={{
+                            backgroundColor: 'var(--node-background)',
+                            borderColor: 'var(--border-color)'
+                        }}>
+                            <div className="mb-4 flex items-center justify-between">
+                                <h2 className="text-lg font-bold" style={{ color: 'var(--foreground-title)' }}>Choose a Template</h2>
+                                <button onClick={() => setShowTemplates(false)} className="opacity-60 hover:opacity-100">
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            <div className="flex gap-4 mb-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
+                                <button
+                                    className={`pb-2 text-sm font-medium transition-colors ${templateTab === 'system' ? 'border-b-2' : 'opacity-60'}`}
+                                    style={{
+                                        borderColor: templateTab === 'system' ? 'var(--foreground-title)' : 'transparent',
+                                        color: 'var(--foreground-title)'
+                                    }}
+                                    onClick={() => setTemplateTab('system')}
+                                >
+                                    System Templates
+                                </button>
+                                <button
+                                    className={`pb-2 text-sm font-medium transition-colors ${templateTab === 'my' ? 'border-b-2' : 'opacity-60'}`}
+                                    style={{
+                                        borderColor: templateTab === 'my' ? 'var(--foreground-title)' : 'transparent',
+                                        color: 'var(--foreground-title)'
+                                    }}
+                                    onClick={() => setTemplateTab('my')}
+                                >
+                                    My Templates
+                                </button>
+                            </div>
+
+                            <div className="grid gap-4 max-h-[400px] overflow-y-auto">
+                                {templateTab === 'system' ? (
+                                    templates.map(template => (
+                                        <button
+                                            key={template.id}
+                                            onClick={() => loadTemplate(template)}
+                                            className="flex flex-col items-start rounded-lg border p-4 text-left transition-all hover:bg-black/5 dark:hover:bg-white/5"
                                             style={{ borderColor: 'var(--border-color)' }}
                                         >
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2 rounded bg-blue-500/10 text-blue-500">
-                                                    <FileCode size={16} />
-                                                </div>
-                                                <div>
-                                                    <div className="font-medium" style={{ color: 'var(--foreground-title)' }}>{wf.name}</div>
-                                                    <div className="text-xs opacity-60" style={{ color: 'var(--foreground-subtitle)' }}>
-                                                        Last updated: {new Date(wf.updated_at).toLocaleDateString()}
+                                            <span className="font-medium" style={{ color: 'var(--foreground-title)' }}>{template.name}</span>
+                                            <span className="text-sm opacity-60" style={{ color: 'var(--foreground-subtitle)' }}>{template.description}</span>
+                                        </button>
+                                    ))
+                                ) : (
+                                    userTemplates.length > 0 ? (
+                                        userTemplates.map(template => (
+                                            <div
+                                                key={template.id}
+                                                className="group relative flex flex-col items-start rounded-lg border p-4 text-left transition-all hover:bg-black/5 dark:hover:bg-white/5"
+                                                style={{ borderColor: 'var(--border-color)', cursor: 'pointer' }}
+                                                onClick={() => loadUserTemplate(template)}
+                                            >
+                                                <div className="flex w-full justify-between items-start">
+                                                    <div>
+                                                        <span className="font-medium" style={{ color: 'var(--foreground-title)' }}>{template.name}</span>
+                                                        <p className="text-sm opacity-60" style={{ color: 'var(--foreground-subtitle)' }}>{template.description || 'No description'}</p>
                                                     </div>
+                                                    <button
+                                                        onClick={(e) => onDeleteTemplate(template.id, e)}
+                                                        className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-opacity"
+                                                        title="Delete Template"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
                                                 </div>
                                             </div>
-                                            <button
-                                                onClick={(e) => onDeleteWorkflow(wf.id, e)}
-                                                className="p-2 rounded opacity-0 group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-500 transition-all"
-                                                title="Delete workflow"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
+                                        ))
+                                    ) : (
+                                        <p className="text-center text-sm opacity-60 py-8" style={{ color: 'var(--foreground-subtitle)' }}>
+                                            No templates saved yet.
+                                        </p>
+                                    )
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Save Template Modal */}
+                {showSaveTemplateModal && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <div className="w-[400px] rounded-lg border p-6 shadow-xl" style={{
+                            backgroundColor: 'var(--node-background)',
+                            borderColor: 'var(--border-color)'
+                        }}>
+                            <div className="mb-4 flex items-center justify-between">
+                                <h2 className="text-lg font-bold" style={{ color: 'var(--foreground-title)' }}>Save as Template</h2>
+                                <button onClick={() => setShowSaveTemplateModal(false)} className="opacity-60 hover:opacity-100">
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1" style={{ color: 'var(--foreground-subtitle)' }}>
+                                        Template Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        className="w-full rounded border px-3 py-2 text-sm bg-transparent"
+                                        style={{ borderColor: 'var(--border-color)', color: 'var(--foreground-body)' }}
+                                        value={templateForm.name}
+                                        onChange={e => setTemplateForm({ ...templateForm, name: e.target.value })}
+                                        placeholder="My Awesome Template"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1" style={{ color: 'var(--foreground-subtitle)' }}>
+                                        Description
+                                    </label>
+                                    <textarea
+                                        className="w-full rounded border px-3 py-2 text-sm bg-transparent"
+                                        style={{ borderColor: 'var(--border-color)', color: 'var(--foreground-body)' }}
+                                        rows={3}
+                                        value={templateForm.description}
+                                        onChange={e => setTemplateForm({ ...templateForm, description: e.target.value })}
+                                        placeholder="What does this workflow do?"
+                                    />
+                                </div>
+                                <div className="flex justify-end gap-2 pt-2">
+                                    <button
+                                        onClick={() => setShowSaveTemplateModal(false)}
+                                        className="px-4 py-2 text-sm font-medium rounded hover:bg-black/5 dark:hover:bg-white/5"
+                                        style={{ color: 'var(--foreground-body)' }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={onSaveTemplate}
+                                        disabled={isSavingTemplate || !templateForm.name.trim()}
+                                        className="px-4 py-2 text-sm font-medium rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                                    >
+                                        {isSavingTemplate ? 'Saving...' : 'Save Template'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Validation Panel (existing) */}
+                {showValidation && validationResult && (
+                    <div className="absolute bottom-4 left-4 z-50 w-80 rounded-lg border p-4 shadow-lg" style={{
+                        backgroundColor: 'var(--node-background)',
+                        borderColor: validationResult.valid ? 'green' : 'red'
+                    }}>
+                        <div className="mb-2 flex items-center justify-between">
+                            <h3 className="font-bold" style={{ color: validationResult.valid ? 'green' : 'red' }}>
+                                {validationResult.valid ? 'Valid Workflow' : 'Validation Errors'}
+                            </h3>
+                            <button onClick={() => setShowValidation(false)}>
+                                <X size={16} />
+                            </button>
+                            {!validationResult.valid && validationResult.errors.length > 0 && (
+                                <div className="space-y-2">
+                                    {validationResult.errors.map((error, idx) => (
+                                        <div key={idx} className="flex items-start gap-2 p-2 rounded" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)' }}>
+                                            <span style={{ color: '#ef4444' }}>✕</span>
+                                            <div className="flex-1">
+                                                <div className="text-sm font-medium" style={{ color: '#ef4444' }}>Error</div>
+                                                <div className="text-xs" style={{ color: 'var(--foreground-body)' }}>{error.message}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {validationResult.warnings.length > 0 && (
+                                <div className="mt-2 space-y-2">
+                                    {validationResult.warnings.map((warning, idx) => (
+                                        <div key={idx} className="flex items-start gap-2 p-2 rounded" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)' }}>
+                                            <span style={{ color: '#f59e0b' }}>⚠</span>
+                                            <div className="flex-1">
+                                                <div className="text-sm font-medium" style={{ color: '#f59e0b' }}>Warning</div>
+                                                <div className="text-xs" style={{ color: 'var(--foreground-body)' }}>{warning.message}</div>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
                             )}
                         </div>
                     </div>
-                </div>
-            )}
+                )}
+                {/* Simulation Logs Panel */}
+                {showSimulationPanel && (
+                    <div className="absolute bottom-0 left-0 right-0 z-40 border-t shadow-xl flex flex-col transition-all duration-300 ease-in-out" style={{
+                        backgroundColor: 'var(--node-background)',
+                        borderColor: 'var(--border-color)',
+                        height: '350px',
+                        maxHeight: '40vh'
+                    }}>
+                        <div className="flex items-center justify-between border-b px-4 py-2" style={{ borderColor: 'var(--border-color)' }}>
+                            <div className="flex items-center gap-2">
+                                <Play size={14} className="text-blue-500" />
+                                <span className="font-bold text-sm" style={{ color: 'var(--foreground-title)' }}>Simulation Logs</span>
+                                <span className="text-xs opacity-50 ml-2" style={{ color: 'var(--foreground-subtitle)' }}>
+                                    {simulationLogs.length} steps
+                                </span>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setSimulationLogs([])}
+                                    title="Clear Logs"
+                                    className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded opacity-60 hover:opacity-100"
+                                >
+                                    <Trash2 size={14} style={{ color: 'var(--foreground-title)' }} />
+                                </button>
+                                <button onClick={() => setShowSimulationPanel(false)} className="opacity-60 hover:opacity-100 p-1">
+                                    <X size={16} style={{ color: 'var(--foreground-title)' }} />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-2 font-mono text-xs">
+                            {simulationLogs.length === 0 ? (
+                                <div className="text-center opacity-50 italic py-4">
+                                    {isSimulating ? 'Running simulation...' : 'Ready to simulate'}
+                                </div>
+                            ) : (
+                                simulationLogs.map((log, i) => (
+                                    <div key={i} className="flex gap-3 group animate-in fade-in slide-in-from-bottom-1 duration-200">
+                                        <span className="opacity-40 shrink-0 select-none w-16 text-right" style={{ color: 'var(--foreground-subtitle)' }}>
+                                            {new Date(log.timestamp).toLocaleTimeString().split(' ')[0]}
+                                        </span>
+                                        <div className="flex-1 border-l pl-3" style={{ borderColor: 'var(--border-color)' }}>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`font-bold uppercase text-[10px] px-1.5 py-0.5 rounded ${log.type === 'error' ? 'bg-red-500/10 text-red-500' :
+                                                    log.type === 'success' ? 'bg-green-500/10 text-green-500' :
+                                                        log.type === 'warning' ? 'bg-yellow-500/10 text-yellow-500' :
+                                                            'bg-blue-500/10 text-blue-500'
+                                                    }`}>
+                                                    {log.type}
+                                                </span>
+                                                <span className="font-semibold" style={{ color: 'var(--foreground-title)' }}>
+                                                    {log.stepLabel}
+                                                </span>
+                                            </div>
+                                            <div className="mt-1" style={{ color: 'var(--foreground-body)' }}>
+                                                {log.message}
+                                            </div>
+
+                                            {log.data && Object.keys(log.data).length > 0 && (
+                                                <pre className="mt-2 block overflow-x-auto rounded bg-black/5 dark:bg-white/5 p-2 text-[10px] opacity-80" style={{ color: 'var(--foreground-body)' }}>
+                                                    {JSON.stringify(log.data, null, 2)}
+                                                </pre>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Open Workflow Modal */}
+                {showOpenModal && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <div className="w-[600px] max-h-[80vh] flex flex-col rounded-lg border shadow-xl" style={{
+                            backgroundColor: 'var(--node-background)',
+                            borderColor: 'var(--border-color)'
+                        }}>
+                            <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
+                                <h2 className="text-lg font-bold" style={{ color: 'var(--foreground-title)' }}>Open Workflow</h2>
+                                <button onClick={() => setShowOpenModal(false)} className="opacity-60 hover:opacity-100">
+                                    <X size={20} style={{ color: 'var(--foreground-title)' }} />
+                                </button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-4 min-h-[300px]">
+                                {isLoadingList ? (
+                                    <div className="flex flex-col items-center justify-center h-full opacity-50 gap-2">
+                                        <Loader2 size={24} className="animate-spin" style={{ color: 'var(--foreground-title)' }} />
+                                        <span style={{ color: 'var(--foreground-subtitle)' }}>Loading workflows...</span>
+                                    </div>
+                                ) : workflowList.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center h-full opacity-50 gap-2">
+                                        <FolderOpen size={32} style={{ color: 'var(--foreground-subtitle)' }} />
+                                        <span style={{ color: 'var(--foreground-subtitle)' }}>No saved workflows found.</span>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {workflowList.map((wf) => (
+                                            <div
+                                                key={wf.id}
+                                                onClick={() => onLoadWorkflow(wf.id)}
+                                                className="group flex items-center justify-between p-3 rounded-md border transition-all hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
+                                                style={{ borderColor: 'var(--border-color)' }}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 rounded bg-blue-500/10 text-blue-500">
+                                                        <FileCode size={16} />
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-medium" style={{ color: 'var(--foreground-title)' }}>{wf.name}</div>
+                                                        <div className="text-xs opacity-60" style={{ color: 'var(--foreground-subtitle)' }}>
+                                                            Last updated: {new Date(wf.updated_at).toLocaleDateString()}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={(e) => onDeleteWorkflow(wf.id, e)}
+                                                    className="p-2 rounded opacity-0 group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-500 transition-all"
+                                                    title="Delete workflow"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
-    </div>
-);
+    );
 };
 
 

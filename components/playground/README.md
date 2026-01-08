@@ -1,36 +1,30 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Rune Playground Integration
 
-## Getting Started
+This directory contains the standalone Rune Playground components.
 
-First, run the development server:
+## Theming
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+To correctly style the playground components when importing them into another application, you must include the base theme file.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Usage
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. **Import the CSS**:
+   Import `theme.css` in your application's global CSS file (e.g., `globals.css` or `styles.css`).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+   ```css
+   @import "./path/to/rune/components/playground/styles/theme.css";
+   ```
 
-## Learn More
+2. **Tailwind Configuration (Optional)**:
+   If your host application uses Tailwind CSS, ensure that the content paths include the playground components so that utility classes are generated.
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+   ```ts
+   // tailwind.config.ts
+   export default {
+     content: [
+       // ... other paths
+       "./path/to/rune/components/playground/**/*.{ts,tsx}",
+     ],
+     // ...
+   }
+   ```

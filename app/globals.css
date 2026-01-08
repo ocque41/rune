@@ -72,40 +72,40 @@
   font-display: swap;
 }
 
+@import "../components/playground/styles/theme.css";
+
 :root {
   color-scheme: dark;
-  --bg: #000000;
-  --fg: #E0E0E0;
-  --title: #FFFFFF;
-  --subtitle: #A0A0A0;
-  --text: #E0E0E0;
-  --muted: #555555;
+  --bg: var(--rune-bg);
+  --fg: var(--rune-fg);
+  --title: var(--rune-title);
+  --subtitle: var(--rune-subtitle);
+  --text: var(--rune-text);
+  --muted: var(--rune-muted);
 
-  /* Cyber-Brutalist Palette */
-  --neon-green: #00FF00;
-  --hot-pink: #FF00FF;
-  --electric-blue: #00FFFF;
-  --warning-yellow: #FFFF00;
-  --pure-black: #000000;
-  --pure-white: #FFFFFF;
+  --neon-green: var(--rune-neon-green);
+  --hot-pink: var(--rune-hot-pink);
+  --electric-blue: var(--rune-electric-blue);
+  --warning-yellow: var(--rune-warning-yellow);
+  --pure-black: var(--rune-pure-black);
+  --pure-white: var(--rune-pure-white);
 
-  /* Structural Tokens */
-  --border-thick: 4px;
-  --border-thin: 2px;
-  --shadow-hard: 6px 6px 0px 0px;
-  --shadow-hard-sm: 4px 4px 0px 0px;
+  --border-thick: var(--rune-border-thick);
+  --border-thin: var(--rune-border-thin);
+  --shadow-hard: var(--rune-shadow-hard);
+  --shadow-hard-sm: var(--rune-shadow-hard-sm);
 }
 
 [data-theme="light"] {
   /* We are forcing a dark aesthetics for this specific artistic direction, 
      but keeping light vars just in case, mapped to high contrast */
   color-scheme: light;
-  --bg: #FFFFFF;
-  --fg: #000000;
-  --title: #000000;
-  --subtitle: #333333;
-  --text: #111111;
-  --muted: #888888;
+  --bg: var(--rune-bg);
+  --fg: var(--rune-fg);
+  --title: var(--rune-title);
+  --subtitle: var(--rune-subtitle);
+  --text: var(--rune-text);
+  --muted: var(--rune-muted);
 }
 
 html,

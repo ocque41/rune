@@ -5,13 +5,13 @@ import { LLMConfig } from '@/lib/types/agent';
 
 interface ShimmeringJunoConfigProps {
     config: LLMConfig;
-    onChange: (config: LLMConfig) => void;
+    onChange: (updates: Partial<LLMConfig>) => void;
     onMcpConfigure?: () => void;
 }
 
 export function ShimmeringJunoConfig({ config, onChange, onMcpConfigure }: ShimmeringJunoConfigProps) {
     const handleChange = (key: keyof LLMConfig, value: any) => {
-        onChange({ ...config, [key]: value });
+        onChange({ [key]: value });
     };
 
     return (
