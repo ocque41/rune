@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import { getRun } from '@/lib/run-store';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +18,8 @@ export async function GET(
             );
         }
 
-        const run = await getRun(id);
+        const supabase = await createClient();
+        const run = await getRun(supabase, id);
 
         if (!run) {
             return NextResponse.json(
