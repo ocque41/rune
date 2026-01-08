@@ -2,6 +2,7 @@ export interface LLMConfig {
     model: string;
     temperature: number;
     systemPrompt: string;
+    topP?: number;
     tools?: string[];
 }
 

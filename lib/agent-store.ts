@@ -41,8 +41,7 @@ export const agentStore = {
 
         if (config.model) profileData.model = config.model;
         if (config.temperature !== undefined) profileData.temperature = config.temperature;
-        // config.topP isn't in LLMConfig interface but commonly used
-        if ((config as any).topP !== undefined) profileData.top_p = (config as any).topP;
+        if (config.topP !== undefined) profileData.top_p = config.topP;
         if (config.systemPrompt) profileData.system_prompt = config.systemPrompt;
 
         // Save tools list to metadata for easy UI restore 
