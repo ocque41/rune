@@ -16,7 +16,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { History, MoreHorizontal, Code2, Save, Settings2, PlayCircle, Copy, Check } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
-import { useAgentStore } from "./store"
+import { useAgentStore } from "../store"
 import { cn } from "@/lib/utils"
 
 interface PlaygroundProps {
