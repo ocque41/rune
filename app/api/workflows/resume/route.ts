@@ -1,81 +1,85 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getWaitingRuns, resumeRun, appendLog, updateRunStatus } from '@/lib/run-store';
+import { getWaitingRuns, resumeRun, appendLog } from '@/lib/run-store';
+import { processIdempotency } from '@/lib/idempotency';
+
+async function performResume(body: any) {
+    const { runId, event, data } = body;
+
+    if (!runId) {
+        return NextResponse.json(
+            { error: 'Missing runId parameter' },
+            { status: 400 }
+        );
+    }
+
+    if (!event) {
+        return NextResponse.json(
+            { error: 'Missing event parameter' },
+            { status: 400 }
+        );
+    }
+
+    // Find runs waiting for this event
+    const waitingRuns = await getWaitingRuns(
+        event.startsWith('approval-') ? 'approval' : 'event',
+        event
+    );
+
+    // Check if the specified run is waiting
+    const targetRun = waitingRuns.find(r => r.id === runId);
+
+    if (!targetRun) {
+        return NextResponse.json(
+            {
+                error: 'No waiting run found with this ID and event',
+                runId,
+                event
+            },
+            { status: 404 }
+        );
+    }
+
+    // Log the resume action
+    await appendLog(
+        runId,
+        `Resuming workflow: event="${event}" data=${JSON.stringify(data)}`,
+        'info'
+    );
+
+    // Clear the waiting state
+    await resumeRun(runId);
+
+    return NextResponse.json({
+        success: true,
+        runId,
+        event,
+        message: 'Workflow resumed successfully',
+        resumedAt: new Date().toISOString()
+    });
+}
 
 /**
  * POST /api/workflows/resume
  * 
  * Resume a workflow that is waiting for an external event or approval.
- * 
- * Body:
- *   - runId: string - The workflow run ID to resume
- *   - event: string - The event name (e.g., "payment_received" or "approval-user@example.com")
- *   - data: object - Data to pass to the waiting step
- *   
- * For approvals, data should include:
- *   - approved: boolean
- *   - reason?: string
  */
 export async function POST(request: NextRequest) {
     try {
-        const body = await request.json();
-        const { runId, event, data } = body;
+        const body = await request.json().catch(() => ({}));
+        const idempotencyKey = request.headers.get('idempotency-key');
 
-        if (!runId) {
-            return NextResponse.json(
-                { error: 'Missing runId parameter' },
-                { status: 400 }
-            );
-        }
-
-        if (!event) {
-            return NextResponse.json(
-                { error: 'Missing event parameter' },
-                { status: 400 }
-            );
-        }
-
-        // Find runs waiting for this event
-        const waitingRuns = await getWaitingRuns(
-            event.startsWith('approval-') ? 'approval' : 'event',
-            event
-        );
-
-        // Check if the specified run is waiting
-        const targetRun = waitingRuns.find(r => r.id === runId);
-
-        if (!targetRun) {
-            return NextResponse.json(
+        if (idempotencyKey) {
+            return processIdempotency(
                 {
-                    error: 'No waiting run found with this ID and event',
-                    runId,
-                    event
+                    key: idempotencyKey,
+                    scope: 'resume_run',
+                    params: { runId: body.runId, event: body.event }
                 },
-                { status: 404 }
+                () => performResume(body)
             );
         }
 
-        // Log the resume action
-        await appendLog(
-            runId,
-            `Resuming workflow: event="${event}" data=${JSON.stringify(data)}`,
-            'info'
-        );
-
-        // Clear the waiting state
-        await resumeRun(runId);
-
-        // Note: The actual workflow resumption happens through the workflow library's
-        // resumeHook mechanism. This API updates run-store state and logs.
-        // The workflow engine (from the `workflow` package) handles the actual
-        // continuation of the suspended workflow execution.
-
-        return NextResponse.json({
-            success: true,
-            runId,
-            event,
-            message: 'Workflow resumed successfully',
-            resumedAt: new Date().toISOString()
-        });
+        return performResume(body);
 
     } catch (error: any) {
         console.error('[Resume API] Error:', error);
@@ -85,6 +89,7 @@ export async function POST(request: NextRequest) {
         );
     }
 }
+
 
 /**
  * GET /api/workflows/resume

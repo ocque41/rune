@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { WorkflowEngine } from '@/lib/workflow-engine';
+import { processIdempotency } from '@/lib/idempotency';
 
 export async function POST(
     request: NextRequest,
     { params }: { params: Promise<{ workflowId: string }> }
 ) {
     const { workflowId } = await params;
+    const idempotencyKey = request.headers.get('idempotency-key');
 
     // Parse body if present
     let body = {};
@@ -14,6 +16,13 @@ export async function POST(
         body = await request.json();
     } catch {
         // Body might be empty
+    }
+
+    if (idempotencyKey) {
+        return processIdempotency(
+            { key: idempotencyKey, scope: 'webhook_run', params: { workflowId } },
+            () => handleWorkflowTrigger(workflowId, body)
+        );
     }
 
     return handleWorkflowTrigger(workflowId, body);
@@ -57,7 +66,7 @@ async function handleWorkflowTrigger(workflowId: string, payload: any) {
             );
         }
 
-        const graph = latestVersion.graph_json;
+        const graph = latestVersion.graph; // Was graph_json
         if (!graph || !graph.nodes || !graph.edges) {
             return NextResponse.json(
                 { success: false, error: 'Invalid workflow graph data' },
@@ -79,7 +88,8 @@ async function handleWorkflowTrigger(workflowId: string, payload: any) {
             workflowId,
             workflowName,
             graph.nodes,
-            graph.edges
+            graph.edges,
+            latestVersion.id // Pass version ID
         );
 
         // 4. Run Execution

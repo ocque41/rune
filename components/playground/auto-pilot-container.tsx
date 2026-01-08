@@ -8,16 +8,61 @@ import { LLMConfig } from '@/lib/types/agent';
 
 export interface AutoPilotContainerProps {
     onMcpConfigure?: () => void;
+    workflowId?: string | null;
 }
 
-export function AutoPilotContainer({ onMcpConfigure }: AutoPilotContainerProps) {
+export function AutoPilotContainer({ onMcpConfigure, workflowId }: AutoPilotContainerProps) {
     const { config, updateConfig } = useAgentStore();
     const [availableModels, setAvailableModels] = useState<string[]>([]);
     const [isLoadingModels, setIsLoadingModels] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     // Tool Selection State
     const [toolSelectorOpen, setToolSelectorOpen] = useState(false);
     const [availableTools, setAvailableTools] = useState<Tool[]>([]);
+
+    // Load Profile when workflowId changes
+    useEffect(() => {
+        if (!workflowId) return;
+
+        const fetchProfile = async () => {
+            try {
+                const res = await fetch(`/api/rune/agent/${workflowId}`);
+                if (res.status === 401) return; // Not auth
+
+                const data = await res.json();
+                if (data && !data.error) {
+                    updateConfig(data);
+                }
+            } catch (e) {
+                console.error("Failed to load agent profile", e);
+            }
+        };
+        fetchProfile();
+    }, [workflowId, updateConfig]);
+
+    // Auto-save when config changes
+    useEffect(() => {
+        if (!workflowId) return;
+
+        // Debounce save
+        const timer = setTimeout(async () => {
+            setIsSaving(true);
+            try {
+                await fetch(`/api/rune/agent/${workflowId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+            } catch (e) {
+                console.error("Failed to save agent profile", e);
+            } finally {
+                setIsSaving(false);
+            }
+        }, 1000);
+
+        return () => clearTimeout(timer);
+    }, [config, workflowId]);
 
     // Mock fetching models (simulating API call)
     useEffect(() => {
@@ -73,11 +118,18 @@ export function AutoPilotContainer({ onMcpConfigure }: AutoPilotContainerProps) 
 
     return (
         <>
-            <ShimmeringJunoConfig
-                config={config}
-                onChange={updateConfig}
-                onMcpConfigure={() => setToolSelectorOpen(true)}
-            />
+            <div className="flex flex-col h-full">
+                {isSaving && (
+                    <div className="absolute top-2 right-2 text-[10px] text-zinc-500 animate-pulse">
+                        Saving...
+                    </div>
+                )}
+                <ShimmeringJunoConfig
+                    config={config}
+                    onChange={updateConfig}
+                    onMcpConfigure={() => setToolSelectorOpen(true)}
+                />
+            </div>
 
             <ToolSelector
                 open={toolSelectorOpen}

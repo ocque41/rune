@@ -91,5 +91,29 @@ export const mcpStore = {
 
         // Flatten result
         return data.map((d: any) => d.tool);
+    },
+
+    /**
+     * List all available tools in the system
+     */
+    async listAllTools(): Promise<(McpTool & { source?: string })[]> {
+        const supabase = createAdminClient();
+
+        // Select tools and join parent server to get its name as source
+        const { data, error } = await supabase
+            .from('rune_mcp_tools')
+            .select(`
+                *,
+                server:rune_mcp_servers (
+                    name
+                )
+            `);
+
+        if (error) throw error;
+
+        return data.map((t: any) => ({
+            ...t,
+            source: t.server?.name
+        }));
     }
 };

@@ -9,9 +9,10 @@ import { cn } from '@/lib/utils';
 
 interface SidebarProps {
     hasStartNode: boolean;
+    workflowId?: string | null;
 }
 
-export const Sidebar = ({ hasStartNode }: SidebarProps) => {
+export const Sidebar = ({ hasStartNode, workflowId }: SidebarProps) => {
     const [activeTab, setActiveTab] = useState<'steps' | 'agent'>('steps');
 
     const onDragStart = (event: DragEvent, nodeType: string, label: string) => {
@@ -22,7 +23,6 @@ export const Sidebar = ({ hasStartNode }: SidebarProps) => {
             event.dataTransfer.effectAllowed = 'move';
         }
     };
-
     const steps = [
         { type: 'step', label: 'Send Email', icon: Mail },
         { type: 'step', label: 'HTTP Request', icon: Globe },
@@ -47,7 +47,6 @@ export const Sidebar = ({ hasStartNode }: SidebarProps) => {
         { type: 'ai', label: 'AI Gen', icon: Sparkles },
         { type: 'transform', label: 'Transform', icon: Code },
     ];
-
     return (
         <aside
             className="h-full w-56 border-r flex flex-col z-20 transition-all duration-300"
@@ -121,7 +120,7 @@ export const Sidebar = ({ hasStartNode }: SidebarProps) => {
                     </div>
                 ) : (
                     <div className="h-full animate-in fade-in slide-in-from-right-4 duration-300">
-                        <AutoPilotContainer />
+                        <AutoPilotContainer workflowId={workflowId} />
                     </div>
                 )}
             </div>

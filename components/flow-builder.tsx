@@ -620,6 +620,7 @@ const FlowBuilderContent = ({
         }}>
             <Sidebar
                 hasStartNode={hasStartNode}
+                workflowId={workflowId}
             />
             <div className="flex-grow h-full relative" ref={reactFlowWrapper}>
                 <AnimatedGridBackground />

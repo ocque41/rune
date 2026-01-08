@@ -35,10 +35,10 @@ export async function GET() {
                 .limit(1)
                 .single();
 
-            if (!latestVersion?.graph_json) continue;
+            if (!latestVersion?.graph) continue;
 
-            const nodes = latestVersion.graph_json.nodes;
-            const edges = latestVersion.graph_json.edges;
+            const nodes = latestVersion.graph.nodes;
+            const edges = latestVersion.graph.edges;
 
             if (!Array.isArray(nodes)) continue;
 
@@ -83,7 +83,8 @@ export async function GET() {
                         wf.id,
                         wf.name || 'Scheduled Workflow',
                         nodes,
-                        edges || []
+                        edges || [],
+                        latestVersion.id // Pass version ID
                     );
 
                     // Run with some cron metadata
