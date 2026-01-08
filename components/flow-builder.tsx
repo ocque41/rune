@@ -43,6 +43,9 @@ import { useLocalWorkflowSession } from '@/hooks/useLocalWorkflowSession';
 import { simulateWorkflow, SimulationLogEntry } from '@/lib/workflow-simulator';
 import { DeploymentSuccessDialog } from './deployment-success-dialog';
 import { useAgentStore } from './playground/store';
+import { RuneDrawer } from '@/components/ui/drawer';
+import { AutoPilotContainer } from '@/components/playground/auto-pilot-container';
+import { Bot } from 'lucide-react';
 
 const nodeTypes = {
     step: StepNode,
@@ -113,6 +116,9 @@ const FlowBuilderContent = ({
         graphJson: string;
     } | null>(null);
     const [deployTab, setDeployTab] = useState<'Integration' | 'Source Code' | 'JSON Definition'>('Integration');
+
+    // Agent Drawer State
+    const [isAgentOpen, setIsAgentOpen] = useState(false);
 
     // User Templates State
     const [templateTab, setTemplateTab] = useState<'system' | 'my'>('system');
@@ -621,6 +627,7 @@ const FlowBuilderContent = ({
             <Sidebar
                 hasStartNode={hasStartNode}
                 workflowId={workflowId}
+                onAgentClick={() => setIsAgentOpen(true)}
             />
             <div className="flex-grow h-full relative" ref={reactFlowWrapper}>
                 <AnimatedGridBackground />
@@ -1155,6 +1162,11 @@ const FlowBuilderContent = ({
                         </div>
                     </div>
                 )}
+
+                {/* Agent Drawer */}
+                <RuneDrawer open={isAgentOpen} onOpenChange={setIsAgentOpen}>
+                    <AutoPilotContainer workflowId={workflowId} />
+                </RuneDrawer>
             </div>
         </div>
     );

@@ -18,7 +18,7 @@ export function ShimmeringJunoConfig({ config, onChange, onMcpConfigure }: Shimm
         <div className="flex flex-col h-full w-full text-white bg-black/40 backdrop-blur-xl relative overflow-hidden group">
             {/* Shimmering Ambient Background Effect */}
             <div className="absolute inset-0 z-0 pointer-events-none">
-                <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.15),transparent_50%)] animate-pulse duration-[4s]" />
+                <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(circle_at_center,theme(colors.green.500/0.1),transparent_50%)] animate-pulse duration-[4s]" />
                 <div className="absolute top-0 right-0 w-full h-full bg-[linear-gradient(135deg,rgba(255,255,255,0.03)_0%,transparent_100%)]" />
             </div>
 
@@ -26,12 +26,12 @@ export function ShimmeringJunoConfig({ config, onChange, onMcpConfigure }: Shimm
 
                 {/* Header */}
                 <div className="flex items-center gap-2 mb-2">
-                    <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.3)]">
-                        <Sparkles className="w-5 h-5 text-blue-400 animate-pulse" />
+                    <div className="p-2 rounded-lg bg-[var(--neon-green)]/10 border border-[var(--neon-green)]/20 shadow-[0_0_15px_rgba(0,255,0,0.2)]">
+                        <Sparkles className="w-5 h-5 text-[var(--neon-green)] animate-pulse" />
                     </div>
                     <div>
-                        <h2 className="text-sm font-bold tracking-wider text-blue-100/90 uppercase">Juno Intelligence</h2>
-                        <p className="text-[10px] text-blue-200/50 font-mono">Auto-Pilot Configuration</p>
+                        <h2 className="text-sm font-bold tracking-wider text-white/90 uppercase">Juno Intelligence</h2>
+                        <p className="text-[10px] text-[var(--neon-green)]/70 font-mono">Auto-Pilot Configuration</p>
                     </div>
                 </div>
 
@@ -49,7 +49,7 @@ export function ShimmeringJunoConfig({ config, onChange, onMcpConfigure }: Shimm
                                 className={cn(
                                     "relative px-3 py-2.5 text-xs text-left rounded-md border transition-all duration-300 group/btn overflow-hidden",
                                     config.model === model
-                                        ? "bg-blue-500/20 border-blue-500/50 text-white shadow-[0_0_20px_-5px_rgba(59,130,246,0.5)]"
+                                        ? "bg-[var(--neon-green)]/10 border-[var(--neon-green)]/50 text-white shadow-[0_0_20px_-5px_rgba(0,255,0,0.3)]"
                                         : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:border-white/20"
                                 )}
                             >
@@ -59,7 +59,7 @@ export function ShimmeringJunoConfig({ config, onChange, onMcpConfigure }: Shimm
                                 )} />
                                 <span className="relative z-10 font-mono">{model}</span>
                                 {config.model === model && (
-                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_currentColor]" />
+                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[var(--neon-green)] shadow-[0_0_8px_currentColor]" />
                                 )}
                             </button>
                         ))}
@@ -73,7 +73,7 @@ export function ShimmeringJunoConfig({ config, onChange, onMcpConfigure }: Shimm
                             <Thermometer className="w-3.5 h-3.5" />
                             <span>Creativity Index</span>
                         </div>
-                        <span className="font-mono text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
+                        <span className="font-mono text-[var(--neon-green)] bg-[var(--neon-green)]/10 px-1.5 py-0.5 rounded border border-[var(--neon-green)]/20">
                             {config.temperature.toFixed(1)}
                         </span>
                     </div>
@@ -85,10 +85,10 @@ export function ShimmeringJunoConfig({ config, onChange, onMcpConfigure }: Shimm
                             step="0.1"
                             value={config.temperature}
                             onChange={(e) => handleChange('temperature', parseFloat(e.target.value))}
-                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-400 [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(59,130,246,0.8)] transition-all hover:[&::-webkit-slider-thumb]:scale-125"
+                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--neon-green)] [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(0,255,0,0.8)] transition-all hover:[&::-webkit-slider-thumb]:scale-125"
                         />
                         <div
-                            className="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 bg-blue-500/50 rounded-full pointer-events-none"
+                            className="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 bg-[var(--neon-green)]/50 rounded-full pointer-events-none"
                             style={{ width: `${config.temperature * 100}%` }}
                         />
                     </div>
@@ -114,7 +114,7 @@ export function ShimmeringJunoConfig({ config, onChange, onMcpConfigure }: Shimm
                             <span className="text-[10px] text-white/30 italic px-1">No tools selected</span>
                         ) : (
                             config.tools.map(toolId => (
-                                <span key={toolId} className="px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-[10px] font-mono text-blue-200">
+                                <span key={toolId} className="px-2 py-1 rounded bg-[var(--neon-green)]/10 border border-[var(--neon-green)]/20 text-[10px] font-mono text-[var(--neon-green)]">
                                     {toolId}
                                 </span>
                             ))
@@ -136,12 +136,12 @@ export function ShimmeringJunoConfig({ config, onChange, onMcpConfigure }: Shimm
                         <span>System Instructions</span>
                     </div>
                     <div className="relative flex-1 group/input">
-                        <div className="absolute -inset-0.5 bg-gradient-to-b from-blue-500/20 to-purple-500/20 rounded-lg blur opacity-0 group-hover/input:opacity-100 transition duration-1000" />
+                        <div className="absolute -inset-0.5 bg-gradient-to-b from-[var(--neon-green)]/20 to-transparent rounded-lg blur opacity-0 group-hover/input:opacity-100 transition duration-1000" />
                         <textarea
                             value={config.systemPrompt}
                             onChange={(e) => handleChange('systemPrompt', e.target.value)}
                             placeholder="Define the agent's persona and constraints..."
-                            className="relative w-full h-full bg-[#0A0A0A] border border-white/10 rounded-lg p-3 text-xs font-mono text-white/80 placeholder:text-white/20 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 resize-none leading-relaxed custom-scrollbar pb-10"
+                            className="relative w-full h-full bg-[#0A0A0A] border border-white/10 rounded-lg p-3 text-xs font-mono text-white/80 placeholder:text-white/20 focus:outline-none focus:border-[var(--neon-green)]/50 focus:ring-1 focus:ring-[var(--neon-green)]/20 resize-none leading-relaxed custom-scrollbar pb-10"
                             spellCheck={false}
                         />
                     </div>
