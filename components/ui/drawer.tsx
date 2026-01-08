@@ -24,7 +24,7 @@ export function RuneDrawer({ open, onOpenChange, children, direction = 'bottom',
                     )}
                 >
                     <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-[var(--neon-green)]/20 mb-4 mt-4" />
-                    <div className="flex-1 overflow-auto p-4">
+                    <div className="flex-1 overflow-auto">
                         {children}
                     </div>
                 </Drawer.Content>

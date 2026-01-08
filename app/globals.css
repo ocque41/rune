@@ -98,15 +98,15 @@
 
 [data-theme="light"] {
   /* We are forcing a dark aesthetics for this specific artistic direction, 
-     but keeping light vars just in case, mapped to high contrast */
-  color-scheme: light;
-  --bg: var(--rune-bg);
-  --fg: var(--rune-fg);
-  --title: var(--rune-title);
-  --subtitle: var(--rune-subtitle);
-  --text: var(--rune-text);
-  --muted: var(--rune-muted);
+     but keeping the block for structure if we ever pivot. */
 }
+
+/* Hide React Flow Attribution */
+.react-flow__attribution {
+  display: none !important;
+}
+
+
 
 html,
 body {

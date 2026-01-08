@@ -644,6 +644,7 @@ const FlowBuilderContent = ({
                     fitView
                     className="transition-opacity duration-500" // Smooth load
                     style={{ backgroundColor: 'transparent' }} // Let radial gradient show
+                    proOptions={{ hideAttribution: true }}
                 >
                     <Controls style={{
                         backgroundColor: 'rgba(20, 20, 25, 0.9)',
