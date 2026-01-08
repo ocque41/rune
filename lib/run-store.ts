@@ -28,6 +28,7 @@ export interface WaitingFor {
 export interface WorkflowRun {
     id: string;
     workflowId?: string; // Added optional field
+    workflowVersionId?: string; // Link to specific immutable version
     workflowName: string;
     status: 'pending' | 'running' | 'completed' | 'failed' | 'waiting';
     startTime: string;
@@ -50,6 +51,7 @@ export async function saveRun(run: WorkflowRun): Promise<void> {
     const runData = {
         id: run.id,
         workflow_id: run.workflowId || null,
+        workflow_version_id: run.workflowVersionId || null,
         workflow_name: run.workflowName,
         status: run.status,
         start_time: run.startTime,
@@ -96,6 +98,7 @@ export async function getRun(id: string): Promise<WorkflowRun | null> {
     return {
         id: run.id,
         workflowId: run.workflow_id,
+        workflowVersionId: run.workflow_version_id,
         workflowName: run.workflow_name,
         status: run.status as WorkflowRun['status'],
         startTime: run.start_time,
@@ -130,6 +133,7 @@ export async function listRuns(): Promise<WorkflowRun[]> {
     return (runs || []).map(run => ({
         id: run.id,
         workflowId: run.workflow_id,
+        workflowVersionId: run.workflow_version_id,
         workflowName: run.workflow_name,
         status: run.status as WorkflowRun['status'],
         startTime: run.start_time,
@@ -264,6 +268,7 @@ export async function getWaitingRuns(
     return (runs || []).map(run => ({
         id: run.id,
         workflowId: run.workflow_id,
+        workflowVersionId: run.workflow_version_id,
         workflowName: run.workflow_name,
         status: run.status as WorkflowRun['status'],
         startTime: run.start_time,

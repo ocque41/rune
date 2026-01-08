@@ -23,38 +23,29 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Workflow not found' }, { status: 404 });
         }
 
-        // 2. Fetch latest version number to increment
-        const { data: latestVersionData, error: versionError } = await supabase
-            .from('rune_workflow_versions')
-            .select('version')
-            .eq('workflow_id', workflow_id)
-            .order('version', { ascending: false })
-            .limit(1)
-            .single();
-
-        // If no versions exist, start at 1. If error is "not found" (PGRST116), it means 0 rows, so 1.
-        let nextVersion = 1;
-        if (latestVersionData) {
-            nextVersion = latestVersionData.version + 1;
-        }
-
-        // 3. Create new version
-        const { error: insertError } = await supabase
+        // 2. Insert new version using the current state
+        // Note: Deployment now freezes the *current* state of the workflow
+        const { error: insertError, data: newVersion } = await supabase
             .from('rune_workflow_versions')
             .insert({
                 workflow_id: workflow_id,
-                version: nextVersion,
+                // user_id is handled by RLS or trigger, or we pass it if in admin context. 
+                // Since this is admin client, we might need to pass the user_id from the workflow if RLS isn't auto-setting it.
+                user_id: workflow.user_id,
+                version: (await getNextVersion(supabase, workflow_id)),
                 code: workflow.code,
-                graph_json: workflow.graph_json,
-                created_at: new Date().toISOString()
-            });
+                graph: workflow.graph, // Was graph_json, new schema uses 'graph'
+                deployed_at: new Date().toISOString()
+            })
+            .select()
+            .single();
 
         if (insertError) throw insertError;
 
         return NextResponse.json({
             success: true,
-            version: nextVersion,
-            message: `Deployed version ${nextVersion}`
+            version: newVersion.version,
+            message: `Deployed version ${newVersion.version}`
         });
 
     } catch (error: unknown) {
@@ -64,4 +55,16 @@ export async function POST(req: NextRequest) {
             { status: 500 }
         );
     }
+}
+
+async function getNextVersion(supabase: any, workflowId: string): Promise<number> {
+    const { data: latestVersionData } = await supabase
+        .from('rune_workflow_versions')
+        .select('version')
+        .eq('workflow_id', workflowId)
+        .order('version', { ascending: false })
+        .limit(1)
+        .single();
+
+    return (latestVersionData?.version || 0) + 1;
 }

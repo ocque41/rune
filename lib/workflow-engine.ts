@@ -17,7 +17,8 @@ export class WorkflowEngine {
         private workflowId: string,
         private workflowName: string,
         private nodes: Node[],
-        private edges: Edge[]
+        private edges: Edge[],
+        private workflowVersionId?: string // Added
     ) {
         this.context = {
             runId: crypto.randomUUID(),
@@ -39,6 +40,7 @@ export class WorkflowEngine {
         const run: WorkflowRun = {
             id: this.context.runId,
             workflowId: this.workflowId,
+            workflowVersionId: this.workflowVersionId, // Added
             workflowName: this.workflowName,
             status: 'running',
             startTime,
