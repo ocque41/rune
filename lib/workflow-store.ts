@@ -1,5 +1,4 @@
-import { createAdminClient } from '@/lib/supabase/server';
-// import { Database } from '@/lib/database.types'; 
+import { SupabaseClient } from '@supabase/supabase-js';
 import { Node, Edge } from '@xyflow/react';
 import { LLMConfig } from './types/agent';
 
@@ -15,6 +14,7 @@ export interface WorkflowData {
     code?: string;
     is_active: boolean;
     updated_at: string;
+    version?: number; // Optimistic locking
 }
 
 export interface WorkflowVersion {
@@ -24,6 +24,7 @@ export interface WorkflowVersion {
     graph: any;
     code: string;
     deployed_at: string;
+    commit_message?: string;
 }
 
 /**
@@ -35,8 +36,7 @@ export const workflowStore = {
     /**
      * Get a workflow by ID
      */
-    async getWorkflow(id: string): Promise<WorkflowData | null> {
-        const supabase = createAdminClient();
+    async getWorkflow(supabase: SupabaseClient, id: string): Promise<WorkflowData | null> {
         const { data, error } = await supabase
             .from('rune_workflows')
             .select('*')
@@ -44,33 +44,58 @@ export const workflowStore = {
             .single();
 
         if (error) throw error;
-        return data;
+        if (!data) return null;
+
+        // Map graph_json to graph
+        return {
+            ...data,
+            graph: data.graph_json
+        } as WorkflowData;
     },
 
     /**
      * Save a workflow draft (mutable)
-     * This updates the 'current' state of the workflow without creating a version.
      */
-    async saveDraft(id: string, updates: Partial<WorkflowData>): Promise<void> {
-        const supabase = createAdminClient();
-        const { error } = await supabase
+    async saveDraft(supabase: SupabaseClient, id: string, updates: Partial<WorkflowData>, currentVersion?: number): Promise<void> {
+
+        // Map updates to DB columns
+        const updatePayload: any = { ...updates };
+        if (updates.graph) {
+            updatePayload.graph_json = updates.graph;
+            delete updatePayload.graph;
+        }
+        updatePayload.updated_at = new Date().toISOString();
+
+        let query = supabase
             .from('rune_workflows')
-            .update({
-                ...updates,
-                updated_at: new Date().toISOString()
-            })
+            .update(updatePayload)
             .eq('id', id);
 
+        // Optimistic Locking Check
+        if (currentVersion !== undefined) {
+            updatePayload.version = currentVersion + 1;
+            query = supabase
+                .from('rune_workflows')
+                .update(updatePayload)
+                .eq('id', id)
+                .eq('version', currentVersion);
+        }
+
+        const { error, count, data } = await query.select();
+
         if (error) throw error;
+
+        if (currentVersion !== undefined) {
+            if (!data || data.length === 0) {
+                throw new Error(`Conflict: Workflow has been modified by another process. (ver ${currentVersion})`);
+            }
+        }
     },
 
     /**
      * Deploy a NEW VERSION of the workflow
-     * 1. Fetches the current latest version number
-     * 2. Inserts a new immutable record into rune_workflow_versions
      */
-    async deployVersion(workflowId: string, graph: any, code: string, commitMessage?: string): Promise<WorkflowVersion> {
-        const supabase = createAdminClient();
+    async deployVersion(supabase: SupabaseClient, workflowId: string, graph: any, code: string, commitMessage?: string): Promise<WorkflowVersion> {
 
         // 1. Get current max version
         const { data: maxVerData } = await supabase
@@ -81,33 +106,42 @@ export const workflowStore = {
             .limit(1)
             .single();
 
-        // Handle "no versions exist" case
+        // Handle "no versions exist" case (count on error)
         const nextVersion = (maxVerData?.version || 0) + 1;
 
         // 2. Insert new version
+        const insertPayload = {
+            workflow_id: workflowId,
+            version: nextVersion,
+            graph_json: graph, // Map to DB column
+            code,
+            commit_message: commitMessage,
+            // created_at handled by default
+        };
+
         const { data, error: insertError } = await supabase
             .from('rune_workflow_versions')
-            .insert({
-                workflow_id: workflowId,
-                version: nextVersion,
-                graph,
-                code,
-                deployed_at: new Date().toISOString(),
-                commit_message: commitMessage
-            })
+            .insert(insertPayload)
             .select()
             .single();
 
         if (insertError) throw insertError;
 
-        return data;
+        // Map back to interface
+        return {
+            ...data,
+            graph: data.graph_json,
+            deployed_at: data.created_at
+        } as WorkflowVersion;
     },
 
     /**
      * Get the deployed code for a specific version
      */
-    async getVersionCode(versionId: string): Promise<string | null> {
-        const supabase = createAdminClient();
+    /**
+     * Get the deployed code for a specific version
+     */
+    async getVersionCode(supabase: SupabaseClient, versionId: string): Promise<string | null> {
         const { data, error } = await supabase
             .from('rune_workflow_versions')
             .select('code')
@@ -116,5 +150,17 @@ export const workflowStore = {
 
         if (error) return null;
         return data.code;
+    },
+
+    /**
+     * Delete a workflow
+     */
+    async deleteWorkflow(supabase: SupabaseClient, id: string): Promise<void> {
+        const { error } = await supabase
+            .from('rune_workflows')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
     }
 };

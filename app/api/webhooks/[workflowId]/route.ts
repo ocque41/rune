@@ -66,7 +66,7 @@ async function handleWorkflowTrigger(workflowId: string, payload: any) {
             );
         }
 
-        const graph = latestVersion.graph; // Was graph_json
+        const graph = latestVersion.graph_json; // Was graph_json
         if (!graph || !graph.nodes || !graph.edges) {
             return NextResponse.json(
                 { success: false, error: 'Invalid workflow graph data' },
@@ -85,6 +85,7 @@ async function handleWorkflowTrigger(workflowId: string, payload: any) {
 
         // 3. Initialize Engine
         const engine = new WorkflowEngine(
+            supabase,
             workflowId,
             workflowName,
             graph.nodes,

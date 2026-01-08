@@ -33,17 +33,18 @@ async function executeRunLogic(name: string, args: any) {
         .limit(1)
         .single();
 
-    if (vError || !latestVersion?.graph) {
+    if (vError || !latestVersion?.graph_json) {
         return NextResponse.json(
             { error: 'Workflow has no deployed versions' },
             { status: 404 }
         );
     }
 
-    const graph = latestVersion.graph;
+    const graph = latestVersion.graph_json;
 
     // 3. Execution
     const engine = new WorkflowEngine(
+        supabase,
         workflow.id,
         workflow.name,
         graph.nodes || [],

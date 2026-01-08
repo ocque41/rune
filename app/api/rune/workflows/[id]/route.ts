@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
+import { workflowStore } from '@/lib/workflow-store';
 
 export async function GET(
     req: NextRequest,
@@ -12,24 +13,18 @@ export async function GET(
             return NextResponse.json({ error: 'Missing workflow ID' }, { status: 400 });
         }
 
-        const supabase = createAdminClient();
+        const supabase = createClient();
 
-        const { data, error } = await supabase
-            .from('rune_workflows')
-            .select('*')
-            .eq('id', id)
-            .single();
+        // Use store - handles column mapping and check RLS
+        const workflow = await workflowStore.getWorkflow(supabase, id);
 
-        if (error) {
-            if (error.code === 'PGRST116') {
-                return NextResponse.json({ error: 'Workflow not found' }, { status: 404 });
-            }
-            throw error;
+        if (!workflow) {
+            return NextResponse.json({ error: 'Workflow not found or access denied' }, { status: 404 });
         }
 
-        return NextResponse.json({ workflow: data });
+        return NextResponse.json({ workflow });
 
-    } catch (error: unknown) {
+    } catch (error: any) {
         console.error('Get workflow error:', error);
         return NextResponse.json(
             { error: 'Failed to get workflow' },
@@ -48,18 +43,13 @@ export async function DELETE(
             return NextResponse.json({ error: 'Missing workflow ID' }, { status: 400 });
         }
 
-        const supabase = createAdminClient();
+        const supabase = createClient();
 
-        const { error } = await supabase
-            .from('rune_workflows')
-            .delete()
-            .eq('id', id);
-
-        if (error) throw error;
+        await workflowStore.deleteWorkflow(supabase, id);
 
         return NextResponse.json({ success: true });
 
-    } catch (error: unknown) {
+    } catch (error: any) {
         console.error('Delete workflow error:', error);
         return NextResponse.json(
             { error: 'Failed to delete workflow' },

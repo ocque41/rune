@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import { mcpStore } from '@/lib/mcp-store';
 
 export async function GET() {
     try {
-        const tools = await mcpStore.listAllTools();
+        const supabase = createClient();
+        const tools = await mcpStore.listAllTools(supabase);
 
         // Map to frontend interface
         const mapped = tools.map(t => ({

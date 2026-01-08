@@ -1,5 +1,6 @@
+import { SupabaseClient } from '@supabase/supabase-js';
 import { Node, Edge } from '@xyflow/react';
-import { saveRun, updateRunStatus, updateStepExecution, setRunWaiting, WorkflowRun, StepExecution } from './run-store';
+import { saveRun, updateRunStatus, updateStepExecution, setRunWaiting, WorkflowRun, StepExecution, appendLog } from './run-store';
 
 type ExecutionContext = {
     runId: string;
@@ -14,6 +15,7 @@ export class WorkflowEngine {
     private context: ExecutionContext;
 
     constructor(
+        private supabase: SupabaseClient,
         private workflowId: string,
         private workflowName: string,
         private nodes: Node[],
@@ -49,7 +51,7 @@ export class WorkflowEngine {
             steps: []
         };
 
-        await saveRun(run);
+        await saveRun(this.supabase, run);
 
         try {
             // Find Start Node
@@ -80,8 +82,9 @@ export class WorkflowEngine {
             }
 
             // Completion
-            await updateRunStatus(this.context.runId, 'completed', this.context.inputs); // Save final state as result? Or specific output?
-            // Re-fetch to get final object
+            await updateRunStatus(this.supabase, this.context.runId, 'completed', this.context.inputs);
+
+            // Re-fetch to get final object? Or construct from known state.
             // For now, return what we have (updated locally)
             return {
                 ...run,
@@ -92,7 +95,7 @@ export class WorkflowEngine {
 
         } catch (error: any) {
             console.error('Workflow execution failed:', error);
-            await updateRunStatus(this.context.runId, 'failed', undefined, error.message);
+            await updateRunStatus(this.supabase, this.context.runId, 'failed', undefined, error.message);
             throw error;
         }
     }
@@ -162,7 +165,7 @@ export class WorkflowEngine {
             const durationMs = new Date(endTime).getTime() - new Date(startTime).getTime();
 
             // Record Step Execution
-            await updateStepExecution(this.context.runId, {
+            await updateStepExecution(this.supabase, this.context.runId, {
                 stepId,
                 stepLabel: label as string,
                 status,
@@ -230,24 +233,13 @@ export class WorkflowEngine {
 
     private async executeSendEmail(data: any, input: any) {
         const config = data.emailConfig;
-
-        // Lazy load dependencies
         const { sendEmail } = await import('./email');
         let smtpConfig = undefined;
 
-        // Attempt to fetch SMTP config for the sender
-        // We catch errors here because depending on execution context (cron vs user-triggered),
-        // we might not have access to the DB or Auth context.
+        // Uses this.supabase instead of creating new client
         if (config.sender) {
             try {
-                // Dynamically import to avoid build-time issues if any
-                const { createClient } = await import('@/lib/supabase/server');
-                const supabase = await createClient();
-
-                // Note: RLS policies might hide this row if we are running as a background task (cron) without a user session.
-                // For a robust system, we would need to pass the owner_id or use a signed execution token.
-                // For this MVP, we assume User-triggered runs (Manual/Webhook with context).
-                const { data: senderData } = await supabase
+                const { data: senderData } = await this.supabase
                     .from('verified_senders')
                     .select('smtp_config')
                     .eq('email', config.sender)
@@ -257,7 +249,6 @@ export class WorkflowEngine {
                     smtpConfig = senderData.smtp_config;
                 }
             } catch (err) {
-                // Ignore DB errors, fallback to default sending
                 console.warn('[WorkflowEngine] Could not fetch sender config:', err);
             }
         }
@@ -310,7 +301,7 @@ export class WorkflowEngine {
 
     private async log(level: 'info' | 'warn' | 'error', message: string, data?: any) {
         console.log(`[WorkflowEngine] [${level}] ${message}`, data || '');
-        // In real impl, use appendLog from run-store
-        // await appendLog(this.context.runId, message, level);
+        // Use atomic appendLog
+        await appendLog(this.supabase, this.context.runId, message, level);
     }
 }

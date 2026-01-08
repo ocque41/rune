@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getWaitingRuns, resumeRun, appendLog } from '@/lib/run-store';
 import { processIdempotency } from '@/lib/idempotency';
 
+import { createClient } from '@/lib/supabase/server';
+
 async function performResume(body: any) {
     const { runId, event, data } = body;
 
@@ -19,8 +21,11 @@ async function performResume(body: any) {
         );
     }
 
+    const supabase = createClient();
+
     // Find runs waiting for this event
     const waitingRuns = await getWaitingRuns(
+        supabase,
         event.startsWith('approval-') ? 'approval' : 'event',
         event
     );
@@ -41,13 +46,14 @@ async function performResume(body: any) {
 
     // Log the resume action
     await appendLog(
+        supabase,
         runId,
         `Resuming workflow: event="${event}" data=${JSON.stringify(data)}`,
         'info'
     );
 
     // Clear the waiting state
-    await resumeRun(runId);
+    await resumeRun(supabase, runId);
 
     return NextResponse.json({
         success: true,
@@ -106,14 +112,16 @@ export async function GET(request: NextRequest) {
         const type = searchParams.get('type') as 'event' | 'approval' | null;
         const event = searchParams.get('event') || undefined;
 
+        const supabase = createClient();
+
         let waitingRuns;
 
         if (type) {
-            waitingRuns = await getWaitingRuns(type, event);
+            waitingRuns = await getWaitingRuns(supabase, type, event);
         } else {
             // Get both types
-            const eventRuns = await getWaitingRuns('event', event);
-            const approvalRuns = await getWaitingRuns('approval', event);
+            const eventRuns = await getWaitingRuns(supabase, 'event', event);
+            const approvalRuns = await getWaitingRuns(supabase, 'approval', event);
             waitingRuns = [...eventRuns, ...approvalRuns];
         }
 

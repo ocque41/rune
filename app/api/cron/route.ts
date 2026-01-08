@@ -35,10 +35,10 @@ export async function GET() {
                 .limit(1)
                 .single();
 
-            if (!latestVersion?.graph) continue;
+            if (!latestVersion?.graph_json) continue;
 
-            const nodes = latestVersion.graph.nodes;
-            const edges = latestVersion.graph.edges;
+            const nodes = latestVersion.graph_json.nodes;
+            const edges = latestVersion.graph_json.edges;
 
             if (!Array.isArray(nodes)) continue;
 
@@ -65,21 +65,13 @@ export async function GET() {
 
                     if (diffMs > oneMinuteMs) {
                         // Not due yet (or we missed it by a lot - simplistic check)
-                        // Actually, better logic for "triggering via Vercel Cron" which usually hits every minute:
-                        // If Vercel Cron hits at 12:00:00, and schedule is 12:00, diff is ~0.
-                        // If schedule is 12:00 and we hit at 12:01, diff is 60s.
-                        // So if diff is within reasonably small window (e.g. 70s to account for latency), run it.
-                        // AND we must ensure we haven't already run it? 
-                        // For MVP: Simple "Is it essentially now?" check. 
-                        // But wait, if cron is "Every Friday", prev() will be last Friday. diff will be huge. 
-                        // So we only run if diff is small.
-
                         console.log(`[Cron] Skipping ${wf.name} - Not due. Last due: ${prevDate.toISOString()}`);
                         continue;
                     }
 
                     console.log(`[Cron] Triggering workflow ${wf.name} (${wf.id}) - Due: ${prevDate.toISOString()}`);
                     const engine = new WorkflowEngine(
+                        supabase,
                         wf.id,
                         wf.name || 'Scheduled Workflow',
                         nodes,

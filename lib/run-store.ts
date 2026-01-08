@@ -1,11 +1,284 @@
-import { createAdminClient } from '@/lib/supabase/server';
-import { PostgrestError } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 
-// Types
-export interface RunLog {
-    timestamp: string;
-    level: 'info' | 'warn' | 'error';
-    message: string;
+// ... (Interfaces unchanged)
+
+/**
+ * Save a new run or update an existing one
+ */
+export async function saveRun(supabase: SupabaseClient, run: WorkflowRun): Promise<void> {
+    const runData = {
+        id: run.id,
+        workflow_id: run.workflowId || null,
+        workflow_version_id: run.workflowVersionId || null,
+        workflow_name: run.workflowName,
+        status: run.status,
+        start_time: run.startTime,
+        end_time: run.endTime,
+        duration: run.duration,
+        args: run.args,
+        result: run.result,
+        error: run.error,
+        logs: run.logs,
+        steps: run.steps,
+        waiting_for: run.waitingFor,
+    };
+
+    const { error } = await supabase
+        .from('rune_workflow_runs')
+        .upsert(runData);
+
+    if (error) {
+        console.error('Error saving run to Supabase:', error);
+        throw error;
+    }
+}
+
+/**
+ * Get a specific run by ID
+ */
+export async function getRun(supabase: SupabaseClient, id: string): Promise<WorkflowRun | null> {
+    const { data: run, error } = await supabase
+        .from('rune_workflow_runs')
+        .select(`
+            *,
+            steps:rune_run_steps(*)
+        `)
+        .eq('id', id)
+        .single();
+
+    if (error) {
+        console.error('Error fetching run from Supabase:', error);
+        return null;
+    }
+
+    if (!run) return null;
+
+    return {
+        id: run.id,
+        workflowId: run.workflow_id,
+        workflowVersionId: run.workflow_version_id,
+        workflowName: run.workflow_name,
+        status: run.status as WorkflowRun['status'],
+        startTime: run.start_time,
+        endTime: run.end_time,
+        duration: run.duration,
+        args: run.args as any[],
+        result: run.result,
+        error: run.error,
+        logs: (run.logs as unknown as RunLog[]) || [],
+        steps: ((run.steps as unknown as any[]) || []).map(s => ({
+            ...s,
+            startTime: s.start_time,
+            endTime: s.end_time,
+            durationMs: s.duration_ms,
+            stepId: s.step_id,
+            stepLabel: s.step_label,
+            result: s.output
+        })).sort((a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()),
+        waitingFor: run.waiting_for as unknown as WaitingFor | undefined
+    };
+}
+
+/**
+ * List all runs
+ */
+export async function listRuns(supabase: SupabaseClient): Promise<WorkflowRun[]> {
+    const { data: runs, error } = await supabase
+        .from('rune_workflow_runs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+    if (error) {
+        console.error('Error listing runs from Supabase:', error);
+        return [];
+    }
+
+    return (runs || []).map(run => ({
+        id: run.id,
+        workflowId: run.workflow_id,
+        workflowVersionId: run.workflow_version_id,
+        workflowName: run.workflow_name,
+        status: run.status as WorkflowRun['status'],
+        startTime: run.start_time,
+        endTime: run.end_time,
+        duration: run.duration,
+        args: run.args as any[],
+        result: run.result,
+        error: run.error,
+        logs: [], // Omit logs in list
+        steps: [], // Omit steps in list
+        waitingFor: run.waiting_for as unknown as WaitingFor | undefined
+    }));
+}
+
+/**
+ * Append a log entry to a run (Atomic)
+ */
+export async function appendLog(supabase: SupabaseClient, runId: string, message: string, level: 'info' | 'warn' | 'error' = 'info'): Promise<void> {
+    const logEntry = {
+        timestamp: new Date().toISOString(),
+        level,
+        message
+    };
+
+    const { error } = await supabase.rpc('record_run_progress', {
+        p_run_id: runId,
+        p_step_data: null,
+        p_log_entry: [logEntry],
+        p_run_updates: null
+    });
+
+    if (error) throw error;
+}
+
+/**
+ * Update run status (Atomic)
+ */
+export async function updateRunStatus(
+    supabase: SupabaseClient,
+    runId: string,
+    status: WorkflowRun['status'],
+    result?: any,
+    error?: string // error message
+): Promise<void> {
+
+    // Construct updates object
+    const updates: any = { status };
+    if (result !== undefined) updates.result = result;
+    if (error !== undefined) updates.error = error;
+    if (status === 'completed' || status === 'failed') {
+        updates.endTime = new Date().toISOString();
+    }
+
+    const { error: rpcError } = await supabase.rpc('record_run_progress', {
+        p_run_id: runId,
+        p_step_data: null,
+        p_log_entry: null,
+        p_run_updates: updates
+    });
+
+    if (rpcError) throw rpcError;
+}
+
+/**
+ * Update or add a step execution record (Atomic)
+ */
+export async function updateStepExecution(
+    supabase: SupabaseClient,
+    runId: string,
+    stepExecution: StepExecution
+): Promise<void> {
+    await recordRunProgress(supabase, runId, stepExecution);
+}
+
+/**
+ * Record atomic run progress using RPC
+ */
+export async function recordRunProgress(
+    supabase: SupabaseClient,
+    runId: string,
+    stepExecution: StepExecution,
+    logEntry?: RunLog,
+    runUpdates?: Partial<WorkflowRun>
+): Promise<void> {
+
+    const stepPayload = {
+        ...stepExecution,
+        result: stepExecution.result,
+        error: stepExecution.error
+    };
+
+    const { error } = await supabase.rpc('record_run_progress', {
+        p_run_id: runId,
+        p_step_data: stepPayload,
+        p_log_entry: logEntry ? [logEntry] : null,
+        p_run_updates: runUpdates || null
+    });
+
+    if (error) throw error;
+}
+
+/**
+ * Mark a run as waiting for an event or approval
+ */
+export async function setRunWaiting(
+    supabase: SupabaseClient,
+    runId: string,
+    waitingFor: WaitingFor
+): Promise<void> {
+    const { error } = await supabase
+        .from('rune_workflow_runs')
+        .update({
+            status: 'waiting',
+            waiting_for: waitingFor
+        })
+        .eq('id', runId);
+
+    if (error) throw error;
+}
+
+/**
+ * Resume a waiting run (clear the waiting state)
+ */
+export async function resumeRun(supabase: SupabaseClient, runId: string): Promise<void> {
+    const { error } = await supabase
+        .from('rune_workflow_runs')
+        .update({
+            status: 'running',
+            waiting_for: null
+        })
+        .eq('id', runId);
+
+    if (error) throw error;
+}
+
+/**
+ * Get runs that are waiting for a specific event or approval
+ */
+export async function getWaitingRuns(
+    supabase: SupabaseClient,
+    type: 'event' | 'approval',
+    identifier?: string
+): Promise<WorkflowRun[]> {
+
+    let query = supabase
+        .from('rune_workflow_runs')
+        .select('*')
+        .eq('status', 'waiting')
+        .eq('waiting_for->>type', type);
+
+    if (identifier) {
+        query = query.eq('waiting_for->>identifier', identifier);
+    }
+
+    const { data: runs, error } = await query;
+
+    if (error) {
+        console.error('Error fetching waiting runs:', error);
+        return [];
+    }
+
+    return (runs || []).map(run => ({
+        id: run.id,
+        workflowId: run.workflow_id,
+        workflowVersionId: run.workflow_version_id,
+        workflowName: run.workflow_name,
+        status: run.status as WorkflowRun['status'],
+        startTime: run.start_time,
+        endTime: run.end_time,
+        duration: run.duration,
+        args: run.args as any[],
+        result: run.result,
+        error: run.error,
+        logs: (run.logs as unknown as RunLog[]) || [],
+        steps: (run.steps as unknown as StepExecution[]) || [],
+        waitingFor: run.waiting_for as unknown as WaitingFor | undefined
+    }));
+}
+timestamp: string;
+level: 'info' | 'warn' | 'error';
+message: string;
 }
 
 export interface StepExecution {
@@ -43,39 +316,48 @@ export interface WorkflowRun {
 }
 
 /**
- * Save a new run or update an existing one
+ * Purge completed runs older than the specified age.
  */
-export async function saveRun(run: WorkflowRun): Promise<void> {
-    const supabase = createAdminClient();
+export async function purgeOldRuns(supabase: SupabaseClient, maxAgeMs: number = 7 * 24 * 60 * 60 * 1000): Promise<number> {
+    const cutoffDate = new Date(Date.now() - maxAgeMs).toISOString();
 
-    const runData = {
-        id: run.id,
-        workflow_id: run.workflowId || null,
-        workflow_version_id: run.workflowVersionId || null,
-        workflow_name: run.workflowName,
-        status: run.status,
-        start_time: run.startTime,
-        end_time: run.endTime,
-        duration: run.duration,
-        args: run.args,
-        result: run.result,
-        error: run.error,
-        logs: run.logs,
-        steps: run.steps,
-        waiting_for: run.waitingFor,
-        // user_id will default to 0000... if not provided by RLS or default
-    };
-
-    const { error } = await supabase
+    const { error, count } = await supabase
         .from('rune_workflow_runs')
-        .upsert(runData);
+        .delete({ count: 'exact' })
+        .in('status', ['completed', 'failed'])
+        .lt('created_at', cutoffDate);
 
     if (error) {
-        console.error('Error saving run to Supabase:', error);
-        throw error;
+        console.error('Error purging old runs:', error);
+        return 0;
     }
+
+    if (count && count > 0) {
+        console.log(`[Run Store] Purged ${count} old runs`);
+    }
+
+    return count || 0;
 }
 
+/**
+ * Clear all completed/failed runs.
+ */
+export async function clearCompletedRuns(supabase: SupabaseClient): Promise<number> {
+    const { error, count } = await supabase
+        .from('rune_workflow_runs')
+        .delete({ count: 'exact' })
+        .in('status', ['completed', 'failed']);
+
+    if (error) {
+        console.error('Error clearing completed runs:', error);
+        return 0;
+    }
+
+    return count || 0;
+}
+/**
+ * Get a specific run by ID
+ */
 /**
  * Get a specific run by ID
  */
@@ -84,7 +366,10 @@ export async function getRun(id: string): Promise<WorkflowRun | null> {
 
     const { data: run, error } = await supabase
         .from('rune_workflow_runs')
-        .select('*')
+        .select(`
+            *,
+            steps:rune_run_steps(*)
+        `)
         .eq('id', id)
         .single();
 
@@ -108,7 +393,17 @@ export async function getRun(id: string): Promise<WorkflowRun | null> {
         result: run.result,
         error: run.error,
         logs: (run.logs as unknown as RunLog[]) || [],
-        steps: (run.steps as unknown as StepExecution[]) || [],
+        // Use the relation data. Sort by start_time?
+        steps: ((run.steps as unknown as any[]) || []).map(s => ({
+            ...s,
+            startTime: s.start_time,
+            endTime: s.end_time,
+            durationMs: s.duration_ms,
+            stepId: s.step_id,
+            stepLabel: s.step_label,
+            // input/output? table has 'output' column, interface has 'result'
+            result: s.output
+        })).sort((a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()),
         waitingFor: run.waiting_for as unknown as WaitingFor | undefined
     };
 }
@@ -119,6 +414,9 @@ export async function getRun(id: string): Promise<WorkflowRun | null> {
 export async function listRuns(): Promise<WorkflowRun[]> {
     const supabase = createAdminClient();
 
+    // Listing usually doesn't need full steps history to be lightweight?
+    // User interface might expand. I'll omit steps for list to avoid massive payload.
+    // Or fetch lightweight?
     const { data: runs, error } = await supabase
         .from('rune_workflow_runs')
         .select('*')
@@ -142,76 +440,125 @@ export async function listRuns(): Promise<WorkflowRun[]> {
         args: run.args as any[],
         result: run.result,
         error: run.error,
-        logs: (run.logs as unknown as RunLog[]) || [],
-        steps: (run.steps as unknown as StepExecution[]) || [],
+        logs: [], // Omit logs in list
+        steps: [], // Omit steps in list
         waitingFor: run.waiting_for as unknown as WaitingFor | undefined
     }));
 }
 
 /**
- * Append a log entry to a run
+ * Record atomic run progress using RPC
  */
-export async function appendLog(runId: string, message: string, level: 'info' | 'warn' | 'error' = 'info'): Promise<void> {
-    const run = await getRun(runId);
-    if (run) {
-        run.logs.push({
-            timestamp: new Date().toISOString(),
-            level,
-            message
-        });
-        await saveRun(run);
-    }
+export async function recordRunProgress(
+    runId: string,
+    stepExecution: StepExecution,
+    logEntry?: RunLog,
+    runUpdates?: Partial<WorkflowRun>
+): Promise<void> {
+    const supabase = createAdminClient();
+
+    // Map TS StepExecution to DB fields used in RPC
+    // RPC expects: { stepId, stepLabel, status, startTime, endTime, durationMs, result, error }
+    const stepPayload = {
+        ...stepExecution,
+        result: stepExecution.result, // Will be mapped to 'output' in RPC
+        error: stepExecution.error // jsonb or text, RPC handles
+    };
+
+    const { error } = await supabase.rpc('record_run_progress', {
+        p_run_id: runId,
+        p_step_data: stepPayload,
+        p_log_entry: logEntry ? [logEntry] : null, // logs is array
+        p_run_updates: runUpdates || null
+    });
+
+    if (error) throw error;
 }
 
 /**
- * Update run status
+ * Append a log entry to a run
+ */
+/**
+ * Append a log entry to a run (Atomic)
+ */
+export async function appendLog(runId: string, message: string, level: 'info' | 'warn' | 'error' = 'info'): Promise<void> {
+    const supabase = createAdminClient();
+    const logEntry = {
+        timestamp: new Date().toISOString(),
+        level,
+        message
+    };
+
+    const { error } = await supabase.rpc('record_run_progress', {
+        p_run_id: runId,
+        p_step_data: null,
+        p_log_entry: [logEntry],
+        p_run_updates: null
+    });
+
+    if (error) throw error;
+}
+
+/**
+ * Update run status (Atomic)
  */
 export async function updateRunStatus(
     runId: string,
     status: WorkflowRun['status'],
     result?: any,
-    error?: string
+    error?: string // error message
 ): Promise<void> {
-    const run = await getRun(runId);
-    if (run) {
-        run.status = status;
-        if (status === 'completed' || status === 'failed') {
-            run.endTime = new Date().toISOString();
-            if (run.startTime) {
-                run.duration = new Date(run.endTime).getTime() - new Date(run.startTime).getTime();
-            }
-        }
-        if (result !== undefined) run.result = result;
-        if (error !== undefined) run.error = error;
+    const supabase = createAdminClient();
 
-        await saveRun(run);
+    // Construct updates object
+    const updates: any = { status };
+    if (result !== undefined) updates.result = result;
+    if (error !== undefined) updates.error = error;
+    if (status === 'completed' || status === 'failed') {
+        updates.endTime = new Date().toISOString();
+        // duration handled in SQL or here? SQL handles it if we pass duration.
+        // We'd need start time to calc duration.
+        // For simplicity, let SQL handle timestamps if we wanted, but our SQL handles `end_time` logic.
+        // But `duration` calc needs start_time.
+        // Current SQL: duration = CASE WHEN p_run_updates->>'duration' ...
+        // So we should calculate it here.
+        // But we don't have start_time here without fetching run.
+        // So `updateRunStatus` in this new model *should* update end_time, but duration?
+        // We can fetch run first, or use SQL to calc (end - start).
+        // My SQL migration didn't include `duration = NOW() - start_time`.
+        // I'll fetch run first? That defeats atomicity if I read then write.
+        // But status update is usually end of run.
+        // I'll skip duration calc optimization for now or fetch.
+        // Actually, preventing last-write-wins on *status* is handled by RPC.
     }
+
+    // Refetch to get startTime if needed for duration?
+    // Or just let UI calc duration from start/end.
+    // I'll pass updates as is.
+
+    const { error: rpcError } = await supabase.rpc('record_run_progress', {
+        p_run_id: runId,
+        p_step_data: null,
+        p_log_entry: null,
+        p_run_updates: updates
+    });
+
+    if (rpcError) throw rpcError;
 }
 
 /**
- * Update or add a step execution record
+ * Update or add a step execution record (Atomic)
  */
 export async function updateStepExecution(
     runId: string,
     stepExecution: StepExecution
 ): Promise<void> {
-    const run = await getRun(runId);
-    if (run) {
-        if (!run.steps) {
-            run.steps = [];
-        }
-
-        const existingIndex = run.steps.findIndex(s => s.stepId === stepExecution.stepId);
-        if (existingIndex >= 0) {
-            run.steps[existingIndex] = stepExecution;
-        } else {
-            run.steps.push(stepExecution);
-        }
-
-        await saveRun(run);
-    }
+    await recordRunProgress(runId, stepExecution);
 }
 
+/**
+ * Mark a run as waiting for an event or approval
+ */
 /**
  * Mark a run as waiting for an event or approval
  */
@@ -219,34 +566,47 @@ export async function setRunWaiting(
     runId: string,
     waitingFor: WaitingFor
 ): Promise<void> {
-    const run = await getRun(runId);
-    if (run) {
-        run.status = 'waiting';
-        run.waitingFor = waitingFor;
-        await saveRun(run);
-    }
+    const supabase = createAdminClient();
+
+    const { error } = await supabase
+        .from('rune_workflow_runs')
+        .update({
+            status: 'waiting',
+            waiting_for: waitingFor
+        })
+        .eq('id', runId);
+
+    if (error) throw error;
 }
 
 /**
  * Resume a waiting run (clear the waiting state)
  */
 export async function resumeRun(runId: string): Promise<void> {
-    const run = await getRun(runId);
-    if (run && run.status === 'waiting') {
-        run.status = 'running';
-        run.waitingFor = undefined;
-        await saveRun(run);
-    }
+    const supabase = createAdminClient();
+
+    const { error } = await supabase
+        .from('rune_workflow_runs')
+        .update({
+            status: 'running',
+            waiting_for: null
+        })
+        .eq('id', runId);
+
+    if (error) throw error;
 }
 
 /**
  * Get runs that are waiting for a specific event or approval
  */
+/**
+ * Get runs that are waiting for a specific event or approval
+ */
 export async function getWaitingRuns(
+    supabase: SupabaseClient,
     type: 'event' | 'approval',
     identifier?: string
 ): Promise<WorkflowRun[]> {
-    const supabase = createAdminClient();
 
     let query = supabase
         .from('rune_workflow_runs')
@@ -286,8 +646,7 @@ export async function getWaitingRuns(
 /**
  * Purge completed runs older than the specified age.
  */
-export async function purgeOldRuns(maxAgeMs: number = 7 * 24 * 60 * 60 * 1000): Promise<number> {
-    const supabase = createAdminClient();
+export async function purgeOldRuns(supabase: SupabaseClient, maxAgeMs: number = 7 * 24 * 60 * 60 * 1000): Promise<number> {
     const cutoffDate = new Date(Date.now() - maxAgeMs).toISOString();
 
     const { error, count } = await supabase
@@ -311,8 +670,7 @@ export async function purgeOldRuns(maxAgeMs: number = 7 * 24 * 60 * 60 * 1000): 
 /**
  * Clear all completed/failed runs.
  */
-export async function clearCompletedRuns(): Promise<number> {
-    const supabase = createAdminClient();
+export async function clearCompletedRuns(supabase: SupabaseClient): Promise<number> {
 
     const { error, count } = await supabase
         .from('rune_workflow_runs')
