@@ -13,7 +13,7 @@ export async function GET(
             return NextResponse.json({ error: 'Missing workflow ID' }, { status: 400 });
         }
 
-        const supabase = createClient();
+        const supabase = await createClient();
 
         // Use store - handles column mapping and check RLS
         const workflow = await workflowStore.getWorkflow(supabase, id);
@@ -43,7 +43,7 @@ export async function DELETE(
             return NextResponse.json({ error: 'Missing workflow ID' }, { status: 400 });
         }
 
-        const supabase = createClient();
+        const supabase = await createClient();
 
         await workflowStore.deleteWorkflow(supabase, id);
 

@@ -21,7 +21,7 @@ async function performResume(body: any) {
         );
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Find runs waiting for this event
     const waitingRuns = await getWaitingRuns(
@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
         const type = searchParams.get('type') as 'event' | 'approval' | null;
         const event = searchParams.get('event') || undefined;
 
-        const supabase = createClient();
+        const supabase = await createClient();
 
         let waitingRuns;
 

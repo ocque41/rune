@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Missing workflow_id' }, { status: 400 });
         }
 
-        const supabase = createClient();
+        const supabase = await createClient();
 
         // 1. Fetch current workflow state (RLS secured)
         // If user doesn't own it, this returns null/error usually (or empty data if RLS filters).

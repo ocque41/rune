@@ -4,7 +4,7 @@ import { mcpStore } from '@/lib/mcp-store';
 
 export async function GET() {
     try {
-        const supabase = createClient();
+        const supabase = await createClient();
         const tools = await mcpStore.listAllTools(supabase);
 
         // Map to frontend interface
