@@ -37,7 +37,6 @@ export function Playground({ onSubmit, onSave }: PlaygroundProps) {
 
     // Config mappings
     const handleTempChange = (vals: number[]) => updateConfig({ temperature: vals[0] });
-    const handleMaxLengthChange = (vals: number[]) => updateConfig({ maxLength: vals[0] });
     const handleTopPChange = (vals: number[]) => updateConfig({ topP: vals[0] });
 
     // Streaming simulation helper
@@ -241,7 +240,7 @@ export function Playground({ onSubmit, onSave }: PlaygroundProps) {
                                     </div>
 
                                     <div className="flex items-center gap-4 text-[10px] text-muted-foreground/50 font-mono">
-                                        <span className={input.length > (config.maxLength || 256) * 4 ? "text-red-400" : ""}>
+                                        <span>
                                             {input.length} chars
                                         </span>
                                         <div className="h-3 w-px bg-white/10" />
@@ -304,15 +303,7 @@ export function Playground({ onSubmit, onSave }: PlaygroundProps) {
                                     <Label htmlFor="stream-mode" className="text-xs font-medium text-foreground/80">Stream Response</Label>
                                     <Switch id="stream-mode" checked={true} className="scale-75 data-[state=checked]:bg-primary" />
                                 </div>
-                                <div className="flex items-center justify-between space-x-2">
-                                    <Label htmlFor="json-mode" className="text-xs font-medium text-foreground/80">JSON Mode</Label>
-                                    <Switch
-                                        id="json-mode"
-                                        checked={config.responseFormat === 'json'}
-                                        onCheckedChange={(checked) => updateConfig({ responseFormat: checked ? 'json' : 'text' })}
-                                        className="scale-75 data-[state=checked]:bg-primary"
-                                    />
-                                </div>
+
 
                                 {/* Temperature Slider */}
                                 <div className="space-y-3">
@@ -329,20 +320,7 @@ export function Playground({ onSubmit, onSave }: PlaygroundProps) {
                                     />
                                 </div>
 
-                                {/* Max Length Slider */}
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <div className="text-xs font-medium text-foreground/80">Max Length</div>
-                                        <span className="text-[10px] font-mono text-muted-foreground w-10 text-right bg-muted/30 rounded px-1">{config.maxLength || 256}</span>
-                                    </div>
-                                    <Slider
-                                        value={[config.maxLength || 256]}
-                                        onValueChange={handleMaxLengthChange}
-                                        max={4000}
-                                        step={1}
-                                        className="py-1"
-                                    />
-                                </div>
+
 
                                 {/* Top P Slider */}
                                 <div className="space-y-3">
