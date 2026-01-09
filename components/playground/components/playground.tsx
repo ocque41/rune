@@ -15,7 +15,7 @@ import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { History, MoreHorizontal, Code2, Save, Settings2, PlayCircle, Copy, Check } from "lucide-react"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { useAgentStore } from "../store"
 import { cn } from "@/lib/utils"
 
@@ -35,21 +35,11 @@ export function Playground({ onSubmit, onSave }: PlaygroundProps) {
     const [copied, setCopied] = useState(false);
     const [saved, setSaved] = useState(false);
 
-    // Config mappings
     const handleTempChange = (vals: number[]) => updateConfig({ temperature: vals[0] });
     const handleMaxLengthChange = (vals: number[]) => updateConfig({ maxLength: vals[0] });
     const handleTopPChange = (vals: number[]) => updateConfig({ topP: vals[0] });
     const handleFreqPenaltyChange = (vals: number[]) => updateConfig({ frequencyPenalty: vals[0] });
     const handlePresPenaltyChange = (vals: number[]) => updateConfig({ presencePenalty: vals[0] });
-
-    // Streaming simulation helper
-    const simulateStreaming = useCallback(async (text: string) => {
-        setOutput("");
-        for (let i = 0; i < text.length; i++) {
-            await new Promise(r => setTimeout(r, 15 + Math.random() * 25));
-            setOutput(prev => prev + text[i]);
-        }
-    }, []);
 
     const handleSubmit = async () => {
         if (isGenerating) {
@@ -62,17 +52,38 @@ export function Playground({ onSubmit, onSave }: PlaygroundProps) {
         setOutput("");
 
         try {
-            if (onSubmit) {
-                await onSubmit(input);
-            } else {
-                // Mock streaming generation
-                const mockResponse = "This is a simulated response from the LLM. The Shimmering Juno interface provides a premium, glassmorphic experience for AI interactions. Configure your model settings in the sidebar and watch the magic happen.";
-                await simulateStreaming(mockResponse);
+            const response = await fetch('/api/agent/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ input, config }),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to generate');
             }
+
+            // Stream the response
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder();
+
+            if (!reader) {
+                throw new Error('No response stream');
+            }
+
+            while (true) {
+                const { done, value } = await reader.read();
+
+                if (done) break;
+
+                const text = decoder.decode(value, { stream: true });
+                setOutput(prev => prev + text);
+            }
+
+            setIsGenerating(false);
         } catch (error) {
             console.error("Generation failed:", error);
-            setOutput("[Error generating response]");
-        } finally {
+            setOutput(`[Error: ${error instanceof Error ? error.message : 'Failed to generate response'}]`);
             setIsGenerating(false);
         }
     };
@@ -124,7 +135,7 @@ export function Playground({ onSubmit, onSave }: PlaygroundProps) {
                             <SelectTrigger className="w-[160px] h-8 text-xs bg-white/[0.03] border-white/[0.08] focus:ring-0 shadow-none hover:bg-white/[0.06] transition-colors text-white/70">
                                 <SelectValue placeholder="Load a preset..." />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="bg-[#0A0A0A] border-white/[0.08]">
                                 <SelectItem value="preset1">Grammar correction</SelectItem>
                                 <SelectItem value="preset2">Summarize for a 2nd grader</SelectItem>
                             </SelectContent>
@@ -262,7 +273,7 @@ export function Playground({ onSubmit, onSave }: PlaygroundProps) {
                                     <SelectTrigger className="bg-white/[0.03] border-white/[0.08] h-9 text-xs text-white/80">
                                         <SelectValue placeholder="Select model" />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="bg-[#0A0A0A] border-white/[0.08]">
                                         <SelectItem value="gpt-4">gpt-4</SelectItem>
                                         <SelectItem value="gpt-4-turbo">gpt-4-turbo</SelectItem>
                                         <SelectItem value="claude-3-5-sonnet-20240620">claude-3.5-sonnet</SelectItem>
