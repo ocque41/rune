@@ -3,6 +3,10 @@ export interface LLMConfig {
     temperature: number;
     systemPrompt: string;
     topP?: number;
+    maxLength?: number;
+    responseFormat?: 'text' | 'json';
+    frequencyPenalty?: number;
+    presencePenalty?: number;
     tools?: string[];
 }
 

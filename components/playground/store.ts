@@ -13,6 +13,11 @@ const defaultConfig: LLMConfig = {
     model: 'gpt-4-turbo',
     temperature: 0.7,
     systemPrompt: '',
+    topP: 0.9,
+    maxLength: 256,
+    responseFormat: 'text',
+    frequencyPenalty: 0,
+    presencePenalty: 0,
     tools: []
 };
 
