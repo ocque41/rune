@@ -5,6 +5,7 @@ export const runtime = 'edge';
 
 interface GenerateRequest {
     input: string;
+    workflowId?: string | null;
     config: {
         model: string;
         temperature: number;
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json() as GenerateRequest;
-        const { input, config } = body;
+        const { input, config, workflowId } = body;
 
         if (!input || !config?.model) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -52,10 +53,20 @@ export async function POST(req: NextRequest) {
             }, { status: 500 });
         }
 
-        // Build messages
+        // Build workflow context
+        let workflowContext = '';
+        if (workflowId) {
+            workflowContext = await buildWorkflowContext(supabase, workflowId, user.id);
+        }
+
+        // Build messages with workflow context injected
         const messages = [];
-        if (config.systemPrompt) {
-            messages.push({ role: 'system', content: config.systemPrompt });
+        const systemPromptWithContext = workflowContext
+            ? `${workflowContext}\n\n## User's Additional Instructions\n${config.systemPrompt || 'None provided.'}`
+            : config.systemPrompt;
+
+        if (systemPromptWithContext) {
+            messages.push({ role: 'system', content: systemPromptWithContext });
         }
         messages.push({ role: 'user', content: input });
 
@@ -73,6 +84,77 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
             error: error instanceof Error ? error.message : 'Internal server error'
         }, { status: 500 });
+    }
+}
+
+async function buildWorkflowContext(supabase: any, workflowId: string, userId: string): Promise<string> {
+    try {
+        // Fetch workflow
+        const { data: workflow, error: workflowError } = await supabase
+            .from('rune_workflows')
+            .select('name, description, graph_json')
+            .eq('id', workflowId)
+            .single();
+
+        if (workflowError || !workflow) {
+            return '';
+        }
+
+        // Parse graph to extract node info
+        const graph = workflow.graph_json || {};
+        const nodes = (graph.nodes || []) as Array<{ id: string; type: string; data?: { label?: string; stepType?: string } }>;
+        const edges = (graph.edges || []) as Array<{ source: string; target: string }>;
+
+        // Fetch recent runs
+        const { data: runs } = await supabase
+            .from('rune_runs')
+            .select('id, status, created_at, completed_at')
+            .eq('workflow_id', workflowId)
+            .order('created_at', { ascending: false })
+            .limit(5);
+
+        // Build context string
+        let context = `You are an AI assistant helping with a workflow automation system called Rune.
+
+## Current Workflow: "${workflow.name}"
+${workflow.description || 'No description provided.'}
+
+### Workflow Structure
+This workflow has ${nodes.length} nodes and ${edges.length} connections.
+
+**Nodes:**
+${nodes.map((n, i) => `${i + 1}. [${n.type}] ${n.data?.label || n.id}`).join('\n')}
+
+**Flow:**
+${edges.map(e => {
+            const sourceNode = nodes.find(n => n.id === e.source);
+            const targetNode = nodes.find(n => n.id === e.target);
+            return `• ${sourceNode?.data?.label || e.source} → ${targetNode?.data?.label || e.target}`;
+        }).join('\n')}
+`;
+
+        if (runs && runs.length > 0) {
+            context += `
+### Recent Run History (Last ${runs.length} runs)
+${runs.map((r: any) => {
+                const status = r.status || 'unknown';
+                const date = new Date(r.created_at).toLocaleString();
+                return `• ${status.toUpperCase()} - ${date}`;
+            }).join('\n')}
+`;
+        } else {
+            context += `\n### Run History\nNo runs recorded yet.\n`;
+        }
+
+        context += `
+### Your Role
+Help the user understand, debug, improve, or interact with this workflow. Answer questions about what it does, suggest improvements, explain node behaviors, or help troubleshoot issues.
+`;
+
+        return context;
+    } catch (err) {
+        console.error('Failed to build workflow context:', err);
+        return '';
     }
 }
 

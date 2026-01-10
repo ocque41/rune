@@ -20,11 +20,12 @@ import { useAgentStore } from "../store"
 import { cn } from "@/lib/utils"
 
 interface PlaygroundProps {
+    workflowId?: string | null;
     onSubmit?: (input: string) => Promise<void>;
     onSave?: () => void;
 }
 
-export function Playground({ onSubmit, onSave }: PlaygroundProps) {
+export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
     // Store State
     const { config, updateConfig } = useAgentStore();
 
@@ -55,7 +56,7 @@ export function Playground({ onSubmit, onSave }: PlaygroundProps) {
             const response = await fetch('/api/agent/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ input, config }),
+                body: JSON.stringify({ input, config, workflowId }),
             });
 
             if (!response.ok) {

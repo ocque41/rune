@@ -53,7 +53,7 @@ export function AutoPilotContainer({ onMcpConfigure, workflowId }: AutoPilotCont
 
     return (
         <div className="w-full h-full">
-            <Playground />
+            <Playground workflowId={workflowId} />
         </div>
     );
 }
