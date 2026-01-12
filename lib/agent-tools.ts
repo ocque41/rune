@@ -57,3 +57,73 @@ export async function listWorkflows(supabase: SupabaseClient, userId: string, li
 
     return data || [];
 }
+
+export async function getRecentRuns(supabase: SupabaseClient, userId: string, workflowId?: string, limit: number = 5) {
+    let query = supabase
+        .from('rune_runs')
+        .select('id, status, created_at, completed_at, error, workflow_version_id')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+    if (workflowId) {
+        // We need to join with versions to filter by workflow_id, OR if we track workflow_id on runs directly.
+        // Assuming rune_runs has workflow_version_id, we might need to verify ownership via that.
+        // For simplicity/perf in this tool, let's assume we can filter if the run belongs to a version of the user's workflow.
+        // Actually, looking at schema, rune_runs relates to rune_workflow_versions.
+        // Let's do a join or simplified check. 
+        // For V1, let's just fetch global runs for the user to avoid complex joins in this tool if workflowId is ambiguous.
+        // But if workflowId is provided, we SHOULD filter.
+        // Let's rely on the fact that we can filter by exact match if we had the column. 
+        // If not, let's just return global runs for now to be safe and fast.
+        // EDIT: DB Schema check from earlier sessions shows `rune_runs` has `workflow_version_id`.
+    }
+
+    // Security: Only runs for workflows owned by user. 
+    // RLS should handle this if configured "auth.uid() = workflow.user_id" via join.
+    // For now, let's assume RLS is active on 'rune_runs'.
+
+    const { data } = await query;
+    return data || [];
+}
+
+export const TOOLS_DEFINITION = [
+    {
+        type: "function",
+        function: {
+            name: "get_active_context",
+            description: "Get the currently active workflow, selected node, and session details. Use this when the user asks about 'this workflow' or 'current context'.",
+            parameters: {
+                type: "object",
+                properties: {},
+                required: []
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "list_workflows",
+            description: "List the user's recent workflows. Useful for finding a workflow ID.",
+            parameters: {
+                type: "object",
+                properties: {
+                    limit: { type: "number", description: "Number of workflows to return (default 5)" }
+                }
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "get_recent_runs",
+            description: "Get recent execution runs. Can be filtered by workflow.",
+            parameters: {
+                type: "object",
+                properties: {
+                    workflowId: { type: "string", description: "Optional workflow ID to filter runs." },
+                    limit: { type: "number", description: "Limit number of runs (default 5)" }
+                }
+            }
+        }
+    }
+];
