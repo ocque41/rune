@@ -28,6 +28,11 @@ export interface AgentContext {
             edges: Array<{ source: string; target: string }>;
         };
     };
+    recentWorkflows?: Array<{
+        id: string;
+        name: string;
+        updatedAt: string;
+    }>;
     recentRuns: Array<{
         id: string;
         status: string;
@@ -60,13 +65,17 @@ export async function buildAgentContext(
         .limit(1)
         .single();
 
-    const workflowId = overrideWorkflowId || session?.active_workflow_id;
     const runId = session?.active_run_id;
+
+    // Debug ID for tracing
+    const traceId = `ctx_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    console.log(`[AgentContext:${traceId}] Building context for user ${userId}, workflow ${workflowId || 'none'}`);
+    const start = performance.now();
 
     // 3. Fetch Workflow Context (if active)
     let workflowData = undefined;
     if (workflowId) {
-        workflowData = await getWorkflowData(supabase, workflowId);
+        workflowData = await getWorkflowData(supabase, workflowId, traceId);
     }
 
     // 4. Fetch Recent Runs (scoped to workflow if active, otherwise global recent)
@@ -76,6 +85,11 @@ export async function buildAgentContext(
     } else {
         recentRuns = await getRecentRuns(supabase, userId);
     }
+
+    // 5. Fetch Recent Workflows
+    const recentWorkflows = await getRecentWorkflows(supabase, userId);
+
+    console.log(`[AgentContext:${traceId}] Completed in ${(performance.now() - start).toFixed(2)}ms. Workflow: ${!!workflowData}, Runs: ${recentRuns.length}, Saved Flows: ${recentWorkflows.length}`);
 
     return {
         user: {
@@ -91,11 +105,27 @@ export async function buildAgentContext(
             nodeId: selectedNodeId
         },
         workflow: workflowData,
+        recentWorkflows: recentWorkflows,
         recentRuns
     };
 }
 
-async function getWorkflowData(supabase: SupabaseClient, workflowId: string) {
+async function getRecentWorkflows(supabase: SupabaseClient, userId: string) {
+    const { data } = await supabase
+        .from('rune_workflows')
+        .select('id, name, updated_at')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false })
+        .limit(5);
+
+    return (data || []).map((w: any) => ({
+        id: w.id,
+        name: w.name,
+        updatedAt: w.updated_at
+    }));
+}
+
+async function getWorkflowData(supabase: SupabaseClient, workflowId: string, traceId?: string) {
     // Determine which version/draft to show? 
     // For now, show the "main" workflow metadata + drafts if we had logic to merge.
     // The user wants "active draft" context. 

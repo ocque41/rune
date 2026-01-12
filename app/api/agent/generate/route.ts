@@ -125,6 +125,14 @@ function formatContextToString(ctx: any): string {
         });
     }
 
+    // Recent Workflows
+    if (ctx.recentWorkflows && ctx.recentWorkflows.length > 0) {
+        s += `\n## Saved Workflows (Recent)\n`;
+        ctx.recentWorkflows.forEach((w: any) => {
+            s += `• ${w.name} (ID: ${w.id}) - Updated: ${new Date(w.updatedAt).toLocaleDateString()}\n`;
+        });
+    }
+
     // Recent Runs
     if (ctx.recentRuns.length > 0) {
         s += `\n## Recent Runs\n`;
@@ -205,6 +213,9 @@ async function streamOpenAI(apiKey: string, config: any, messages: any[]) {
 
 async function streamAnthropic(apiKey: string, config: any, messages: any[]) {
     // ... (same as before)
+    const systemMessage = messages.find(m => m.role === 'system');
+    const systemPrompt = systemMessage ? systemMessage.content : config.systemPrompt;
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -215,7 +226,7 @@ async function streamAnthropic(apiKey: string, config: any, messages: any[]) {
         body: JSON.stringify({
             model: config.model,
             messages: messages.filter(m => m.role !== 'system'),
-            system: config.systemPrompt || undefined,
+            system: systemPrompt || undefined,
             max_tokens: config.maxLength || 1000,
             temperature: config.temperature,
             top_p: config.topP || 1,
