@@ -71,7 +71,6 @@ export async function buildAgentContext(
     const traceId = `ctx_${Date.now()}_${Math.random().toString(36).substring(7)}`;
     const workflowId = overrideWorkflowId || session?.active_workflow_id;
 
-    console.log(`[AgentContext:${traceId}] Building context for user ${userId}, workflow ${workflowId || 'none'}`);
     const start = performance.now();
 
     // 3. Fetch Workflow Context (if active)
@@ -90,8 +89,6 @@ export async function buildAgentContext(
 
     // 5. Fetch Recent Workflows
     const recentWorkflows = await getRecentWorkflows(supabase, userId);
-
-    console.log(`[AgentContext:${traceId}] Completed in ${(performance.now() - start).toFixed(2)}ms. Workflow: ${!!workflowData}, Runs: ${recentRuns.length}, Saved Flows: ${recentWorkflows.length}`);
 
     return {
         user: {
