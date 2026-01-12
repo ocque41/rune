@@ -3,8 +3,9 @@ import { createClient } from '@/lib/supabase/server';
 
 export const runtime = 'edge';
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
     try {
+        const params = await props.params;
         const supabase = await createClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 

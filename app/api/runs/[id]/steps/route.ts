@@ -3,8 +3,9 @@ import { createClient } from '@/lib/supabase/server';
 
 export const runtime = 'edge';
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
     try {
+        const params = await props.params;
         const supabase = await createClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -37,9 +38,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             console.error('Fetch Steps Error:', stepsError);
             throw stepsError;
         }
-
-        // Formatted Output (cleaning json fields if needed)
-        // ...
 
         return NextResponse.json({ steps: steps || [] });
 
