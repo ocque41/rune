@@ -91,7 +91,8 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
     try {
-        const supabase = createAdminClient();
+        // Use authenticated client to respect RLS
+        const supabase = await createClient();
 
         // Optional: filter by user_id if we want to add that logic later
         const { data, error } = await supabase
