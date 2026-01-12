@@ -69,6 +69,8 @@ export async function buildAgentContext(
 
     // Debug ID for tracing
     const traceId = `ctx_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const workflowId = overrideWorkflowId || session?.active_workflow_id;
+
     console.log(`[AgentContext:${traceId}] Building context for user ${userId}, workflow ${workflowId || 'none'}`);
     const start = performance.now();
 
