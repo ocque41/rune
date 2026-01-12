@@ -90,9 +90,14 @@ export async function POST(req: NextRequest) {
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+    let userId = 'unknown';
     try {
         // Use authenticated client to respect RLS
         const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) userId = user.id;
+
+        console.log(`[WorkflowList] Fetching for user: ${userId}`);
 
         // Optional: filter by user_id if we want to add that logic later
         const { data, error } = await supabase
@@ -102,10 +107,12 @@ export async function GET(req: NextRequest) {
 
         if (error) throw error;
 
+        console.log(`[WorkflowList] Success. Found ${data?.length || 0} workflows for user ${userId}`);
+
         return NextResponse.json({ workflows: data });
 
     } catch (error: unknown) {
-        console.error('List cloud workflows error:', error);
+        console.error(`[WorkflowList] Error for user ${userId}:`, error);
         return NextResponse.json(
             { error: 'Failed to list cloud workflows' },
             { status: 500 }
