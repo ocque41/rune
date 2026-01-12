@@ -245,32 +245,41 @@ async function streamOpenAI(apiKey: string, config: any, messages: any[], supaba
     // If we want server-side tools with streaming visibility:
     // 1. Receive chunks.
     // 2. If `tool_calls` appearing, buffer them. DO NOT stream to user yet (or stream a "Thinking..." status).
-    // 3. Once tool call complete, execute on server.
-    // 4. Send tool result to OpenAI.
-    // 5. Get final stream and pipe TO user.
-
-    // This is complex for a single `NextResponse`.
-    // Let's implement the simpler "Non-streaming Tool Round" followed by "Streaming Response" approach.
-    // We'll effectively verify if we should just do a non-streaming check first?
-    // No, that delays Time-To-First-Byte (TTFB).
-
-    // Current Decision:
-    // Since `getActiveContext` is injected, tool usage handles *exceptions*.
-    // We will implement `streamOpenAI` to just pass through for now, but configured with tools.
-    // If a tool call happens, we will see it in the chunks.
-    // Handling it properly requires a specialized loop which is non-trivial to patch into this existing function without a rewrite.
-
-    // REWRITE: We will buffer the FIRST response. If it's a tool call, we handle it and stream the SECOND response. 
-    // If it's content, we stream it immediately.
-
     return handleOpenAIToolLoop(apiKey, requestBody, supabase, userId);
 }
 
+// Helper to separate SSE stream parsing from main logic
+function createTextStream(upstream: ReadableStream) {
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    const transformer = new TransformStream({
+        async transform(chunk, controller) {
+            buffer += decoder.decode(chunk, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+                const trimmed = line.trim();
+                // Parse the native OpenAI format (data: {...}) and extract simple text
+                if (trimmed.startsWith('data: ')) {
+                    const data = trimmed.slice(6);
+                    if (data === '[DONE]') continue;
+                    try {
+                        const json = JSON.parse(data);
+                        const content = json.choices?.[0]?.delta?.content;
+                        if (content) controller.enqueue(encoder.encode(content));
+                    } catch (e) { }
+                }
+            }
+        }
+    });
+
+    return upstream.pipeThrough(transformer);
+}
+
 async function handleOpenAIToolLoop(apiKey: string, initialBody: any, supabase: any, userId: string): Promise<NextResponse> {
-    // 1. First call - try non-streaming to check for tools (fast check)
-    // Or just stream and buffer? Buffering is safer for TTFB if content.
-    // Let's use non-streaming for the *decision* to ensure we catch the tool call.
-    // It adds ~500ms latency but ensures robustness.
+    // 1. First call - non-streaming to check for tools (fast check)
     const decisionBody = { ...initialBody, stream: false };
 
     const decisionReq = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -280,23 +289,26 @@ async function handleOpenAIToolLoop(apiKey: string, initialBody: any, supabase: 
     });
 
     const decision = await decisionReq.json();
-
-    if (decision.error) {
-        throw new Error(decision.error.message);
-    }
+    if (decision.error) throw new Error(decision.error.message);
 
     const choice = decision.choices?.[0];
     const message = choice?.message;
 
-    // 2. If Tool Call
+    // 2. If Tool Call -> Execute -> Stream Final Response
     if (message?.tool_calls && message.tool_calls.length > 0) {
         const toolCall = message.tool_calls[0];
-        const args = JSON.parse(toolCall.function.arguments);
 
-        // Execute Tool
-        const toolResult = await executeToolCall(supabase, userId, toolCall.function.name, args);
+        // Notify user we are running a tool (optional: could stream a "Checking..." message here if we had a complex UI)
+        // For now, simple text stream of the *result* generation.
 
-        // 3. Recursive Call with Result (Streaming this time)
+        let toolResult;
+        try {
+            const args = JSON.parse(toolCall.function.arguments);
+            toolResult = await executeToolCall(supabase, userId, toolCall.function.name, args);
+        } catch (e) {
+            toolResult = { error: 'Failed to parse arguments' };
+        }
+
         const nextMessages = [
             ...initialBody.messages,
             message,
@@ -307,40 +319,31 @@ async function handleOpenAIToolLoop(apiKey: string, initialBody: any, supabase: 
             }
         ];
 
+        // Final call with streaming
         const finalBody = { ...initialBody, messages: nextMessages, stream: true };
-
         const finalReq = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
             body: JSON.stringify(finalBody)
         });
 
-        // Return the simple stream
-        return new NextResponse(finalReq.body, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+        // Pipe through the text transformer so client gets raw text, not SSE JSON
+        const cleanStream = createTextStream(finalReq.body as ReadableStream);
+        return new NextResponse(cleanStream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
     }
 
-    // 3. If No Tool Call -> Just return the text content
-    // Since we already have the full text from the non-streaming call, we can just return it.
-    // But the client expects a stream. We should emulate a stream or just return json?
-    // Client `useChat` usually handles both but our `Playground` expects a stream.
-    // We can manually stream the text we already have.
-
+    // 3. No Tool Call -> Return the content we already got
+    // (Emulate a stream for the client)
     const content = message?.content || "";
     const encoder = new TextEncoder();
-    const stream = new ReadableStream({
+    const simpleStream = new ReadableStream({
         start(controller) {
-            // Emulate OpenAI stream format
-            const chunk = {
-                id: decision.id,
-                choices: [{ delta: { content }, finish_reason: null }]
-            };
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
-            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+            if (content) controller.enqueue(encoder.encode(content));
             controller.close();
         }
     });
 
-    return new NextResponse(stream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    return new NextResponse(simpleStream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
 }
 
 async function streamAnthropic(apiKey: string, config: any, messages: any[]) {
