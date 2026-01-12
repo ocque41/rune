@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { buildAgentContext } from '@/lib/agent-context';
 
 export const runtime = 'edge';
 
@@ -53,25 +54,24 @@ export async function POST(req: NextRequest) {
             }, { status: 500 });
         }
 
-        let workflowContext = '';
-        if (workflowId) {
-            workflowContext = await buildWorkflowContext(supabase, workflowId, user.id);
-            console.log(`[Generate API] WorkflowID: ${workflowId}, Context Length: ${workflowContext.length}`);
-            if (workflowContext.length === 0) {
-                console.warn('[Generate API] Workflow context is empty despite ID provided');
+        // --- Build Context ---
+        let systemPromptWithContext = config.systemPrompt;
+
+        try {
+            const contextData = await buildAgentContext(supabase, user.id, workflowId || undefined);
+
+            if (contextData) {
+                const contextString = formatContextToString(contextData);
+                systemPromptWithContext = `${contextString}\n\n## User's Instructions\n${config.systemPrompt || 'None.'}`;
+                console.log(`[Generate API] Context injected. Length: ${contextString.length}`);
             }
-        } else {
-            console.log('[Generate API] No WorkflowID provided');
+        } catch (ctxError) {
+            console.error('[Generate API] Failed to build agent context:', ctxError);
+            // Fallback to original prompt if context fails
         }
 
-        // Build messages with workflow context injected
+        // Build messages
         const messages = [];
-        const systemPromptWithContext = workflowContext
-            ? `${workflowContext}\n\n## User's Additional Instructions\n${config.systemPrompt || 'None provided.'}`
-            : config.systemPrompt;
-
-        console.log('[Generate API] Final System Prompt Length:', systemPromptWithContext?.length || 0);
-
         if (systemPromptWithContext) {
             messages.push({ role: 'system', content: systemPromptWithContext });
         }
@@ -94,152 +94,46 @@ export async function POST(req: NextRequest) {
     }
 }
 
-async function buildWorkflowContext(supabase: any, workflowId: string, userId: string): Promise<string> {
-    try {
-        // Fetch user profile
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', userId)
-            .single();
+function formatContextToString(ctx: any): string {
+    let s = `You are an AI assistant helping with the Rune automation platform.\n\n`;
 
-        // Fetch workflow
-        const { data: workflow, error: workflowError } = await supabase
-            .from('rune_workflows')
-            .select('name, description, graph_json')
-            .eq('id', workflowId)
-            .single();
+    // User
+    s += `## User Context\n`;
+    s += `Name: ${ctx.user.name}\nEmail: ${ctx.user.email}\nPlan: ${ctx.user.tier}\n`;
 
-        if (workflowError || !workflow) {
-            console.error('[Generate API] Workflow fetch error:', workflowError);
-            return '';
-        }
-
-        // Parse graph to extract node info
-        const graph = workflow.graph_json || {};
-        const nodes = (graph.nodes || []) as Array<{
-            id: string;
-            type: string;
-            data?: {
-                label?: string;
-                stepType?: string;
-                description?: string;
-                [key: string]: any;
-            }
-        }>;
-        const edges = (graph.edges || []) as Array<{ source: string; target: string }>;
-
-        // Fetch recent runs for history
-        const { data: recentRuns } = await supabase
-            .from('rune_runs')
-            .select('id, status, created_at, completed_at, error_message')
-            .eq('workflow_id', workflowId)
-            .order('created_at', { ascending: false })
-            .limit(10);
-
-        // Fetch stats (simplified via 2 queries for performance vs complex aggregation)
-        // 1. Total runs in last 7 days
-        const { count: totalRuns } = await supabase
-            .from('rune_runs')
-            .select('*', { count: 'exact', head: true })
-            .eq('workflow_id', workflowId)
-            .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
-
-        // 2. Completed runs for success rate & timing
-        const { data: completedRuns } = await supabase
-            .from('rune_runs')
-            .select('created_at, completed_at')
-            .eq('workflow_id', workflowId)
-            .eq('status', 'completed')
-            .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
-
-        let successRate = 'N/A';
-        let avgDuration = 'N/A';
-        const total = totalRuns || 0;
-
-        if (total > 0 && completedRuns) {
-            successRate = `${Math.round((completedRuns.length / total) * 100)}%`;
-
-            const durations = completedRuns
-                .map((r: any) => {
-                    const start = new Date(r.created_at).getTime();
-                    const end = new Date(r.completed_at).getTime();
-                    return end - start;
-                })
-                .filter((d: number) => !isNaN(d) && d > 0);
-
-            if (durations.length > 0) {
-                const avg = durations.reduce((a: number, b: number) => a + b, 0) / durations.length;
-                avgDuration = `${(avg / 1000).toFixed(2)}s`;
-            }
-        }
-
-        // Build context string
-        let context = `You are an AI assistant helping with a workflow automation system called Rune.
-        
-## User Context
-You are talking to ${profile?.full_name || 'a user'} (${profile?.email || 'Unknown Email'}).
-Plan Tier: ${profile?.tier || 'Free'}
-Subscription Status: ${profile?.subscription_status || 'Unknown'}
-
-## Current Workflow: "${workflow.name}"
-${workflow.description || 'No description provided.'}
-
-### Analytics (Last 7 Days)
-- **Success Rate**: ${successRate}
-- **Avg Duration**: ${avgDuration}
-- **Total Runs**: ${total}
-
-### Workflow Structure
-This workflow has ${nodes.length} nodes and ${edges.length} connections.
-
-**Nodes Configuration:**
-${nodes.map((n, i) => {
-            let details = '';
-            const d = n.data || {};
-            // Extract key configuration details based on node type
-            if (d.scriptConfig) details = ` - Script: ${d.scriptConfig.code?.substring(0, 50)}...`;
-            else if (d.emailConfig) details = ` - Email to: ${d.emailConfig.recipient}, Subject: ${d.emailConfig.subject}`;
-            else if (d.httpRequest) details = ` - ${d.httpRequest.method} ${d.httpRequest.url}`;
-            else if (d.slackConfig) details = ` - Slack message to webhook`;
-            else if (d.condition) details = ` - Condition: ${d.condition}`;
-
-            return `${i + 1}. [${n.type}] **${d.label || n.id}**${d.description ? ` - ${d.description}` : ''}${details}`;
-        }).join('\n')}
-
-**Flow Graph:**
-${edges.map(e => {
-            const sourceNode = nodes.find(n => n.id === e.source);
-            const targetNode = nodes.find(n => n.id === e.target);
-            return `• ${sourceNode?.data?.label || e.source} → ${targetNode?.data?.label || e.target}`;
-        }).join('\n')}
-`;
-
-        if (recentRuns && recentRuns.length > 0) {
-            context += `
-### Recent Run History (Last ${recentRuns.length})
-${recentRuns.map((r: any) => {
-                const status = r.status || 'unknown';
-                const date = new Date(r.created_at).toLocaleString();
-                const duration = r.completed_at ? `${((new Date(r.completed_at).getTime() - new Date(r.created_at).getTime()) / 1000).toFixed(1)}s` : '...';
-                return `• [${status.toUpperCase()}] ${date} (${duration})${r.error_message ? ` - Error: ${r.error_message}` : ''}`;
-            }).join('\n')}
-`;
-        } else {
-            context += `\n### Run History\nNo runs recorded yet.\n`;
-        }
-
-        context += `
-### Your Role
-Help the user understand, debug, improve, or interact with this workflow. Answer questions about what it does, suggest improvements, explain node behaviors, or help troubleshoot issues.
-You have access to the live configuration and run history above. Use it to provide specific, evidence-based answers.
-`;
-
-        return context;
-    } catch (err) {
-        console.error('Failed to build workflow context:', err);
-        return '';
+    // Active
+    if (ctx.active.workflowId) {
+        s += `\n## Active Context\n`;
+        s += `Currently working on Workflow ID: ${ctx.active.workflowId}\n`;
+        if (ctx.active.nodeId) s += `Selected Node: ${ctx.active.nodeId}\n`;
     }
+
+    // Workflow
+    if (ctx.workflow) {
+        s += `\n## Workflow: "${ctx.workflow.name}"\n`;
+        if (ctx.workflow.description) s += `${ctx.workflow.description}\n`;
+        s += `Stats (7d): Success ${ctx.workflow.stats.successRate}, Avg ${ctx.workflow.stats.avgDuration}, Total ${ctx.workflow.stats.totalRuns}\n`;
+
+        s += `\n### Structure\n`;
+        s += `Nodes (${ctx.workflow.structure.nodes.length}):\n`;
+        ctx.workflow.structure.nodes.forEach((n: any, i: number) => {
+            s += `${i + 1}. [${n.type}] ${n.label} (${n.id})${n.description ? ` - ${n.description}` : ''}\n`;
+        });
+        s += `\nEdges (${ctx.workflow.structure.edges.length}):\n`;
+        ctx.workflow.structure.edges.forEach((e: any) => {
+            s += `• ${e.source} -> ${e.target}\n`;
+        });
+    }
+
+    // Recent Runs
+    if (ctx.recentRuns.length > 0) {
+        s += `\n## Recent Runs\n`;
+        ctx.recentRuns.forEach((r: any) => {
+            s += `• [${r.status.toUpperCase()}] ${new Date(r.startedAt).toLocaleString()} (${r.duration}) ${r.error ? `Error: ${r.error}` : ''}\n`;
+        });
+    }
+
+    return s;
 }
 
 function getProvider(model: string): 'openai' | 'anthropic' | null {
@@ -280,7 +174,6 @@ async function streamOpenAI(apiKey: string, config: any, messages: any[]) {
         throw new Error(error.error?.message || 'OpenAI API error');
     }
 
-    // Create a TransformStream to convert OpenAI SSE to our format
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -289,44 +182,29 @@ async function streamOpenAI(apiKey: string, config: any, messages: any[]) {
         async transform(chunk, controller) {
             buffer += decoder.decode(chunk, { stream: true });
             const lines = buffer.split('\n');
-
-            // Keep the last incomplete line in the buffer
             buffer = lines.pop() || '';
-
             for (const line of lines) {
-                const trimmedLine = line.trim();
-                if (trimmedLine.startsWith('data: ')) {
-                    const data = trimmedLine.slice(6);
-
-                    if (data === '[DONE]') {
-                        continue;
-                    }
-
+                const trimmed = line.trim();
+                if (trimmed.startsWith('data: ')) {
+                    const data = trimmed.slice(6);
+                    if (data === '[DONE]') continue;
                     try {
                         const json = JSON.parse(data);
                         const content = json.choices?.[0]?.delta?.content;
-
-                        if (content) {
-                            controller.enqueue(encoder.encode(content));
-                        }
-                    } catch (e) {
-                        // Skip invalid JSON
-                    }
+                        if (content) controller.enqueue(encoder.encode(content));
+                    } catch (e) { }
                 }
             }
         }
     });
 
     return new NextResponse(response.body?.pipeThrough(stream), {
-        headers: {
-            'Content-Type': 'text/plain; charset=utf-8',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-        },
+        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' },
     });
 }
 
 async function streamAnthropic(apiKey: string, config: any, messages: any[]) {
+    // ... (same as before)
     const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -350,7 +228,6 @@ async function streamAnthropic(apiKey: string, config: any, messages: any[]) {
         throw new Error(error.error?.message || 'Anthropic API error');
     }
 
-    // Create a TransformStream to convert Anthropic SSE to our format
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -359,37 +236,24 @@ async function streamAnthropic(apiKey: string, config: any, messages: any[]) {
         async transform(chunk, controller) {
             buffer += decoder.decode(chunk, { stream: true });
             const lines = buffer.split('\n');
-
-            // Keep the last incomplete line in the buffer
             buffer = lines.pop() || '';
-
             for (const line of lines) {
-                const trimmedLine = line.trim();
-                if (trimmedLine.startsWith('data: ')) {
-                    const data = trimmedLine.slice(6);
-
+                const trimmed = line.trim();
+                if (trimmed.startsWith('data: ')) {
+                    const data = trimmed.slice(6);
                     try {
                         const json = JSON.parse(data);
-
                         if (json.type === 'content_block_delta') {
                             const content = json.delta?.text;
-                            if (content) {
-                                controller.enqueue(encoder.encode(content));
-                            }
+                            if (content) controller.enqueue(encoder.encode(content));
                         }
-                    } catch (e) {
-                        // Skip invalid JSON
-                    }
+                    } catch (e) { }
                 }
             }
         }
     });
 
     return new NextResponse(response.body?.pipeThrough(stream), {
-        headers: {
-            'Content-Type': 'text/plain; charset=utf-8',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-        },
+        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' },
     });
 }
