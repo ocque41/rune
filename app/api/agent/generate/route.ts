@@ -96,6 +96,13 @@ export async function POST(req: NextRequest) {
 
 async function buildWorkflowContext(supabase: any, workflowId: string, userId: string): Promise<string> {
     try {
+        // Fetch user profile
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .single();
+
         // Fetch workflow
         const { data: workflow, error: workflowError } = await supabase
             .from('rune_workflows')
@@ -169,6 +176,11 @@ async function buildWorkflowContext(supabase: any, workflowId: string, userId: s
 
         // Build context string
         let context = `You are an AI assistant helping with a workflow automation system called Rune.
+        
+## User Context
+You are talking to ${profile?.full_name || 'a user'} (${profile?.email || 'Unknown Email'}).
+Plan Tier: ${profile?.tier || 'Free'}
+Subscription Status: ${profile?.subscription_status || 'Unknown'}
 
 ## Current Workflow: "${workflow.name}"
 ${workflow.description || 'No description provided.'}
@@ -271,15 +283,20 @@ async function streamOpenAI(apiKey: string, config: any, messages: any[]) {
     // Create a TransformStream to convert OpenAI SSE to our format
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
+    let buffer = '';
 
     const stream = new TransformStream({
         async transform(chunk, controller) {
-            const text = decoder.decode(chunk);
-            const lines = text.split('\n').filter(line => line.trim() !== '');
+            buffer += decoder.decode(chunk, { stream: true });
+            const lines = buffer.split('\n');
+
+            // Keep the last incomplete line in the buffer
+            buffer = lines.pop() || '';
 
             for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const data = line.slice(6);
+                const trimmedLine = line.trim();
+                if (trimmedLine.startsWith('data: ')) {
+                    const data = trimmedLine.slice(6);
 
                     if (data === '[DONE]') {
                         continue;
@@ -336,15 +353,20 @@ async function streamAnthropic(apiKey: string, config: any, messages: any[]) {
     // Create a TransformStream to convert Anthropic SSE to our format
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
+    let buffer = '';
 
     const stream = new TransformStream({
         async transform(chunk, controller) {
-            const text = decoder.decode(chunk);
-            const lines = text.split('\n').filter(line => line.trim() !== '');
+            buffer += decoder.decode(chunk, { stream: true });
+            const lines = buffer.split('\n');
+
+            // Keep the last incomplete line in the buffer
+            buffer = lines.pop() || '';
 
             for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const data = line.slice(6);
+                const trimmedLine = line.trim();
+                if (trimmedLine.startsWith('data: ')) {
+                    const data = trimmedLine.slice(6);
 
                     try {
                         const json = JSON.parse(data);
