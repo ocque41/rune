@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 
 export async function POST(req: NextRequest) {
     try {
+        // Authenticate user
+        const authClient = await createClient();
+        const { data: { user } } = await authClient.auth.getUser();
+
+        // Use Admin client for the write to ensure no RLS blocking on creation if policies are strict,
+        // but WE MUST USE THE AUTHENTICATED USER ID for ownership.
         const supabase = createAdminClient();
+
         const body = await req.json();
         const { id, name, description, graph, code, user_id } = body;
 
@@ -15,18 +22,11 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // In a real generic app, we'd probably want to authenticate the user securely,
-        // but per instructions we are accepting a user_id or falling back.
-        // Ideally we would get the user from the session if using Supabase Auth.
-        // For now we'll allow passing user_id or default to a dummy one if not testing auth.
-        // But we should use the one from request if provided.
+        // Use authenticated user ID if available, otherwise fallback (development/admin mode)
+        const finalUserId = user?.id || user_id || '00000000-0000-0000-0000-000000000000';
 
         // Hardcode product_id for 'rune' as per instructions verify slug='rune' 
         // or we can query it. For performance we might hardcode or query once.
-        // Let's query it to be safe or assuming the user provided context is correct.
-        // However, the instructions check: "Look up or hardcode the product_id for the rune product"
-        // We'll try to find it first.
-
         const { data: productData, error: productError } = await supabase
             .from('ecosystem_products')
             .select('id')
@@ -47,9 +47,7 @@ export async function POST(req: NextRequest) {
             graph_json: graph,
             code,
             product_id,
-            // If user_id is provided use it, otherwise we might need a fallback or fail.
-            // Assuming the client will send the user_id if known, or we can use a "dev" user.
-            user_id: user_id || '00000000-0000-0000-0000-000000000000',
+            user_id: finalUserId,
             updated_at: new Date().toISOString()
         };
 
