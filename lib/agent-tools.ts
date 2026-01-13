@@ -189,13 +189,33 @@ export async function runNode(supabase: SupabaseClient, userId: string, nodeIden
     const nodes = graph.nodes || [];
 
     // 3. Find the node by ID or label (case-insensitive)
-    const node = nodes.find((n: any) =>
-        n.id === nodeIdentifier ||
-        n.data?.label?.toLowerCase() === nodeIdentifier.toLowerCase()
-    );
+    // First try exact ID match
+    let node = nodes.find((n: any) => n.id === nodeIdentifier);
 
     if (!node) {
-        const availableNodes = nodes.map((n: any) => n.data?.label || n.id).join(', ');
+        // Then try label match
+        const matchingNodes = nodes.filter((n: any) =>
+            n.data?.label?.toLowerCase() === nodeIdentifier.toLowerCase()
+        );
+
+        if (matchingNodes.length > 1) {
+            // Multiple nodes with same label - list them for disambiguation
+            const nodeList = matchingNodes.map((n: any, i: number) =>
+                `- Node ID "${n.id}": ${n.data?.description || n.data?.label || 'No description'}`
+            ).join('\n');
+
+            return {
+                success: false,
+                error: `Multiple nodes named "${nodeIdentifier}" found. Please specify by node ID:\n${nodeList}`,
+                hint: "Use the node ID (e.g., 'run node 7') to run a specific one."
+            };
+        }
+
+        node = matchingNodes[0];
+    }
+
+    if (!node) {
+        const availableNodes = nodes.map((n: any) => `${n.data?.label || 'Unknown'} (id: ${n.id})`).join(', ');
         return {
             success: false,
             error: `Node "${nodeIdentifier}" not found. Available nodes: ${availableNodes}`
