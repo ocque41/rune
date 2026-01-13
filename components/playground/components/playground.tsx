@@ -288,12 +288,54 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                             {/* System Instructions */}
                             <div className="space-y-3">
                                 <Label className="text-xs font-medium text-white/70">System Instructions</Label>
-                                <Textarea
-                                    value={config.systemPrompt}
-                                    onChange={(e) => updateConfig({ systemPrompt: e.target.value })}
-                                    className="h-24 resize-none text-[11px] leading-relaxed bg-white/[0.03] border-white/[0.08] focus-visible:ring-1 focus-visible:ring-white/[0.12] min-h-[100px] text-white/80"
-                                    placeholder="You are a helpful assistant..."
+                                className="h-24 resize-none text-[11px] leading-relaxed bg-white/[0.03] border-white/[0.08] focus-visible:ring-1 focus-visible:ring-white/[0.12] min-h-[100px] text-white/80"
+                                placeholder="You are a helpful assistant..."
                                 />
+                            </div>
+
+                            <Separator className="bg-border/60" />
+
+                            {/* Active Tools */}
+                            <div className="space-y-3">
+                                <Label className="text-xs font-medium text-white/70">Active Tools</Label>
+                                <div className="space-y-2">
+                                    {[
+                                        { id: 'get_active_context', label: 'Read Context', desc: 'Active workflow state' },
+                                        { id: 'list_workflows', label: 'List Workflows', desc: 'Saved workflows' },
+                                        { id: 'get_recent_runs', label: 'Recent Runs', desc: 'Execution history' }
+                                    ].map(tool => {
+                                        const isChecked = config.tools?.includes(tool.id);
+                                        return (
+                                            <div
+                                                key={tool.id}
+                                                onClick={() => {
+                                                    const current = config.tools || [];
+                                                    const next = isChecked
+                                                        ? current.filter(t => t !== tool.id)
+                                                        : [...current, tool.id];
+                                                    updateConfig({ tools: next });
+                                                }}
+                                                className={cn(
+                                                    "flex items-center justify-between p-2 rounded-md border text-xs cursor-pointer transition-all",
+                                                    isChecked
+                                                        ? "bg-white/[0.08] border-white/[0.2] text-white"
+                                                        : "bg-transparent border-white/[0.06] text-white/50 hover:bg-white/[0.03]"
+                                                )}
+                                            >
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium">{tool.label}</span>
+                                                    <span className="text-[10px] opacity-70">{tool.desc}</span>
+                                                </div>
+                                                <div className={cn(
+                                                    "h-4 w-4 rounded border flex items-center justify-center transition-colors",
+                                                    isChecked ? "bg-white text-black border-white" : "border-white/20"
+                                                )}>
+                                                    {isChecked && <Check className="h-3 w-3" />}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
 
                             <Separator className="bg-border/60" />

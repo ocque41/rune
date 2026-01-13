@@ -178,7 +178,9 @@ async function executeToolCall(supabase: any, userId: string, toolName: string, 
 }
 
 async function streamOpenAI(apiKey: string, config: any, messages: any[], supabase: any, userId: string) {
-    const tools = TOOLS_DEFINITION;
+    // Filter tools based on user config
+    const allowedTools = config.tools || [];
+    const tools = TOOLS_DEFINITION.filter(t => allowedTools.includes(t.function.name));
 
     const requestBody: any = {
         model: config.model,
@@ -186,9 +188,13 @@ async function streamOpenAI(apiKey: string, config: any, messages: any[], supaba
         temperature: config.temperature,
         max_tokens: config.maxLength || 1000,
         stream: true, // We start with streaming
-        tools,
-        tool_choice: "auto"
     };
+
+    // Only add tools if there are any enabled
+    if (tools.length > 0) {
+        requestBody.tools = tools;
+        requestBody.tool_choice = "auto";
+    }
 
     if (config.responseFormat === 'json') {
         requestBody.response_format = { type: 'json_object' };
