@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { buildAgentContext } from '@/lib/agent-context';
 import { TOOLS_DEFINITION, getActiveContext, listWorkflows, getRecentRuns, runWorkflow, runNode } from '@/lib/agent-tools';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 interface GenerateRequest {
     input: string;

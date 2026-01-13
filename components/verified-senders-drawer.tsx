@@ -180,7 +180,10 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                 </div>
 
                 {/* Scrollable Content */}
-                <div className="flex-1 overflow-y-auto p-6 pt-4">
+                <div
+                    className="flex-1 overflow-y-auto p-6 pt-4"
+                    onWheelCapture={(e) => e.stopPropagation()}
+                >
 
                     {view === 'list' && (
                         <div className="space-y-4">
@@ -217,8 +220,11 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                                             <div className="flex items-center gap-2">
                                                 {(s.status === 'verified' || s.status === 'connected') && <ShieldCheck size={16} className={s.status === 'connected' ? "text-blue-400" : "text-green-400"} />}
                                                 <button
-                                                    onClick={() => handleDelete(s.id, s.email)}
-                                                    className="p-1.5 text-white/20 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDelete(s.id, s.email);
+                                                    }}
+                                                    className="p-1.5 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"
                                                     title="Delete sender"
                                                 >
                                                     <Trash2 size={14} />
