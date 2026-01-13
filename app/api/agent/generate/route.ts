@@ -302,27 +302,28 @@ async function handleOpenAIToolLoop(apiKey: string, initialBody: any, supabase: 
 
     // 2. If Tool Call -> Execute -> Stream Final Response
     if (message?.tool_calls && message.tool_calls.length > 0) {
-        const toolCall = message.tool_calls[0];
 
-        // Notify user we are running a tool (optional: could stream a "Checking..." message here if we had a complex UI)
-        // For now, simple text stream of the *result* generation.
+        // Execute ALL requested tools in parallel
+        const toolResults = await Promise.all(message.tool_calls.map(async (toolCall: any) => {
+            let result;
+            try {
+                const args = JSON.parse(toolCall.function.arguments);
+                result = await executeToolCall(supabase, userId, toolCall.function.name, args);
+            } catch (e) {
+                result = { error: 'Failed to parse arguments' };
+            }
 
-        let toolResult;
-        try {
-            const args = JSON.parse(toolCall.function.arguments);
-            toolResult = await executeToolCall(supabase, userId, toolCall.function.name, args);
-        } catch (e) {
-            toolResult = { error: 'Failed to parse arguments' };
-        }
+            return {
+                role: "tool",
+                tool_call_id: toolCall.id,
+                content: JSON.stringify(result)
+            };
+        }));
 
         const nextMessages = [
             ...initialBody.messages,
             message,
-            {
-                role: "tool",
-                tool_call_id: toolCall.id,
-                content: JSON.stringify(toolResult)
-            }
+            ...toolResults
         ];
 
         // Final call with streaming
@@ -332,6 +333,11 @@ async function handleOpenAIToolLoop(apiKey: string, initialBody: any, supabase: 
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
             body: JSON.stringify(finalBody)
         });
+
+        if (!finalReq.ok) {
+            const errJson = await finalReq.json().catch(() => ({}));
+            throw new Error(errJson.error?.message || 'OpenAI API error during tool response');
+        }
 
         // Pipe through the text transformer so client gets raw text, not SSE JSON
         const cleanStream = createTextStream(finalReq.body as ReadableStream);
