@@ -95,7 +95,7 @@ export const workflowStore = {
     /**
      * Deploy a NEW VERSION of the workflow
      */
-    async deployVersion(supabase: SupabaseClient, workflowId: string, graph: any, code: string, commitMessage?: string): Promise<WorkflowVersion> {
+    async deployVersion(supabase: SupabaseClient, workflowId: string, graph: any, code: string, commitMessage?: string, userId?: string): Promise<WorkflowVersion> {
 
         // 1. Get current max version
         const { data: maxVerData } = await supabase
@@ -111,8 +111,10 @@ export const workflowStore = {
 
         // 2. Insert new version
         // Production schema uses 'version_number' and 'definition_json' (a combined JSONB column)
+        // user_id is required for RLS policy: auth.uid() = user_id
         const insertPayload = {
             workflow_id: workflowId,
+            user_id: userId,
             version_number: nextVersion,
             definition_json: {
                 graph: graph,
