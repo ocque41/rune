@@ -288,8 +288,11 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                             {/* System Instructions */}
                             <div className="space-y-3">
                                 <Label className="text-xs font-medium text-white/70">System Instructions</Label>
-                                className="h-24 resize-none text-[11px] leading-relaxed bg-white/[0.03] border-white/[0.08] focus-visible:ring-1 focus-visible:ring-white/[0.12] min-h-[100px] text-white/80"
-                                placeholder="You are a helpful assistant..."
+                                <Textarea
+                                    value={config.systemPrompt}
+                                    onChange={(e) => updateConfig({ systemPrompt: e.target.value })}
+                                    className="h-24 resize-none text-[11px] leading-relaxed bg-white/[0.03] border-white/[0.08] focus-visible:ring-1 focus-visible:ring-white/[0.12] min-h-[100px] text-white/80"
+                                    placeholder="You are a helpful assistant..."
                                 />
                             </div>
 
