@@ -233,11 +233,18 @@ export class WorkflowEngine {
 
     private async executeSendEmail(data: any, input: any) {
         const config = data.emailConfig;
+
+        // Debug logging
+        console.log('[WorkflowEngine] executeSendEmail called');
+        console.log('[WorkflowEngine] Raw data:', JSON.stringify(data, null, 2));
+        console.log('[WorkflowEngine] emailConfig:', JSON.stringify(config, null, 2));
+
         const { sendEmail } = await import('./email');
         let smtpConfig = undefined;
 
         // Uses this.supabase instead of creating new client
-        if (config.sender) {
+        if (config?.sender) {
+            console.log(`[WorkflowEngine] Looking up SMTP config for sender: ${config.sender}`);
             try {
                 const { data: senderData } = await this.supabase
                     .from('verified_senders')
@@ -247,20 +254,30 @@ export class WorkflowEngine {
 
                 if (senderData?.smtp_config) {
                     smtpConfig = senderData.smtp_config;
+                    console.log('[WorkflowEngine] Found smtp_config:', smtpConfig);
+                } else {
+                    console.log('[WorkflowEngine] No smtp_config found, will use Resend');
                 }
             } catch (err) {
                 console.warn('[WorkflowEngine] Could not fetch sender config:', err);
             }
+        } else {
+            console.log('[WorkflowEngine] No sender specified in config');
         }
 
+        const emailParams = {
+            from: config?.sender || process.env.SMTP_FROM,
+            to: config?.recipient,
+            subject: config?.subject || 'Workflow Notification',
+            html: config?.body || JSON.stringify(input),
+            smtpConfig
+        };
+
+        console.log('[WorkflowEngine] Calling sendEmail with:', JSON.stringify(emailParams, null, 2));
+
         try {
-            const result = await sendEmail({
-                from: config.sender || process.env.SMTP_FROM,
-                to: config.recipient,
-                subject: config.subject || 'Workflow Notification',
-                html: config.body || JSON.stringify(input),
-                smtpConfig
-            });
+            const result = await sendEmail(emailParams);
+            console.log('[WorkflowEngine] Email sent successfully:', result);
             return result;
         } catch (error: any) {
             console.error('[Email] Failed:', error);

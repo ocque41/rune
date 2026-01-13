@@ -100,22 +100,25 @@ export const workflowStore = {
         // 1. Get current max version
         const { data: maxVerData } = await supabase
             .from('rune_workflow_versions')
-            .select('version')
+            .select('version_number')
             .eq('workflow_id', workflowId)
-            .order('version', { ascending: false })
+            .order('version_number', { ascending: false })
             .limit(1)
             .single();
 
         // Handle "no versions exist" case (count on error)
-        const nextVersion = (maxVerData?.version || 0) + 1;
+        const nextVersion = (maxVerData?.version_number || 0) + 1;
 
         // 2. Insert new version
+        // Production schema uses 'version_number' and 'definition_json' (a combined JSONB column)
         const insertPayload = {
             workflow_id: workflowId,
-            version: nextVersion,
-            graph_json: graph, // Map to DB column
-            code,
-            commit_message: commitMessage,
+            version_number: nextVersion,
+            definition_json: {
+                graph: graph,
+                code: code,
+                commit_message: commitMessage,
+            },
             // created_at handled by default
         };
 
@@ -127,10 +130,13 @@ export const workflowStore = {
 
         if (insertError) throw insertError;
 
-        // Map back to interface
+        // Map back to interface (production uses definition_json nested structure)
         return {
             ...data,
-            graph: data.graph_json,
+            version: data.version_number,
+            graph: data.definition_json?.graph,
+            code: data.definition_json?.code,
+            commit_message: data.definition_json?.commit_message,
             deployed_at: data.created_at
         } as WorkflowVersion;
     },
@@ -144,12 +150,12 @@ export const workflowStore = {
     async getVersionCode(supabase: SupabaseClient, versionId: string): Promise<string | null> {
         const { data, error } = await supabase
             .from('rune_workflow_versions')
-            .select('code')
+            .select('definition_json')
             .eq('id', versionId)
             .single();
 
         if (error) return null;
-        return data.code;
+        return data.definition_json?.code || null;
     },
 
     /**
