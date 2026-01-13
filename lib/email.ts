@@ -68,11 +68,20 @@ export async function sendEmail(config: EmailConfig) {
         // Resend "From" requirements:
         // Free tier: MUST be 'onboarding@resend.dev'
         // Paid/Verified: Can be 'anything@yourverifieddomain.com'
-        // We default to onboarding if no specific 'from' is provided, OR if the provided 'from' is likely invalid for free tier
-        // Ideally, we respect the config.from if provided, but warn user if it fails.
-        // For 'system' emails (verification codes), let's default to onboarding if not strictly set.
+        // 
+        // For free tier, we ALWAYS use onboarding@resend.dev regardless of config.from
+        // and explain this in the response. The 'to' address on free tier is also
+        // restricted to the account owner's email.
 
-        const fromAddress = config.from || 'onboarding@resend.dev';
+        // Check if this looks like a @resend.dev address or assume we need the default
+        const fromAddress = config.from?.endsWith('@resend.dev')
+            ? config.from
+            : 'onboarding@resend.dev';
+
+        // If user tried a custom 'from', warn in console
+        if (config.from && config.from !== fromAddress) {
+            console.warn(`[Email] Resend free tier: Using "${fromAddress}" instead of "${config.from}". Verify your domain at resend.com/domains to use custom addresses.`);
+        }
 
         const { data, error } = await resend.emails.send({
             from: fromAddress,
@@ -84,10 +93,24 @@ export async function sendEmail(config: EmailConfig) {
 
         if (error) {
             console.error('[Email] Resend API Error:', error);
+
+            // Provide more helpful error messages
+            if (error.message?.includes('from') || error.message?.includes('sender')) {
+                throw new Error(`Email failed: ${error.message}. On Resend free tier, emails must be sent from "onboarding@resend.dev". To use custom addresses, verify your domain at resend.com/domains.`);
+            }
+            if (error.message?.includes('to') || error.message?.includes('recipient')) {
+                throw new Error(`Email failed: ${error.message}. On Resend free tier, you can only send to your account email. Upgrade or verify a domain.`);
+            }
+
             throw new Error(`Resend Error: ${error.message}`);
         }
 
-        return data; // Returns { id: string }
+        return {
+            id: data?.id,
+            from: fromAddress,
+            to: config.to,
+            note: fromAddress !== config.from ? `Sent from "${fromAddress}" (Resend default). Verify your domain to use custom addresses.` : undefined
+        };
     }
 
     // 3. Fallback to Ethereal (Development/Test)
