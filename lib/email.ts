@@ -66,22 +66,15 @@ export async function sendEmail(config: EmailConfig) {
         const resend = new Resend(process.env.RESEND_API_KEY);
 
         // Resend "From" requirements:
-        // Free tier: MUST be 'onboarding@resend.dev'
-        // Paid/Verified: Can be 'anything@yourverifieddomain.com'
+        // - Free tier without verified domain: MUST be 'onboarding@resend.dev'
+        // - With verified domain: Can be 'anything@yourverifieddomain.com'
         // 
-        // For free tier, we ALWAYS use onboarding@resend.dev regardless of config.from
-        // and explain this in the response. The 'to' address on free tier is also
-        // restricted to the account owner's email.
+        // We TRUST the user's config.from if provided (they may have verified their domain).
+        // Only default to onboarding@resend.dev if no FROM is specified.
 
-        // Check if this looks like a @resend.dev address or assume we need the default
-        const fromAddress = config.from?.endsWith('@resend.dev')
-            ? config.from
-            : 'onboarding@resend.dev';
+        const fromAddress = config.from || 'onboarding@resend.dev';
 
-        // If user tried a custom 'from', warn in console
-        if (config.from && config.from !== fromAddress) {
-            console.warn(`[Email] Resend free tier: Using "${fromAddress}" instead of "${config.from}". Verify your domain at resend.com/domains to use custom addresses.`);
-        }
+        console.log(`[Email] Sending via Resend: from="${fromAddress}", to="${config.to}"`);
 
         const { data, error } = await resend.emails.send({
             from: fromAddress,
@@ -95,21 +88,24 @@ export async function sendEmail(config: EmailConfig) {
             console.error('[Email] Resend API Error:', error);
 
             // Provide more helpful error messages
-            if (error.message?.includes('from') || error.message?.includes('sender')) {
-                throw new Error(`Email failed: ${error.message}. On Resend free tier, emails must be sent from "onboarding@resend.dev". To use custom addresses, verify your domain at resend.com/domains.`);
+            if (error.message?.includes('from') || error.message?.includes('sender') || error.message?.includes('domain')) {
+                throw new Error(`Email failed: ${error.message}. Make sure your domain is verified at resend.com/domains and the FROM address uses that domain.`);
             }
-            if (error.message?.includes('to') || error.message?.includes('recipient')) {
-                throw new Error(`Email failed: ${error.message}. On Resend free tier, you can only send to your account email. Upgrade or verify a domain.`);
+            if (error.message?.includes('to') || error.message?.includes('recipient') || error.message?.includes('not allowed')) {
+                throw new Error(`Email failed: ${error.message}. On Resend free tier without a verified domain, you can only send to your account email.`);
             }
 
             throw new Error(`Resend Error: ${error.message}`);
         }
 
+        console.log(`[Email] Sent successfully via Resend. ID: ${data?.id}`);
+
         return {
+            success: true,
             id: data?.id,
             from: fromAddress,
             to: config.to,
-            note: fromAddress !== config.from ? `Sent from "${fromAddress}" (Resend default). Verify your domain to use custom addresses.` : undefined
+            message: 'Email sent successfully.'
         };
     }
 
