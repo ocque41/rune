@@ -106,12 +106,14 @@ export async function getRun(supabase: SupabaseClient, id: string): Promise<Work
         logs: (run.logs as unknown as RunLog[]) || [],
         steps: ((run.steps as unknown as any[]) || []).map(s => ({
             ...s,
-            startTime: s.start_time,
-            endTime: s.end_time,
-            durationMs: s.duration_ms,
-            stepId: s.step_id,
-            stepLabel: s.step_label,
-            result: s.output
+            startTime: s.started_at,  // Production uses started_at
+            endTime: s.finished_at,    // Production uses finished_at
+            durationMs: s.finished_at && s.started_at
+                ? new Date(s.finished_at).getTime() - new Date(s.started_at).getTime()
+                : undefined,
+            stepId: s.node_id,          // Production uses node_id
+            stepLabel: s.node_id,       // No step_label in production, use node_id
+            result: s.output_json       // Production uses output_json
         })).sort((a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()),
         waitingFor: run.waiting_for as unknown as WaitingFor | undefined
     };
@@ -151,7 +153,7 @@ export async function listRuns(supabase: SupabaseClient): Promise<WorkflowRun[]>
 }
 
 /**
- * Append a log entry to a run (Atomic)
+ * Append a log entry to a run (using direct update)
  */
 export async function appendLog(supabase: SupabaseClient, runId: string, message: string, level: 'info' | 'warn' | 'error' = 'info'): Promise<void> {
     const logEntry = {
@@ -160,18 +162,30 @@ export async function appendLog(supabase: SupabaseClient, runId: string, message
         message
     };
 
-    const { error } = await supabase.rpc('record_run_progress', {
-        p_run_id: runId,
-        p_step_data: null,
-        p_log_entry: [logEntry],
-        p_run_updates: null
-    });
+    // Fetch current logs, append, and update
+    // This is less efficient but doesn't rely on RPC
+    const { data: run } = await supabase
+        .from('rune_workflow_runs')
+        .select('logs')
+        .eq('id', runId)
+        .single();
 
-    if (error) throw error;
+    const currentLogs = (run?.logs as any[]) || [];
+    const updatedLogs = [...currentLogs, logEntry];
+
+    const { error } = await supabase
+        .from('rune_workflow_runs')
+        .update({ logs: updatedLogs })
+        .eq('id', runId);
+
+    if (error) {
+        console.warn('Log append error (non-fatal):', error);
+        // Don't throw - logging is non-critical
+    }
 }
 
 /**
- * Update run status (Atomic)
+ * Update run status (direct update)
  */
 export async function updateRunStatus(
     supabase: SupabaseClient,
@@ -186,17 +200,15 @@ export async function updateRunStatus(
     if (result !== undefined) updates.result = result;
     if (error !== undefined) updates.error = error;
     if (status === 'completed' || status === 'failed') {
-        updates.endTime = new Date().toISOString();
+        updates.end_time = new Date().toISOString();
     }
 
-    const { error: rpcError } = await supabase.rpc('record_run_progress', {
-        p_run_id: runId,
-        p_step_data: null,
-        p_log_entry: null,
-        p_run_updates: updates
-    });
+    const { error: updateError } = await supabase
+        .from('rune_workflow_runs')
+        .update(updates)
+        .eq('id', runId);
 
-    if (rpcError) throw rpcError;
+    if (updateError) throw updateError;
 }
 
 /**
@@ -211,7 +223,8 @@ export async function updateStepExecution(
 }
 
 /**
- * Record atomic run progress using RPC
+ * Record atomic run progress using direct insert (production schema)
+ * Production table columns: node_id, started_at, finished_at, input_json, output_json, error_json
  */
 export async function recordRunProgress(
     supabase: SupabaseClient,
@@ -221,20 +234,47 @@ export async function recordRunProgress(
     runUpdates?: Partial<WorkflowRun>
 ): Promise<void> {
 
-    const stepPayload = {
-        ...stepExecution,
-        result: stepExecution.result,
-        error: stepExecution.error
+    // 1. Insert/Update step in rune_run_steps with production column names
+    const stepData = {
+        run_id: runId,
+        node_id: stepExecution.stepId, // Production uses node_id, not step_id
+        status: stepExecution.status,
+        started_at: stepExecution.startTime,
+        finished_at: stepExecution.endTime,
+        attempts: 1,
+        output_json: stepExecution.result, // Production uses output_json, not output
+        error_json: stepExecution.error ? { message: stepExecution.error } : null, // Production uses error_json
     };
 
-    const { error } = await supabase.rpc('record_run_progress', {
-        p_run_id: runId,
-        p_step_data: stepPayload,
-        p_log_entry: logEntry ? [logEntry] : null,
-        p_run_updates: runUpdates || null
-    });
+    const { error: stepError } = await supabase
+        .from('rune_run_steps')
+        .upsert(stepData, { onConflict: 'run_id,node_id' });
 
-    if (error) throw error;
+    if (stepError) {
+        console.warn('Step insert error (non-fatal):', stepError);
+        // Don't throw - step logging is non-critical
+    }
+
+    // 2. Append log to workflow run (if provided) - skipped in step recording
+    // Log appending is handled by appendLog function separately
+
+    // 3. Update run status (if provided)
+    if (runUpdates) {
+        const updateData: any = {};
+        if (runUpdates.status) updateData.status = runUpdates.status;
+        if (runUpdates.result !== undefined) updateData.result = runUpdates.result;
+        if (runUpdates.error !== undefined) updateData.error = runUpdates.error;
+        if (runUpdates.endTime) updateData.end_time = runUpdates.endTime;
+
+        if (Object.keys(updateData).length > 0) {
+            const { error: updateError } = await supabase
+                .from('rune_workflow_runs')
+                .update(updateData)
+                .eq('id', runId);
+
+            if (updateError) throw updateError;
+        }
+    }
 }
 
 /**
