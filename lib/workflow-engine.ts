@@ -210,10 +210,45 @@ export class WorkflowEngine {
         const config = data.httpRequest;
         if (!config?.url) throw new Error('Missing URL');
 
+        console.log('[WorkflowEngine] executeHttpRequest called');
+        console.log('[WorkflowEngine] HTTP config:', JSON.stringify(config, null, 2));
+
+        // Parse headers - they may be stored as a JSON string
+        let headers: Record<string, string> = {};
+        if (config.headers) {
+            if (typeof config.headers === 'string') {
+                try {
+                    headers = JSON.parse(config.headers);
+                } catch (e) {
+                    console.warn('[WorkflowEngine] Failed to parse headers JSON:', config.headers);
+                }
+            } else {
+                headers = config.headers;
+            }
+        }
+
+        // Parse body - may be stored as a JSON string
+        let body: any = undefined;
+        if (config.method !== 'GET' && config.body) {
+            if (typeof config.body === 'string') {
+                // The body might be a JSON string or contain template variables
+                // For now, use it as-is if it looks like a template, otherwise try to parse
+                body = config.body;
+            } else {
+                body = JSON.stringify(config.body);
+            }
+        } else if (config.method !== 'GET') {
+            body = JSON.stringify(input);
+        }
+
+        console.log('[WorkflowEngine] Fetching:', config.url, config.method || 'GET');
+        console.log('[WorkflowEngine] Headers:', headers);
+        console.log('[WorkflowEngine] Body:', body);
+
         const response = await fetch(config.url, {
             method: config.method || 'GET',
-            headers: config.headers,
-            body: config.method !== 'GET' ? JSON.stringify(config.body || input) : undefined, // simplified body logic
+            headers,
+            body,
         });
 
         const contentType = response.headers.get('content-type');
@@ -223,6 +258,8 @@ export class WorkflowEngine {
         } else {
             responseData = await response.text();
         }
+
+        console.log('[WorkflowEngine] HTTP Response:', response.status, response.statusText);
 
         return {
             status: response.status,

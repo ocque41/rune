@@ -29,18 +29,18 @@ async function executeRunLogic(name: string, args: any) {
         .from('rune_workflow_versions')
         .select('*')
         .eq('workflow_id', workflow.id)
-        .order('version', { ascending: false })
+        .order('version_number', { ascending: false })
         .limit(1)
         .single();
 
-    if (vError || !latestVersion?.graph_json) {
+    if (vError || !latestVersion?.definition_json) {
         return NextResponse.json(
             { error: 'Workflow has no deployed versions' },
             { status: 404 }
         );
     }
 
-    const graph = latestVersion.graph_json;
+    const graph = latestVersion.definition_json?.graph; // Production uses definition_json.graph
 
     // 3. Execution
     const engine = new WorkflowEngine(

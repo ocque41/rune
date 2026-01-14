@@ -45,7 +45,8 @@ import { DeploymentSuccessDialog } from './deployment-success-dialog';
 import { useAgentStore } from './playground/store';
 import { RuneDrawer } from '@/components/ui/drawer';
 import { AutoPilotContainer } from '@/components/playground/auto-pilot-container';
-import { Bot } from 'lucide-react';
+import { Bot, Activity, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { animate, stagger } from 'animejs';
 
 const nodeTypes = {
     step: StepNode,
@@ -99,6 +100,9 @@ const FlowBuilderContent = ({
     const [simulationLogs, setSimulationLogs] = useState<SimulationLogEntry[]>([]);
     const [isSimulating, setIsSimulating] = useState(false);
     const [showSimulationPanel, setShowSimulationPanel] = useState(false);
+    const simulationPanelRef = useRef<HTMLDivElement>(null);
+    const logsContainerRef = useRef<HTMLDivElement>(null);
+    const prevLogsLengthRef = useRef(0);
 
     // Open/Load Modal State
     const [showOpenModal, setShowOpenModal] = useState(false);
@@ -323,6 +327,38 @@ const FlowBuilderContent = ({
             onLoadWorkflow(initialWorkflowId);
         }
     }, [initialWorkflowId]); // removed onLoadWorkflow from deps to avoid double-call if it's unstable, though useCallback should be stable
+
+    // Animation: Panel entrance
+    useEffect(() => {
+        if (showSimulationPanel && simulationPanelRef.current) {
+            animate(simulationPanelRef.current, {
+                translateY: [100, 0],
+                opacity: [0, 1],
+                duration: 400,
+                easing: 'easeOutCubic'
+            });
+        }
+    }, [showSimulationPanel]);
+
+    // Animation: Stagger new log entries
+    useEffect(() => {
+        if (simulationLogs.length > prevLogsLengthRef.current && logsContainerRef.current) {
+            const newEntries = logsContainerRef.current.querySelectorAll('[data-log-entry]');
+            const startIndex = prevLogsLengthRef.current;
+            const entriesToAnimate = Array.from(newEntries).slice(startIndex);
+
+            if (entriesToAnimate.length > 0) {
+                animate(entriesToAnimate, {
+                    translateY: [20, 0],
+                    opacity: [0, 1],
+                    duration: 300,
+                    easing: 'easeOutQuad',
+                    delay: stagger(80)
+                });
+            }
+        }
+        prevLogsLengthRef.current = simulationLogs.length;
+    }, [simulationLogs]);
 
     const onConnect = useCallback(
         (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -1033,65 +1069,238 @@ const FlowBuilderContent = ({
                         </div>
                     </div>
                 )}
-                {/* Simulation Logs Panel */}
+                {/* Simulation Logs Panel - Enhanced */}
                 {showSimulationPanel && (
-                    <div className="absolute bottom-0 left-0 right-0 z-40 border-t shadow-xl flex flex-col transition-all duration-300 ease-in-out" style={{
-                        backgroundColor: 'var(--node-background)',
-                        borderColor: 'var(--border-color)',
-                        height: '350px',
-                        maxHeight: '40vh'
-                    }}>
-                        <div className="flex items-center justify-between border-b px-4 py-2" style={{ borderColor: 'var(--border-color)' }}>
-                            <div className="flex items-center gap-2">
-                                <Play size={14} className="text-blue-500" />
-                                <span className="font-bold text-sm" style={{ color: 'var(--foreground-title)' }}>Simulation Logs</span>
-                                <span className="text-xs opacity-50 ml-2" style={{ color: 'var(--foreground-subtitle)' }}>
-                                    {simulationLogs.length} steps
-                                </span>
+                    <div
+                        ref={simulationPanelRef}
+                        data-simulation-panel
+                        className="absolute bottom-0 left-0 right-0 z-40 flex flex-col shadow-2xl"
+                        style={{
+                            background: 'linear-gradient(180deg, rgba(0,0,0,0.95) 0%, #000000 100%)',
+                            borderTop: '1px solid rgba(0, 255, 255, 0.2)',
+                            borderRadius: '24px 24px 0 0',
+                            height: '380px',
+                            maxHeight: '45vh',
+                            backdropFilter: 'blur(20px)',
+                            WebkitBackdropFilter: 'blur(20px)',
+                        }}
+                    >
+                        {/* Drag Handle */}
+                        <div className="flex justify-center pt-3 pb-1">
+                            <div
+                                className="w-12 h-1 rounded-full transition-colors duration-200 hover:bg-white/40"
+                                style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)' }}
+                            />
+                        </div>
+
+                        {/* Header */}
+                        <div
+                            className="flex items-center justify-between px-5 py-3"
+                            style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div
+                                    className="p-2 rounded-lg"
+                                    style={{
+                                        background: isSimulating
+                                            ? 'rgba(0, 255, 255, 0.15)'
+                                            : 'rgba(255, 255, 255, 0.05)',
+                                        border: '1px solid rgba(0, 255, 255, 0.3)'
+                                    }}
+                                >
+                                    <Activity
+                                        size={16}
+                                        className={isSimulating ? 'animate-pulse' : ''}
+                                        style={{ color: '#00FFFF' }}
+                                    />
+                                </div>
+                                <div>
+                                    <span
+                                        className="font-semibold text-sm tracking-wide"
+                                        style={{ color: '#FFFFFF', fontFamily: 'Drafting Mono, monospace' }}
+                                    >
+                                        Simulation Logs
+                                    </span>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                        {/* Status Badge */}
+                                        {isSimulating ? (
+                                            <span
+                                                className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider"
+                                                style={{
+                                                    background: 'rgba(0, 255, 255, 0.15)',
+                                                    color: '#00FFFF',
+                                                    border: '1px solid rgba(0, 255, 255, 0.3)'
+                                                }}
+                                            >
+                                                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                                                Running
+                                            </span>
+                                        ) : simulationLogs.some(l => l.type === 'error') ? (
+                                            <span
+                                                className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider"
+                                                style={{
+                                                    background: 'rgba(255, 0, 100, 0.15)',
+                                                    color: '#FF0064',
+                                                    border: '1px solid rgba(255, 0, 100, 0.3)'
+                                                }}
+                                            >
+                                                <XCircle size={10} />
+                                                Error
+                                            </span>
+                                        ) : simulationLogs.length > 0 ? (
+                                            <span
+                                                className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider"
+                                                style={{
+                                                    background: 'rgba(0, 255, 0, 0.15)',
+                                                    color: '#00FF00',
+                                                    border: '1px solid rgba(0, 255, 0, 0.3)'
+                                                }}
+                                            >
+                                                <CheckCircle2 size={10} />
+                                                Complete
+                                            </span>
+                                        ) : (
+                                            <span
+                                                className="text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider"
+                                                style={{
+                                                    background: 'rgba(255, 255, 255, 0.05)',
+                                                    color: '#A0A0A0'
+                                                }}
+                                            >
+                                                Ready
+                                            </span>
+                                        )}
+                                        <span className="text-xs" style={{ color: '#555555' }}>
+                                            {simulationLogs.length} {simulationLogs.length === 1 ? 'step' : 'steps'}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="flex gap-2">
+
+                            {/* Actions */}
+                            <div className="flex items-center gap-1">
                                 <button
                                     onClick={() => setSimulationLogs([])}
                                     title="Clear Logs"
-                                    className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded opacity-60 hover:opacity-100"
+                                    className="p-2 rounded-lg transition-all duration-200 hover:bg-white/10"
+                                    style={{ color: '#A0A0A0' }}
                                 >
-                                    <Trash2 size={14} style={{ color: 'var(--foreground-title)' }} />
+                                    <Trash2 size={16} />
                                 </button>
-                                <button onClick={() => setShowSimulationPanel(false)} className="opacity-60 hover:opacity-100 p-1">
-                                    <X size={16} style={{ color: 'var(--foreground-title)' }} />
+                                <button
+                                    onClick={() => setShowSimulationPanel(false)}
+                                    title="Close Panel"
+                                    className="p-2 rounded-lg transition-all duration-200 hover:bg-white/10"
+                                    style={{ color: '#A0A0A0' }}
+                                >
+                                    <X size={18} />
                                 </button>
                             </div>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-4 space-y-2 font-mono text-xs">
+
+                        {/* Logs Container */}
+                        <div
+                            ref={logsContainerRef}
+                            className="flex-1 overflow-y-auto px-5 py-4 space-y-3 font-mono text-xs scrollbar-hide"
+                        >
                             {simulationLogs.length === 0 ? (
-                                <div className="text-center opacity-50 italic py-4">
-                                    {isSimulating ? 'Running simulation...' : 'Ready to simulate'}
+                                <div className="flex flex-col items-center justify-center h-full gap-4 py-8">
+                                    {isSimulating ? (
+                                        <>
+                                            <div className="flex gap-1.5">
+                                                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                                            </div>
+                                            <span className="text-sm" style={{ color: '#00FFFF' }}>Executing workflow...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div
+                                                className="p-4 rounded-xl"
+                                                style={{
+                                                    background: 'rgba(255, 255, 255, 0.03)',
+                                                    border: '1px solid rgba(255, 255, 255, 0.08)'
+                                                }}
+                                            >
+                                                <Play size={24} style={{ color: '#555555' }} />
+                                            </div>
+                                            <div className="text-center">
+                                                <span className="block text-sm" style={{ color: '#A0A0A0' }}>Ready to simulate</span>
+                                                <span className="block text-xs mt-1" style={{ color: '#555555' }}>Click "Simulate" to run your workflow</span>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             ) : (
                                 simulationLogs.map((log, i) => (
-                                    <div key={i} className="flex gap-3 group animate-in fade-in slide-in-from-bottom-1 duration-200">
-                                        <span className="opacity-40 shrink-0 select-none w-16 text-right" style={{ color: 'var(--foreground-subtitle)' }}>
-                                            {new Date(log.timestamp).toLocaleTimeString().split(' ')[0]}
-                                        </span>
-                                        <div className="flex-1 border-l pl-3" style={{ borderColor: 'var(--border-color)' }}>
-                                            <div className="flex items-center gap-2">
-                                                <span className={`font-bold uppercase text-[10px] px-1.5 py-0.5 rounded ${log.type === 'error' ? 'bg-red-500/10 text-red-500' :
-                                                    log.type === 'success' ? 'bg-green-500/10 text-green-500' :
-                                                        log.type === 'warning' ? 'bg-yellow-500/10 text-yellow-500' :
-                                                            'bg-blue-500/10 text-blue-500'
-                                                    }`}>
+                                    <div
+                                        key={i}
+                                        data-log-entry
+                                        className="flex gap-4 group rounded-lg p-3 transition-all duration-200 hover:bg-white/5"
+                                        style={{
+                                            background: 'rgba(255, 255, 255, 0.02)',
+                                            border: '1px solid rgba(255, 255, 255, 0.05)'
+                                        }}
+                                    >
+                                        {/* Status Dot & Timeline */}
+                                        <div className="flex flex-col items-center gap-1 pt-1">
+                                            <div
+                                                className={`w-2.5 h-2.5 rounded-full shrink-0 ${log.type === 'error' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' :
+                                                    log.type === 'success' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
+                                                        log.type === 'warning' ? 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]' :
+                                                            'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.5)]'
+                                                    }`}
+                                            />
+                                            {i < simulationLogs.length - 1 && (
+                                                <div
+                                                    className="w-px flex-1 min-h-[20px]"
+                                                    style={{ background: 'rgba(255, 255, 255, 0.1)' }}
+                                                />
+                                            )}
+                                        </div>
+
+                                        {/* Content */}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span
+                                                    className={`font-bold uppercase text-[10px] px-2 py-0.5 rounded-md tracking-wider ${log.type === 'error' ? 'bg-red-500/15 text-red-400 border border-red-500/30' :
+                                                        log.type === 'success' ? 'bg-green-500/15 text-green-400 border border-green-500/30' :
+                                                            log.type === 'warning' ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30' :
+                                                                'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30'
+                                                        }`}
+                                                >
                                                     {log.type}
                                                 </span>
-                                                <span className="font-semibold" style={{ color: 'var(--foreground-title)' }}>
+                                                <span
+                                                    className="font-semibold text-sm truncate"
+                                                    style={{ color: '#FFFFFF' }}
+                                                >
                                                     {log.stepLabel}
                                                 </span>
+                                                <span
+                                                    className="text-[10px] ml-auto shrink-0"
+                                                    style={{ color: '#555555' }}
+                                                >
+                                                    {new Date(log.timestamp).toLocaleTimeString()}
+                                                </span>
                                             </div>
-                                            <div className="mt-1" style={{ color: 'var(--foreground-body)' }}>
+                                            <div
+                                                className="mt-1.5 text-sm leading-relaxed"
+                                                style={{ color: '#A0A0A0' }}
+                                            >
                                                 {log.message}
                                             </div>
 
                                             {log.data && Object.keys(log.data).length > 0 && (
-                                                <pre className="mt-2 block overflow-x-auto rounded bg-black/5 dark:bg-white/5 p-2 text-[10px] opacity-80" style={{ color: 'var(--foreground-body)' }}>
+                                                <pre
+                                                    className="mt-3 block overflow-x-auto rounded-lg p-3 text-[11px] leading-relaxed"
+                                                    style={{
+                                                        background: 'rgba(0, 0, 0, 0.4)',
+                                                        border: '1px solid rgba(255, 255, 255, 0.06)',
+                                                        color: '#E0E0E0'
+                                                    }}
+                                                >
                                                     {JSON.stringify(log.data, null, 2)}
                                                 </pre>
                                             )}

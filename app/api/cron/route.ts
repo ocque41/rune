@@ -31,14 +31,14 @@ export async function GET() {
                 .from('rune_workflow_versions')
                 .select('*')
                 .eq('workflow_id', wf.id)
-                .order('version', { ascending: false })
+                .order('version_number', { ascending: false })
                 .limit(1)
                 .single();
 
-            if (!latestVersion?.graph_json) continue;
+            if (!latestVersion?.definition_json) continue;
 
-            const nodes = latestVersion.graph_json.nodes;
-            const edges = latestVersion.graph_json.edges;
+            const nodes = latestVersion.definition_json?.graph?.nodes;
+            const edges = latestVersion.definition_json?.graph?.edges;
 
             if (!Array.isArray(nodes)) continue;
 

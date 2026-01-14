@@ -54,7 +54,7 @@ async function handleWorkflowTrigger(workflowId: string, payload: any) {
             .from('rune_workflow_versions')
             .select('*')
             .eq('workflow_id', workflowId)
-            .order('version', { ascending: false })
+            .order('version_number', { ascending: false })
             .limit(1)
             .single();
 
@@ -66,7 +66,7 @@ async function handleWorkflowTrigger(workflowId: string, payload: any) {
             );
         }
 
-        const graph = latestVersion.graph_json; // Was graph_json
+        const graph = latestVersion.definition_json?.graph; // Production uses definition_json.graph
         if (!graph || !graph.nodes || !graph.edges) {
             return NextResponse.json(
                 { success: false, error: 'Invalid workflow graph data' },
