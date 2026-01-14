@@ -280,6 +280,122 @@ export async function runNode(supabase: SupabaseClient, userId: string, nodeIden
     }
 }
 
+/**
+ * Configure a node in the active workflow
+ * Allows the agent to modify node settings and persist changes
+ */
+export async function configureNode(
+    supabase: SupabaseClient,
+    userId: string,
+    nodeIdentifier: string,
+    config: Record<string, any>
+) {
+    console.log(`[configureNode] Configuring node "${nodeIdentifier}" for user ${userId}`);
+    console.log(`[configureNode] Config to apply:`, JSON.stringify(config, null, 2));
+
+    // 1. Get active workflow from session
+    const { data: session } = await supabase
+        .from('rune_agent_sessions')
+        .select('active_workflow_id')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    if (!session?.active_workflow_id) {
+        return { success: false, error: "No active workflow. Open a workflow first." };
+    }
+
+    // 2. Fetch workflow graph
+    const { data: workflow } = await supabase
+        .from('rune_workflows')
+        .select('id, name, graph_json')
+        .eq('id', session.active_workflow_id)
+        .single();
+
+    if (!workflow?.graph_json) {
+        return { success: false, error: "Workflow not found or has no graph." };
+    }
+
+    const graph = workflow.graph_json;
+    const nodes = graph.nodes || [];
+
+    // 3. Find the node by ID or label
+    let nodeIndex = nodes.findIndex((n: any) => n.id === nodeIdentifier);
+
+    if (nodeIndex === -1) {
+        // Try label match
+        const matchingIndices = nodes
+            .map((n: any, i: number) => n.data?.label?.toLowerCase() === nodeIdentifier.toLowerCase() ? i : -1)
+            .filter((i: number) => i !== -1);
+
+        if (matchingIndices.length > 1) {
+            const nodeList = matchingIndices.map((i: number) =>
+                `- Node ID "${nodes[i].id}": ${nodes[i].data?.description || nodes[i].data?.label}`
+            ).join('\n');
+
+            return {
+                success: false,
+                error: `Multiple nodes named "${nodeIdentifier}" found. Please specify by node ID:\n${nodeList}`
+            };
+        }
+
+        nodeIndex = matchingIndices[0] ?? -1;
+    }
+
+    if (nodeIndex === -1) {
+        const availableNodes = nodes.map((n: any) => `${n.data?.label || 'Unknown'} (id: ${n.id})`).join(', ');
+        return {
+            success: false,
+            error: `Node "${nodeIdentifier}" not found. Available nodes: ${availableNodes}`
+        };
+    }
+
+    const node = nodes[nodeIndex];
+    const oldData = { ...node.data };
+
+    // 4. Deep merge the config into node.data
+    // We merge each config key (emailConfig, httpRequest, scriptConfig, etc.)
+    for (const [key, value] of Object.entries(config)) {
+        if (typeof value === 'object' && value !== null && typeof node.data[key] === 'object') {
+            // Merge objects
+            node.data[key] = { ...node.data[key], ...value };
+        } else {
+            // Replace value
+            node.data[key] = value;
+        }
+    }
+
+    // Update the node in the graph
+    nodes[nodeIndex] = node;
+    graph.nodes = nodes;
+
+    // 5. Save the updated graph to the database
+    const { error: updateError } = await supabase
+        .from('rune_workflows')
+        .update({
+            graph_json: graph,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', workflow.id);
+
+    if (updateError) {
+        console.error('[configureNode] Failed to save:', updateError);
+        return { success: false, error: `Failed to save configuration: ${updateError.message}` };
+    }
+
+    console.log(`[configureNode] Node ${node.id} updated successfully`);
+
+    return {
+        success: true,
+        nodeId: node.id,
+        nodeLabel: node.data?.label,
+        message: `Node "${node.data?.label}" configuration updated successfully.`,
+        updatedConfig: config,
+        previousConfig: oldData
+    };
+}
+
 export const TOOLS_DEFINITION = [
     {
         type: "function",
@@ -354,6 +470,49 @@ export const TOOLS_DEFINITION = [
                     }
                 },
                 required: ["nodeIdentifier"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "configure_node",
+            description: "Update the configuration of a specific node in the active workflow. Use this to fix failing nodes, adjust settings, or set up node parameters. Changes are saved immediately to the database.",
+            parameters: {
+                type: "object",
+                properties: {
+                    nodeIdentifier: {
+                        type: "string",
+                        description: "The node's label (e.g., 'Send Email') or its ID (e.g., '7')."
+                    },
+                    config: {
+                        type: "object",
+                        description: "Configuration to apply. Use the appropriate key based on node type: emailConfig (for Send Email), httpRequest (for HTTP Request), scriptConfig (for Run Script), slackConfig (for Slack Message), etc.",
+                        properties: {
+                            emailConfig: {
+                                type: "object",
+                                description: "Email node config: { recipient, sender, subject, body }"
+                            },
+                            httpRequest: {
+                                type: "object",
+                                description: "HTTP node config: { method, url, headers, body }"
+                            },
+                            scriptConfig: {
+                                type: "object",
+                                description: "Script node config: { code }"
+                            },
+                            slackConfig: {
+                                type: "object",
+                                description: "Slack node config: { webhookUrl, channel, message }"
+                            },
+                            description: {
+                                type: "string",
+                                description: "Node description text"
+                            }
+                        }
+                    }
+                },
+                required: ["nodeIdentifier", "config"]
             }
         }
     }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildAgentContext } from '@/lib/agent-context';
-import { TOOLS_DEFINITION, getActiveContext, listWorkflows, getRecentRuns, runWorkflow, runNode } from '@/lib/agent-tools';
+import { TOOLS_DEFINITION, getActiveContext, listWorkflows, getRecentRuns, runWorkflow, runNode, configureNode } from '@/lib/agent-tools';
 
 export const runtime = 'nodejs';
 
@@ -172,6 +172,8 @@ async function executeToolCall(supabase: any, userId: string, toolName: string, 
                 return await runWorkflow(supabase, userId, args.payload);
             case 'run_node':
                 return await runNode(supabase, userId, args.nodeIdentifier, args.input);
+            case 'configure_node':
+                return await configureNode(supabase, userId, args.nodeIdentifier, args.config);
             default:
                 return { error: `Unknown tool: ${toolName}` };
         }

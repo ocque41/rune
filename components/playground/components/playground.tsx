@@ -307,7 +307,8 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                         { id: 'list_workflows', label: 'List Workflows', desc: 'Saved workflows' },
                                         { id: 'get_recent_runs', label: 'Recent Runs', desc: 'Execution history' },
                                         { id: 'run_workflow', label: 'Run Workflow', desc: 'Execute active workflow' },
-                                        { id: 'run_node', label: 'Run Node', desc: 'Execute specific node' }
+                                        { id: 'run_node', label: 'Run Node', desc: 'Execute specific node' },
+                                        { id: 'configure_node', label: 'Configure Node', desc: 'Edit node settings' }
                                     ].map(tool => {
                                         const isChecked = config.tools?.includes(tool.id);
                                         return (
