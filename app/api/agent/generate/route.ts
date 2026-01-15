@@ -291,77 +291,83 @@ function createTextStream(upstream: ReadableStream) {
 }
 
 async function handleOpenAIToolLoop(apiKey: string, initialBody: any, supabase: any, userId: string): Promise<NextResponse> {
-    // 1. First call - non-streaming to check for tools (fast check)
-    const decisionBody = { ...initialBody, stream: false };
+    const MAX_TOOL_ROUNDS = 10; // Prevent infinite loops
+    let currentMessages = [...initialBody.messages];
+    let round = 0;
 
-    const decisionReq = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify(decisionBody)
-    });
+    while (round < MAX_TOOL_ROUNDS) {
+        round++;
+        console.log(`[OpenAI Tool Loop] Round ${round}`);
 
-    const decision = await decisionReq.json();
-    if (decision.error) throw new Error(decision.error.message);
+        // Make non-streaming call to check for tool calls
+        const requestBody = { ...initialBody, messages: currentMessages, stream: false };
 
-    const choice = decision.choices?.[0];
-    const message = choice?.message;
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify(requestBody)
+        });
 
-    // 2. If Tool Call -> Execute -> Stream Final Response
-    if (message?.tool_calls && message.tool_calls.length > 0) {
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message);
 
-        // Execute ALL requested tools in parallel
+        const choice = data.choices?.[0];
+        const message = choice?.message;
+        const finishReason = choice?.finish_reason;
+
+        // If no tool calls, return the final response
+        if (!message?.tool_calls || message.tool_calls.length === 0 || finishReason === 'stop') {
+            console.log(`[OpenAI Tool Loop] Completed after ${round} rounds`);
+
+            // Return content as a stream
+            const content = message?.content || "";
+            const encoder = new TextEncoder();
+            const simpleStream = new ReadableStream({
+                start(controller) {
+                    if (content) controller.enqueue(encoder.encode(content));
+                    controller.close();
+                }
+            });
+            return new NextResponse(simpleStream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+        }
+
+        // Execute tool calls
+        console.log(`[OpenAI Tool Loop] Executing ${message.tool_calls.length} tool(s)`);
+
         const toolResults = await Promise.all(message.tool_calls.map(async (toolCall: any) => {
             let result;
             try {
                 const args = JSON.parse(toolCall.function.arguments);
                 result = await executeToolCall(supabase, userId, toolCall.function.name, args);
-            } catch (e) {
-                result = { error: 'Failed to parse arguments' };
+            } catch (e: any) {
+                result = { error: e.message || 'Failed to execute tool' };
             }
 
             return {
-                role: "tool",
+                role: "tool" as const,
                 tool_call_id: toolCall.id,
                 content: JSON.stringify(result)
             };
         }));
 
-        const nextMessages = [
-            ...initialBody.messages,
+        // Add assistant message and tool results to conversation
+        currentMessages = [
+            ...currentMessages,
             message,
             ...toolResults
         ];
-
-        // Final call with streaming
-        const finalBody = { ...initialBody, messages: nextMessages, stream: true };
-        const finalReq = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-            body: JSON.stringify(finalBody)
-        });
-
-        if (!finalReq.ok) {
-            const errJson = await finalReq.json().catch(() => ({}));
-            throw new Error(errJson.error?.message || 'OpenAI API error during tool response');
-        }
-
-        // Pipe through the text transformer so client gets raw text, not SSE JSON
-        const cleanStream = createTextStream(finalReq.body as ReadableStream);
-        return new NextResponse(cleanStream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
     }
 
-    // 3. No Tool Call -> Return the content we already got
-    // (Emulate a stream for the client)
-    const content = message?.content || "";
+    // If we hit max rounds, return what we have
+    console.warn(`[OpenAI Tool Loop] Hit max rounds (${MAX_TOOL_ROUNDS})`);
     const encoder = new TextEncoder();
-    const simpleStream = new ReadableStream({
+    const errorStream = new ReadableStream({
         start(controller) {
-            if (content) controller.enqueue(encoder.encode(content));
+            controller.enqueue(encoder.encode("I've been working on this for a while. Let me summarize what I've done so far. Please try a simpler request or break this into smaller steps."));
             controller.close();
         }
     });
-
-    return new NextResponse(simpleStream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    return new NextResponse(errorStream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
 }
 
 async function streamAnthropic(apiKey: string, config: any, messages: any[]) {
