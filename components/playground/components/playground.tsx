@@ -224,7 +224,10 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                         </Button>
 
                         {/* Temporary Chat Toggle - between Save and Copy */}
-                        <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-white/5 border border-white/10 ml-1">
+                        <div className={cn(
+                            "flex items-center gap-1 px-2 py-1 rounded-md bg-white/5 border border-white/10 ml-1 transition-opacity",
+                            currentChatId && !isTemporaryChat && "opacity-50 cursor-not-allowed"
+                        )} title={currentChatId && !isTemporaryChat ? "Persistent chats cannot be made temporary" : "Toggle temporary chat"}>
                             <Clock className={cn("w-3.5 h-3.5", isTemporaryChat ? "text-amber-400" : "text-white/40")} />
                             <span className={cn("text-xs hidden sm:inline", isTemporaryChat ? "text-amber-400" : "text-white/50")}>
                                 Temp
@@ -232,6 +235,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                             <Switch
                                 checked={isTemporaryChat}
                                 onCheckedChange={setIsTemporaryChat}
+                                disabled={!!currentChatId && !isTemporaryChat}
                                 className="scale-75 -mr-1 data-[state=checked]:bg-amber-500"
                             />
                         </div>
@@ -295,20 +299,11 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                                 msg.role === 'user' ? "self-end flex-row-reverse" : "self-start"
                                             )}
                                         >
-                                            {/* Avatar */}
-                                            <div className={cn(
-                                                "flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium",
-                                                msg.role === 'user'
-                                                    ? "bg-blue-600 text-white"
-                                                    : "bg-gradient-to-br from-purple-500 to-pink-500 text-white"
-                                            )}>
-                                                {msg.role === 'user' ? 'U' : 'R'}
-                                            </div>
                                             {/* Message Bubble */}
                                             <div className={cn(
                                                 "px-4 py-3 rounded-2xl text-sm leading-relaxed",
                                                 msg.role === 'user'
-                                                    ? "bg-blue-600 text-white rounded-br-md"
+                                                    ? "bg-white/5 text-white/90 border border-white/10 rounded-br-md"
                                                     : "bg-white/[0.08] text-white/90 rounded-bl-md border border-white/[0.06]"
                                             )}>
                                                 <div className="whitespace-pre-wrap font-mono text-[13px]">
@@ -320,9 +315,6 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                     {/* Streaming indicator */}
                                     {isGenerating && output && (
                                         <div className="flex gap-3 self-start max-w-[85%]">
-                                            <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium bg-gradient-to-br from-purple-500 to-pink-500 text-white">
-                                                R
-                                            </div>
                                             <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-white/[0.08] text-white/90 border border-white/[0.06]">
                                                 <div className="whitespace-pre-wrap font-mono text-[13px]">
                                                     {output}
