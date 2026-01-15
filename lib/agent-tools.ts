@@ -456,7 +456,14 @@ export const TOOLS_DEFINITION = [
         type: "function",
         function: {
             name: "run_node",
-            description: "Execute a specific node in the active workflow by its name or ID. Use when the user asks to run, test, or execute a specific node like 'run the HTTP Request node' or 'test the Transform step'.",
+            description: `Execute a specific node in the active workflow by its name or ID. 
+
+IMPORTANT BEHAVIOR:
+1. Always report the execution result (success or failure) with specific output details
+2. If the node fails, explain WHAT failed and WHY before attempting any fix
+3. Show the error message to help the user understand the issue
+
+Use when the user asks to run, test, or execute a specific node like 'run the HTTP Request node' or 'test the Transform step'.`,
             parameters: {
                 type: "object",
                 properties: {
@@ -477,7 +484,17 @@ export const TOOLS_DEFINITION = [
         type: "function",
         function: {
             name: "configure_node",
-            description: "Update the configuration of a specific node in the active workflow. Use this to fix failing nodes, adjust settings, or set up node parameters. Changes are saved immediately to the database.",
+            description: `Update the configuration of a specific node in the active workflow. Changes are saved to the database immediately.
+
+IMPORTANT BEHAVIOR - Follow this sequence when fixing failing nodes:
+1. FIRST run the node to see the actual error (don't assume what's wrong)
+2. EXPLAIN what failed and what you will change to fix it
+3. Apply the configuration change using this tool
+4. Tell the user: "I've updated [node name]. The workflow has been modified - you may need to refresh the Flow Builder to see changes."
+5. Run the node again to verify the fix worked
+6. SUMMARIZE: what was the error → what you changed → the new result
+
+Always be explicit about what you're changing and why.`,
             parameters: {
                 type: "object",
                 properties: {

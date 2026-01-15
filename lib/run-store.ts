@@ -248,7 +248,7 @@ export async function recordRunProgress(
 
     const { error: stepError } = await supabase
         .from('rune_run_steps')
-        .upsert(stepData, { onConflict: 'run_id,node_id' });
+        .insert(stepData);
 
     if (stepError) {
         console.warn('Step insert error (non-fatal):', stepError);

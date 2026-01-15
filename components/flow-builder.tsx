@@ -131,6 +131,10 @@ const FlowBuilderContent = ({
     const [templateForm, setTemplateForm] = useState({ name: '', description: '' });
     const [isSavingTemplate, setIsSavingTemplate] = useState(false);
 
+    // Workflow external modification detection (for agent changes)
+    const [hasExternalChanges, setHasExternalChanges] = useState(false);
+    const lastKnownUpdatedAt = useRef<string | null>(null);
+
     const fetchUserTemplates = useCallback(async () => {
         try {
             const response = await fetch('/api/rune/templates');
@@ -241,6 +245,10 @@ const FlowBuilderContent = ({
                 setWorkflowName(workflow.name);
                 setWorkflowId(workflow.id); // Set ID so subsequent saves are updates
 
+                // Track for external modification detection
+                lastKnownUpdatedAt.current = workflow.updated_at;
+                setHasExternalChanges(false);
+
                 setShowOpenModal(false);
                 toast.success(`Loaded "${workflow.name}"`);
             } else {
@@ -251,7 +259,7 @@ const FlowBuilderContent = ({
             console.error('Load error:', error);
             toast.error('Failed to load workflow');
         }
-    }, [setNodes, setEdges]);
+    }, [setNodes, setEdges, setAgentConfig]);
 
     const onDeleteWorkflow = useCallback(async (id: string, e: React.MouseEvent) => {
         e.stopPropagation(); // Prevent triggering load
@@ -327,6 +335,65 @@ const FlowBuilderContent = ({
             onLoadWorkflow(initialWorkflowId);
         }
     }, [initialWorkflowId]); // removed onLoadWorkflow from deps to avoid double-call if it's unstable, though useCallback should be stable
+
+    // Poll for external modifications (e.g., by agent)
+    useEffect(() => {
+        if (!workflowId) return;
+
+        const pollInterval = setInterval(async () => {
+            try {
+                const response = await fetch(`/api/rune/workflows/${workflowId}`);
+                if (!response.ok) return;
+
+                const data = await response.json();
+                const serverUpdatedAt = data.workflow?.updated_at;
+
+                if (serverUpdatedAt && lastKnownUpdatedAt.current) {
+                    // If server timestamp is newer than our last known timestamp
+                    if (new Date(serverUpdatedAt) > new Date(lastKnownUpdatedAt.current)) {
+                        setHasExternalChanges(true);
+                    }
+                }
+
+                // On first poll, just store the timestamp
+                if (!lastKnownUpdatedAt.current) {
+                    lastKnownUpdatedAt.current = serverUpdatedAt;
+                }
+            } catch (error) {
+                // Silently ignore polling errors
+            }
+        }, 3000); // Poll every 3 seconds
+
+        return () => clearInterval(pollInterval);
+    }, [workflowId]);
+
+    // Function to reload workflow from server
+    const reloadFromServer = useCallback(async () => {
+        if (!workflowId) return;
+
+        try {
+            const response = await fetch(`/api/rune/workflows/${workflowId}`);
+            if (!response.ok) throw new Error('Failed to reload');
+
+            const data = await response.json();
+            const workflow = data.workflow;
+            const graph = workflow?.graph_json;
+
+            if (graph?.nodes && graph?.edges) {
+                setNodes(graph.nodes);
+                setEdges(graph.edges);
+                if (graph.agentConfig) {
+                    setAgentConfig(graph.agentConfig);
+                }
+                lastKnownUpdatedAt.current = workflow.updated_at;
+                setHasExternalChanges(false);
+                toast.success('Workflow reloaded with latest changes');
+            }
+        } catch (error) {
+            console.error('Reload error:', error);
+            toast.error('Failed to reload workflow');
+        }
+    }, [workflowId, setNodes, setEdges, setAgentConfig]);
 
     // Animation: Panel entrance
     useEffect(() => {
@@ -667,6 +734,30 @@ const FlowBuilderContent = ({
             />
             <div className="flex-grow h-full relative" ref={reactFlowWrapper}>
                 <AnimatedGridBackground />
+
+                {/* Agent modification notification banner */}
+                {hasExternalChanges && (
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-2 rounded-lg bg-blue-500/90 text-white text-sm shadow-lg backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-300">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>The Agent modified this workflow</span>
+                        <button
+                            onClick={reloadFromServer}
+                            className="px-2 py-1 rounded bg-white/20 hover:bg-white/30 transition-colors font-medium"
+                        >
+                            Reload
+                        </button>
+                        <button
+                            onClick={() => setHasExternalChanges(false)}
+                            className="p-1 rounded hover:bg-white/20 transition-colors"
+                        >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                )}
                 <ReactFlow
                     nodes={nodes}
                     edges={edges}
