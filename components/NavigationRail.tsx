@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
+import { NotificationBell } from "./notification-bell";
 
 const NAV_ITEMS = [
     { label: "HUB", href: "/", external: false },
@@ -66,10 +67,15 @@ export function NavigationRail() {
                 <ArrowLeft className="w-8 h-8" />
             </a>
 
-            <div className="flex flex-col gap-6 w-full px-2">
+            <div className="flex flex-col gap-6 w-full px-2 flex-1">
                 {NAV_ITEMS.map((item) => (
                     <NavButton key={item.label} item={item} isActive={isActive(item)} />
                 ))}
+            </div>
+
+            {/* Notification Bell at bottom */}
+            <div className="mt-auto pt-6">
+                <NotificationBell />
             </div>
         </nav>
     );

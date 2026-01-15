@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildAgentContext } from '@/lib/agent-context';
-import { TOOLS_DEFINITION, getActiveContext, listWorkflows, getRecentRuns, runWorkflow, runNode, configureNode } from '@/lib/agent-tools';
+import { TOOLS_DEFINITION, getActiveContext, listWorkflows, getRecentRuns, runWorkflow, runNode, configureNode, scheduleMessage } from '@/lib/agent-tools';
 
 export const runtime = 'nodejs';
 
 interface GenerateRequest {
     input: string;
     workflowId?: string | null;
+    chatId?: string | null;
+    isTemporary?: boolean;
     config: {
         model: string;
         temperature: number;
@@ -17,6 +19,7 @@ interface GenerateRequest {
         responseFormat?: 'text' | 'json';
         frequencyPenalty?: number;
         presencePenalty?: number;
+        tools?: string[];
     };
 }
 
@@ -31,10 +34,38 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json() as GenerateRequest;
-        const { input, config, workflowId } = body;
+        const { input, config, workflowId, chatId, isTemporary } = body;
 
         if (!input || !config?.model) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        // --- Chat Persistence: Get or Create Chat ---
+        let activeChatId = chatId;
+
+        if (!activeChatId && !isTemporary) {
+            // Create a new chat if none provided and not temporary
+            const { data: newChat } = await supabase
+                .from('rune_chats')
+                .insert({
+                    user_id: user.id,
+                    workflow_id: workflowId || null,
+                    title: input.slice(0, 50) + (input.length > 50 ? '...' : ''),
+                    is_temporary: false
+                })
+                .select('id')
+                .single();
+
+            activeChatId = newChat?.id;
+        }
+
+        // Save user message to chat (if not temporary)
+        if (activeChatId) {
+            await supabase.from('rune_chat_messages').insert({
+                chat_id: activeChatId,
+                role: 'user',
+                content: input
+            });
         }
 
         // Determine provider based on model
@@ -80,7 +111,7 @@ export async function POST(req: NextRequest) {
 
         // Stream response based on provider
         if (provider === 'openai') {
-            return await streamOpenAI(apiKey, config, messages, supabase, user.id);
+            return await streamOpenAI(apiKey, config, messages, supabase, user.id, activeChatId);
         } else if (provider === 'anthropic') {
             return await streamAnthropic(apiKey, config, messages);
         }
@@ -174,6 +205,12 @@ async function executeToolCall(supabase: any, userId: string, toolName: string, 
                 return await runNode(supabase, userId, args.nodeIdentifier, args.input);
             case 'configure_node':
                 return await configureNode(supabase, userId, args.nodeIdentifier, args.config);
+            case 'schedule_message':
+                return await scheduleMessage(supabase, userId, {
+                    message: args.message,
+                    delayMinutes: args.delayMinutes,
+                    priority: args.priority
+                });
             default:
                 return { error: `Unknown tool: ${toolName}` };
         }
@@ -183,7 +220,7 @@ async function executeToolCall(supabase: any, userId: string, toolName: string, 
     }
 }
 
-async function streamOpenAI(apiKey: string, config: any, messages: any[], supabase: any, userId: string) {
+async function streamOpenAI(apiKey: string, config: any, messages: any[], supabase: any, userId: string, chatId?: string | null) {
     // Filter tools based on user config
     const allowedTools = config.tools || [];
     const tools = TOOLS_DEFINITION.filter(t => allowedTools.includes(t.function.name));
@@ -257,7 +294,7 @@ async function streamOpenAI(apiKey: string, config: any, messages: any[], supaba
     // If we want server-side tools with streaming visibility:
     // 1. Receive chunks.
     // 2. If `tool_calls` appearing, buffer them. DO NOT stream to user yet (or stream a "Thinking..." status).
-    return handleOpenAIToolLoop(apiKey, requestBody, supabase, userId);
+    return handleOpenAIToolLoop(apiKey, requestBody, supabase, userId, chatId);
 }
 
 // Helper to separate SSE stream parsing from main logic
@@ -290,7 +327,7 @@ function createTextStream(upstream: ReadableStream) {
     return upstream.pipeThrough(transformer);
 }
 
-async function handleOpenAIToolLoop(apiKey: string, initialBody: any, supabase: any, userId: string): Promise<NextResponse> {
+async function handleOpenAIToolLoop(apiKey: string, initialBody: any, supabase: any, userId: string, chatId?: string | null): Promise<NextResponse> {
     const MAX_TOOL_ROUNDS = 10; // Prevent infinite loops
     let currentMessages = [...initialBody.messages];
     let round = 0;
@@ -319,8 +356,18 @@ async function handleOpenAIToolLoop(apiKey: string, initialBody: any, supabase: 
         if (!message?.tool_calls || message.tool_calls.length === 0 || finishReason === 'stop') {
             console.log(`[OpenAI Tool Loop] Completed after ${round} rounds`);
 
-            // Return content as a stream
             const content = message?.content || "";
+
+            // Save assistant response to chat (if not temporary)
+            if (chatId && content) {
+                await supabase.from('rune_chat_messages').insert({
+                    chat_id: chatId,
+                    role: 'assistant',
+                    content: content
+                });
+            }
+
+            // Return content as a stream
             const encoder = new TextEncoder();
             const simpleStream = new ReadableStream({
                 start(controller) {
@@ -328,7 +375,7 @@ async function handleOpenAIToolLoop(apiKey: string, initialBody: any, supabase: 
                     controller.close();
                 }
             });
-            return new NextResponse(simpleStream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+            return new NextResponse(simpleStream, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'X-Chat-Id': chatId || '' } });
         }
 
         // Execute tool calls

@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { McpModal } from "./mcp-modal"
+import { ChatListModal } from "./chat-list-modal"
 import { Textarea } from "@/components/ui/textarea"
 import {
     Select,
@@ -14,9 +15,9 @@ import { Slider } from "@/components/ui/slider"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { History, MoreHorizontal, Code2, Save, Settings2, PlayCircle, Copy, Check } from "lucide-react"
-import { useState, useEffect } from "react"
-import { useAgentStore } from "../store"
+import { History, MoreHorizontal, Code2, Save, Settings2, PlayCircle, Copy, Check, MessageSquare, Plus, Clock } from "lucide-react"
+import { useState, useEffect, useCallback } from "react"
+import { useAgentStore, ChatMessage } from "../store"
 import { cn } from "@/lib/utils"
 
 interface PlaygroundProps {
@@ -27,7 +28,18 @@ interface PlaygroundProps {
 
 export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
     // Store State
-    const { config, updateConfig } = useAgentStore();
+    const {
+        config,
+        updateConfig,
+        currentChatId,
+        messages,
+        isTemporaryChat,
+        setCurrentChat,
+        setMessages,
+        addMessage,
+        setIsTemporaryChat,
+        clearCurrentChat
+    } = useAgentStore();
 
     // Local UI State
     const [input, setInput] = useState("")
@@ -35,12 +47,46 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
     const [isGenerating, setIsGenerating] = useState(false)
     const [copied, setCopied] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [showChatModal, setShowChatModal] = useState(false);
 
+    // Slider handlers
     const handleTempChange = (vals: number[]) => updateConfig({ temperature: vals[0] });
     const handleMaxLengthChange = (vals: number[]) => updateConfig({ maxLength: vals[0] });
     const handleTopPChange = (vals: number[]) => updateConfig({ topP: vals[0] });
     const handleFreqPenaltyChange = (vals: number[]) => updateConfig({ frequencyPenalty: vals[0] });
     const handlePresPenaltyChange = (vals: number[]) => updateConfig({ presencePenalty: vals[0] });
+
+    // Load chat when currentChatId changes
+    useEffect(() => {
+        if (currentChatId) {
+            loadChat(currentChatId);
+        }
+    }, [currentChatId]);
+
+    const loadChat = async (chatId: string) => {
+        try {
+            const res = await fetch(`/api/rune/chats/${chatId}`);
+            if (res.ok) {
+                const data = await res.json();
+                setMessages(data.messages || []);
+                // Show the last assistant message as output if exists
+                const lastAssistant = data.messages?.filter((m: ChatMessage) => m.role === 'assistant').pop();
+                if (lastAssistant) setOutput(lastAssistant.content);
+            }
+        } catch (e) {
+            console.error('Failed to load chat:', e);
+        }
+    };
+
+    const handleNewChat = () => {
+        clearCurrentChat();
+        setOutput('');
+        setInput('');
+    };
+
+    const handleChatSelect = (chatId: string) => {
+        setCurrentChat(chatId);
+    };
 
     const handleSubmit = async () => {
         if (isGenerating) {
@@ -52,16 +98,31 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
         setIsGenerating(true);
         setOutput("");
 
+        // Add user message to local state for immediate feedback
+        addMessage({ role: 'user', content: input });
+
         try {
             const response = await fetch('/api/agent/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ input, config, workflowId }),
+                body: JSON.stringify({
+                    input,
+                    config,
+                    workflowId,
+                    chatId: currentChatId,
+                    isTemporary: isTemporaryChat
+                }),
             });
 
             if (!response.ok) {
                 const error = await response.json();
                 throw new Error(error.error || 'Failed to generate');
+            }
+
+            // Get chatId from response header (if new chat was created)
+            const responseChatId = response.headers.get('X-Chat-Id');
+            if (responseChatId && !currentChatId && !isTemporaryChat) {
+                setCurrentChat(responseChatId);
             }
 
             // Stream the response
@@ -72,14 +133,20 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                 throw new Error('No response stream');
             }
 
+            let fullResponse = '';
             while (true) {
                 const { done, value } = await reader.read();
 
                 if (done) break;
 
                 const text = decoder.decode(value, { stream: true });
+                fullResponse += text;
                 setOutput(prev => prev + text);
             }
+
+            // Add assistant message to local state
+            addMessage({ role: 'assistant', content: fullResponse });
+            setInput(''); // Clear input after successful send
 
             setIsGenerating(false);
         } catch (error) {
@@ -308,7 +375,8 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                         { id: 'get_recent_runs', label: 'Recent Runs', desc: 'Execution history' },
                                         { id: 'run_workflow', label: 'Run Workflow', desc: 'Execute active workflow' },
                                         { id: 'run_node', label: 'Run Node', desc: 'Execute specific node' },
-                                        { id: 'configure_node', label: 'Configure Node', desc: 'Edit node settings' }
+                                        { id: 'configure_node', label: 'Configure Node', desc: 'Edit node settings' },
+                                        { id: 'schedule_message', label: 'Schedule Message', desc: 'Proactive notifications' }
                                     ].map(tool => {
                                         const isChecked = config.tools?.includes(tool.id);
                                         return (
@@ -449,6 +517,59 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                     </div>
                 </div>
             </div>
+
+            {/* Chat Toolbar - Fixed at bottom of input area */}
+            <div className="absolute bottom-20 left-4 right-4 flex items-center justify-between z-10 px-2 pointer-events-none">
+                <div className="flex items-center gap-2 pointer-events-auto">
+                    {/* Chat History Button */}
+                    <button
+                        onClick={() => setShowChatModal(true)}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 text-xs transition-colors border border-white/10"
+                    >
+                        <History className="w-3.5 h-3.5" />
+                        History
+                    </button>
+
+                    {/* New Chat Button */}
+                    <button
+                        onClick={handleNewChat}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 text-xs transition-colors border border-white/10"
+                    >
+                        <Plus className="w-3.5 h-3.5" />
+                        New
+                    </button>
+
+                    {/* Temporary Chat Toggle */}
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/5 border border-white/10">
+                        <Clock className={cn("w-3.5 h-3.5", isTemporaryChat ? "text-amber-400" : "text-white/40")} />
+                        <span className={cn("text-xs", isTemporaryChat ? "text-amber-400" : "text-white/50")}>
+                            Temporary
+                        </span>
+                        <Switch
+                            checked={isTemporaryChat}
+                            onCheckedChange={setIsTemporaryChat}
+                            className="scale-75 -mr-1"
+                        />
+                    </div>
+                </div>
+
+                {/* Current Chat Indicator */}
+                {currentChatId && !isTemporaryChat && (
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-500/10 border border-blue-500/20 pointer-events-auto">
+                        <MessageSquare className="w-3 h-3 text-blue-400" />
+                        <span className="text-xs text-blue-400/80">Chat saved</span>
+                    </div>
+                )}
+            </div>
+
+            {/* Chat List Modal */}
+            <ChatListModal
+                isOpen={showChatModal}
+                onClose={() => setShowChatModal(false)}
+                workflowId={workflowId}
+                onChatSelect={handleChatSelect}
+                onNewChat={handleNewChat}
+            />
         </div>
     )
 }

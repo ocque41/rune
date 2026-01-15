@@ -396,6 +396,70 @@ export async function configureNode(
     };
 }
 
+/**
+ * Schedule a message for proactive delivery to the user.
+ * This allows the agent to "write first" even when the user hasn't prompted.
+ */
+export async function scheduleMessage(
+    supabase: any,
+    userId: string,
+    params: {
+        message: string;
+        chatId?: string;
+        workflowId?: string;
+        delayMinutes?: number;
+        priority?: 'low' | 'normal' | 'high' | 'urgent';
+    }
+) {
+    const { message, chatId, workflowId, delayMinutes = 0, priority = 'normal' } = params;
+
+    // Calculate scheduled time
+    const scheduledFor = new Date();
+    scheduledFor.setMinutes(scheduledFor.getMinutes() + delayMinutes);
+
+    // Insert pending message
+    const { data, error } = await supabase
+        .from('rune_pending_messages')
+        .insert({
+            user_id: userId,
+            chat_id: chatId || null,
+            workflow_id: workflowId || null,
+            message,
+            priority,
+            scheduled_for: scheduledFor.toISOString()
+        })
+        .select('id')
+        .single();
+
+    if (error) {
+        console.error('[scheduleMessage] Insert error:', error);
+        return { success: false, error: error.message };
+    }
+
+    // If delay is 0 or very small, trigger immediate processing
+    if (delayMinutes <= 0) {
+        try {
+            await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/notifications/process`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ messageId: data.id })
+            });
+        } catch (e) {
+            // Don't fail if notification processing fails - it will be picked up by cron
+            console.warn('[scheduleMessage] Immediate processing failed, will retry via cron');
+        }
+    }
+
+    return {
+        success: true,
+        messageId: data.id,
+        scheduledFor: scheduledFor.toISOString(),
+        message: delayMinutes > 0
+            ? `Message scheduled for delivery in ${delayMinutes} minute(s).`
+            : `Message queued for immediate delivery.`
+    };
+}
+
 export const TOOLS_DEFINITION = [
     {
         type: "function",
@@ -530,6 +594,37 @@ Always be explicit about what you're changing and why.`,
                     }
                 },
                 required: ["nodeIdentifier", "config"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "schedule_message",
+            description: `Schedule a follow-up message to the user. Use this when:
+- You've completed a background task and want to notify the user
+- You need to send a delayed response or reminder
+- You're about to perform a long-running operation and want to report back
+
+The message will be delivered and the user will be notified (in-app and/or email based on their preferences).`,
+            parameters: {
+                type: "object",
+                properties: {
+                    message: {
+                        type: "string",
+                        description: "The message to send to the user"
+                    },
+                    delayMinutes: {
+                        type: "number",
+                        description: "Optional delay before sending (default: 0 = send immediately)"
+                    },
+                    priority: {
+                        type: "string",
+                        enum: ["low", "normal", "high", "urgent"],
+                        description: "Message priority (affects notification urgency)"
+                    }
+                },
+                required: ["message"]
             }
         }
     }

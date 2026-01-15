@@ -2,6 +2,25 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { LLMConfig } from '@/lib/types/agent';
 
+export interface ChatMessage {
+    id?: string;
+    role: 'user' | 'assistant' | 'system' | 'tool';
+    content: string;
+    toolCalls?: any;
+    createdAt?: string;
+}
+
+export interface Chat {
+    id: string;
+    title: string;
+    workflowId?: string;
+    isTemporary: boolean;
+    createdAt: string;
+    updatedAt: string;
+    messageCount?: number;
+    preview?: string;
+}
+
 interface AgentState {
     // --- Workspace Context ---
     workspace: {
@@ -17,6 +36,13 @@ interface AgentState {
     recentWorkflows: any[];
     recentRuns: any[];
 
+    // --- Chat State ---
+    currentChatId: string | null;
+    messages: ChatMessage[];
+    chats: Chat[];
+    isTemporaryChat: boolean;
+    isLoadingChats: boolean;
+
     // --- LLM Config ---
     config: LLMConfig;
 
@@ -25,6 +51,15 @@ interface AgentState {
     hydrateAccountContext: () => Promise<void>;
     setActiveWorkflow: (workflowId: string, draftId?: string) => void;
     setActiveRun: (runId: string) => void;
+
+    // Chat Actions
+    setCurrentChat: (chatId: string | null) => void;
+    setMessages: (messages: ChatMessage[]) => void;
+    addMessage: (message: ChatMessage) => void;
+    setChats: (chats: Chat[]) => void;
+    setIsTemporaryChat: (isTemporary: boolean) => void;
+    setIsLoadingChats: (loading: boolean) => void;
+    clearCurrentChat: () => void;
 
     // Config
     setConfig: (config: LLMConfig) => void;
@@ -60,6 +95,13 @@ export const useAgentStore = create<AgentState>()(
             },
             recentWorkflows: [],
             recentRuns: [],
+
+            // Initial Chat State
+            currentChatId: null,
+            messages: [],
+            chats: [],
+            isTemporaryChat: false,
+            isLoadingChats: false,
 
             // Initial Config State
             config: defaultConfig,
@@ -98,6 +140,15 @@ export const useAgentStore = create<AgentState>()(
                 workspace: { ...state.workspace, activeRunId: runId }
             })),
 
+            // Chat Actions
+            setCurrentChat: (chatId) => set({ currentChatId: chatId }),
+            setMessages: (messages) => set({ messages }),
+            addMessage: (message) => set(state => ({ messages: [...state.messages, message] })),
+            setChats: (chats) => set({ chats }),
+            setIsTemporaryChat: (isTemporary) => set({ isTemporaryChat: isTemporary }),
+            setIsLoadingChats: (loading) => set({ isLoadingChats: loading }),
+            clearCurrentChat: () => set({ currentChatId: null, messages: [] }),
+
             // Config Actions
             setConfig: (config) => set({ config }),
             updateConfig: (updates) => set((state) => ({ config: { ...state.config, ...updates } })),
@@ -105,9 +156,12 @@ export const useAgentStore = create<AgentState>()(
         }),
         {
             name: 'rune-agent-storage',
-            // Optional: Filter what parts of state strictly persist if needed. 
-            // For now, persisting everything is likely fine or we can partial it.
-            // partialize: (state) => ({ config: state.config }) // Example if we only wanted to persist config
+            partialize: (state) => ({
+                config: state.config,
+                currentChatId: state.currentChatId,
+                isTemporaryChat: state.isTemporaryChat
+            })
         }
     )
 );
+
