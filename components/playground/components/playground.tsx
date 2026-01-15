@@ -220,8 +220,21 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                             )}
                         >
                             {saved ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />}
-                            {saved ? 'Saved' : 'Save'}
+                            <span className="hidden sm:inline">{saved ? 'Saved' : 'Save'}</span>
                         </Button>
+
+                        {/* Temporary Chat Toggle - between Save and Copy */}
+                        <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-white/5 border border-white/10 ml-1">
+                            <Clock className={cn("w-3.5 h-3.5", isTemporaryChat ? "text-amber-400" : "text-white/40")} />
+                            <span className={cn("text-xs hidden sm:inline", isTemporaryChat ? "text-amber-400" : "text-white/50")}>
+                                Temp
+                            </span>
+                            <Switch
+                                checked={isTemporaryChat}
+                                onCheckedChange={setIsTemporaryChat}
+                                className="scale-75 -mr-1 data-[state=checked]:bg-amber-500"
+                            />
+                        </div>
 
                         <div className="h-4 w-px bg-white/[0.08] mx-2" />
 
@@ -260,22 +273,64 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                     {/* Main Stage (Left/Center) - with gradient */}
                     <div className="flex-1 flex flex-col relative bg-black p-6 overflow-hidden">
 
-                        {/* Output Area / Empty State */}
-                        <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-white/20 select-none pb-4 overflow-y-auto w-full custom-scrollbar">
-                            {!output && !isGenerating ? (
-                                <>
+                        {/* Chat Messages Area */}
+                        <div className="flex-1 min-h-0 flex flex-col pb-4 overflow-y-auto w-full custom-scrollbar">
+                            {messages.length === 0 && !isGenerating ? (
+                                <div className="flex-1 flex flex-col items-center justify-center text-white/20 select-none">
                                     <div className="w-16 h-16 rounded-2xl bg-white/[0.03] flex items-center justify-center mb-4 shadow-inner">
                                         <PlayCircle className="h-8 w-8 opacity-50" />
                                     </div>
-                                    <h3 className="text-sm font-medium text-white/50 mb-1">Ready to Generate</h3>
+                                    <h3 className="text-sm font-medium text-white/50 mb-1">Ready to Chat</h3>
                                     <p className="text-xs text-white/30 font-mono text-center max-w-[200px]">
-                                        Configure your model settings and run a prompt to see results.
+                                        Configure your model settings and start a conversation.
                                     </p>
-                                </>
+                                </div>
                             ) : (
-                                <div className="w-full max-w-none px-10 h-full overflow-y-auto text-sm leading-relaxed font-mono whitespace-pre-wrap text-white/80 custom-scrollbar">
-                                    {output}
-                                    {isGenerating && <span className="inline-block w-1.5 h-3 ml-1 bg-white/60 animate-pulse" />}
+                                <div className="flex flex-col gap-4 px-6 py-4">
+                                    {messages.map((msg, idx) => (
+                                        <div
+                                            key={idx}
+                                            className={cn(
+                                                "flex gap-3 max-w-[85%]",
+                                                msg.role === 'user' ? "self-end flex-row-reverse" : "self-start"
+                                            )}
+                                        >
+                                            {/* Avatar */}
+                                            <div className={cn(
+                                                "flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium",
+                                                msg.role === 'user'
+                                                    ? "bg-blue-600 text-white"
+                                                    : "bg-gradient-to-br from-purple-500 to-pink-500 text-white"
+                                            )}>
+                                                {msg.role === 'user' ? 'U' : 'R'}
+                                            </div>
+                                            {/* Message Bubble */}
+                                            <div className={cn(
+                                                "px-4 py-3 rounded-2xl text-sm leading-relaxed",
+                                                msg.role === 'user'
+                                                    ? "bg-blue-600 text-white rounded-br-md"
+                                                    : "bg-white/[0.08] text-white/90 rounded-bl-md border border-white/[0.06]"
+                                            )}>
+                                                <div className="whitespace-pre-wrap font-mono text-[13px]">
+                                                    {msg.content}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {/* Streaming indicator */}
+                                    {isGenerating && output && (
+                                        <div className="flex gap-3 self-start max-w-[85%]">
+                                            <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium bg-gradient-to-br from-purple-500 to-pink-500 text-white">
+                                                R
+                                            </div>
+                                            <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-white/[0.08] text-white/90 border border-white/[0.06]">
+                                                <div className="whitespace-pre-wrap font-mono text-[13px]">
+                                                    {output}
+                                                    <span className="inline-block w-1.5 h-3 ml-1 bg-white/60 animate-pulse" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -300,7 +355,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                             disabled={!input.trim() && !isGenerating}
                                             className="h-7 px-3 text-[10px] uppercase font-semibold tracking-wider text-white/50 hover:text-white/80 hover:bg-white/[0.06] transition-colors disabled:opacity-30"
                                         >
-                                            {isGenerating ? 'Stop' : (output ? 'Regenerate' : 'Submit')}
+                                            {isGenerating ? 'Stop' : 'Submit'}
                                         </Button>
                                         <Button variant="ghost" size="icon" className="h-7 w-7 text-white/40 hover:text-white/70 hover:bg-white/[0.06] rounded-full">
                                             <History className="h-3.5 w-3.5" />
@@ -410,6 +465,27 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                         );
                                     })}
                                 </div>
+
+                                {/* Chat Actions - History & New (below tools) */}
+                                <div className="pt-3 mt-2 border-t border-white/[0.06] space-y-2">
+                                    <button
+                                        onClick={() => setShowChatModal(true)}
+                                        className="w-full flex items-center gap-2 px-3 py-2 rounded-md bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 text-xs transition-colors border border-white/10"
+                                    >
+                                        <History className="w-4 h-4" />
+                                        <span>Chat History</span>
+                                        {currentChatId && !isTemporaryChat && (
+                                            <span className="ml-auto text-[10px] text-blue-400">saved</span>
+                                        )}
+                                    </button>
+                                    <button
+                                        onClick={handleNewChat}
+                                        className="w-full flex items-center gap-2 px-3 py-2 rounded-md bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 text-xs transition-colors border border-white/10"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        <span>New Chat</span>
+                                    </button>
+                                </div>
                             </div>
 
                             <Separator className="bg-border/60" />
@@ -518,49 +594,6 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                 </div>
             </div>
 
-            {/* Chat Toolbar - Fixed at bottom of input area */}
-            <div className="absolute bottom-20 left-4 right-4 flex items-center justify-between z-10 px-2 pointer-events-none">
-                <div className="flex items-center gap-2 pointer-events-auto">
-                    {/* Chat History Button */}
-                    <button
-                        onClick={() => setShowChatModal(true)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 text-xs transition-colors border border-white/10"
-                    >
-                        <History className="w-3.5 h-3.5" />
-                        History
-                    </button>
-
-                    {/* New Chat Button */}
-                    <button
-                        onClick={handleNewChat}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 text-xs transition-colors border border-white/10"
-                    >
-                        <Plus className="w-3.5 h-3.5" />
-                        New
-                    </button>
-
-                    {/* Temporary Chat Toggle */}
-                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/5 border border-white/10">
-                        <Clock className={cn("w-3.5 h-3.5", isTemporaryChat ? "text-amber-400" : "text-white/40")} />
-                        <span className={cn("text-xs", isTemporaryChat ? "text-amber-400" : "text-white/50")}>
-                            Temporary
-                        </span>
-                        <Switch
-                            checked={isTemporaryChat}
-                            onCheckedChange={setIsTemporaryChat}
-                            className="scale-75 -mr-1"
-                        />
-                    </div>
-                </div>
-
-                {/* Current Chat Indicator */}
-                {currentChatId && !isTemporaryChat && (
-                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-500/10 border border-blue-500/20 pointer-events-auto">
-                        <MessageSquare className="w-3 h-3 text-blue-400" />
-                        <span className="text-xs text-blue-400/80">Chat saved</span>
-                    </div>
-                )}
-            </div>
 
             {/* Chat List Modal */}
             <ChatListModal

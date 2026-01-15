@@ -250,9 +250,27 @@ export async function runNode(supabase: SupabaseClient, userId: string, nodeIden
                 result = await (engine as any).executeSendEmail(data, nodeInput);
                 break;
             case 'Run Script':
+                // Validate script exists before running
+                if (!data.scriptConfig?.code || data.scriptConfig.code.trim() === '') {
+                    return {
+                        success: false,
+                        nodeId: node.id,
+                        nodeLabel: label,
+                        error: `Script node "${label}" (id: ${node.id}) has no code configured. Use configure_node first to add a script.`,
+                        hint: "Example: configure_node({ nodeIdentifier: '" + node.id + "', config: { scriptConfig: { code: 'return { message: \"Hello\" }' } } })"
+                    };
+                }
                 result = await (engine as any).executeScript(data, nodeInput);
                 break;
             case 'Transform':
+                if (!data.transformConfig?.expression || data.transformConfig.expression.trim() === '') {
+                    return {
+                        success: false,
+                        nodeId: node.id,
+                        nodeLabel: label,
+                        error: `Transform node "${label}" (id: ${node.id}) has no expression configured. Use configure_node first.`,
+                    };
+                }
                 result = await (engine as any).executeTransform(data, nodeInput);
                 break;
             case 'If / Else':
