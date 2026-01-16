@@ -198,6 +198,56 @@ const FlowBuilderContent = ({
         }
     }, [setNodes, setEdges]);
 
+    // Paste workflow from clipboard (Cmd+V / Ctrl+V)
+    useEffect(() => {
+        const handlePaste = (e: ClipboardEvent) => {
+            // Only handle if not inside an input/textarea
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+                return;
+            }
+
+            const clipboardText = e.clipboardData?.getData('text');
+            if (!clipboardText) return;
+
+            try {
+                const parsed = JSON.parse(clipboardText);
+
+                // Validate it looks like a workflow
+                if (parsed.nodes && Array.isArray(parsed.nodes)) {
+                    const newNodes = parsed.nodes.map((n: any, idx: number) => ({
+                        ...n,
+                        id: n.id || String(Date.now() + idx),
+                        position: n.position || { x: 100 + idx * 200, y: 100 },
+                        type: n.type || 'step',
+                        data: n.data || { label: `Node ${idx + 1}` }
+                    }));
+
+                    const newEdges = (parsed.edges || []).map((edge: any) => ({
+                        ...edge,
+                        id: edge.id || `e-${edge.source}-${edge.target}`
+                    }));
+
+                    setNodes(newNodes);
+                    setEdges(newEdges);
+
+                    // Apply agent config if present
+                    if (parsed.agentConfig) {
+                        setAgentConfig(parsed.agentConfig);
+                    }
+
+                    toast.success(`Pasted workflow with ${newNodes.length} nodes`);
+                    e.preventDefault();
+                }
+            } catch {
+                // Not valid JSON, ignore silently (user might be pasting text somewhere)
+            }
+        };
+
+        document.addEventListener('paste', handlePaste);
+        return () => document.removeEventListener('paste', handlePaste);
+    }, [setNodes, setEdges, setAgentConfig]);
+
     const fetchWorkflows = useCallback(async () => {
         setIsLoadingList(true);
         try {
