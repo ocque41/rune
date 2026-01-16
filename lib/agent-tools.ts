@@ -600,30 +600,31 @@ Always be explicit about what you're changing and why.`,
                                 type: "object",
                                 description: "Script node config: { code }"
                             },
-                            type: "object",
-                            description: "Slack node config: { webhookUrl, channel, message }"
-                        },
-                        transformConfig: {
-                            type: "object",
-                            description: "Transform node config: { expression } e.g. 'return { ...params, extra: 1 }'"
-                        },
-                        condition: {
-                            type: "string",
-                            description: "If/Else node condition: JavaScript expression returning boolean, e.g. 'params.value > 10'"
-                        },
-                        description: {
-                            type: "string",
-                            description: "Node description text"
+                            slackConfig: {
+                                type: "object",
+                                description: "Slack node config: { webhookUrl, channel, message }"
+                            },
+                            transformConfig: {
+                                type: "object",
+                                description: "Transform node config: { expression } e.g. 'return { ...params, extra: 1 }'"
+                            },
+                            condition: {
+                                type: "string",
+                                description: "If/Else node condition: JavaScript expression returning boolean, e.g. 'params.value > 10'"
+                            },
+                            description: {
+                                type: "string",
+                                description: "Node description text"
+                            }
                         }
                     }
-                }
-            },
-            required: ["nodeIdentifier", "config"]
+                },
+                required: ["nodeIdentifier", "config"]
+            }
         }
-    }
     },
-{
-    type: "function",
+    {
+        type: "function",
         function: {
             name: "schedule_message",
             description: `Schedule a follow-up message to the user. Use this when:
