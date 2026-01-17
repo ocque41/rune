@@ -478,6 +478,86 @@ export async function scheduleMessage(
     };
 }
 
+/**
+ * Validate the configuration of a node without saving it.
+ */
+export async function validateNodeConfig(
+    config: {
+        scriptConfig?: { code: string };
+        transformConfig?: { expression: string };
+        condition?: string;
+    }
+) {
+    const results: any = { valid: true, errors: [] };
+
+    if (config.scriptConfig?.code) {
+        try { new Function(config.scriptConfig.code); } catch (e: any) { results.valid = false; results.errors.push(`Script syntax error: ${e.message}`); }
+    }
+    if (config.transformConfig?.expression) {
+        try { new Function('params', config.transformConfig.expression); } catch (e: any) { results.valid = false; results.errors.push(`Transform expression error: ${e.message}`); }
+    }
+    if (config.condition) {
+        try { new Function('params', `return ${config.condition}`); } catch (e: any) { results.valid = false; results.errors.push(`Condition syntax error: ${e.message}`); }
+    }
+    return results;
+}
+
+/**
+ * Mark a node as failed and instructions to skip/ignore it.
+ */
+export async function markNodeFailed(
+    supabase: SupabaseClient,
+    userId: string,
+    nodeIdentifier: string,
+    reason: string
+) {
+    // 1. Get active context
+    const { data: session } = await supabase
+        .from('rune_agent_sessions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    if (!session) return { success: false, error: "No active session." };
+
+    // 2. Fetch workflow to get node ID if identifier is label
+    const { data: workflow } = await supabase.from('rune_workflows').select('graph_json').eq('id', session.active_workflow_id).single();
+    let nodeId = nodeIdentifier;
+    if (workflow?.graph_json?.nodes) {
+        const node = workflow.graph_json.nodes.find((n: any) => n.id === nodeIdentifier || n.data?.label?.toLowerCase() === nodeIdentifier.toLowerCase());
+        if (node) nodeId = node.id;
+    }
+
+    // 3. Update session's failed_nodes list
+    // We update the object structure to match route.ts persistence
+    const failedNodes = session.failed_nodes || {};
+
+    // Mark as skipped/failed with high attempt count to indicate fatal
+    failedNodes[nodeId] = {
+        attempts: (failedNodes[nodeId]?.attempts || 0) + 1,
+        lastError: `[Marked Failed] ${reason}`,
+        skipped: true,
+        marked_at: new Date().toISOString()
+    };
+
+    await supabase
+        .from('rune_agent_sessions')
+        .update({
+            failed_nodes: failedNodes,
+            // We can also append to metadata if we want to store the reason
+            metadata: { ...session.metadata, [`failure_reason_${nodeId}`]: reason }
+        })
+        .eq('id', session.id);
+
+    return {
+        success: true,
+        message: `Node ${nodeId} marked as failed. The agent should now skip this node or try an alternative approach.`,
+        skipped: true
+    };
+}
+
 export const TOOLS_DEFINITION = [
     {
         type: "function",
@@ -615,11 +695,45 @@ Always be explicit about what you're changing and why.`,
                             description: {
                                 type: "string",
                                 description: "Node description text"
+                            },
+                            errorHandlerConfig: {
+                                type: "object",
+                                description: "Error Handler config: { actionType: 'email'|'slack'|'webhook', emailConfig, slackConfig, webhookConfig }"
                             }
                         }
                     }
                 },
                 required: ["nodeIdentifier", "config"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "validate_node_config",
+            description: "Validate a configuration (script, transform, condition) for syntax errors without saving. Use this BEFORE configure_node if you are unsure about the syntax.",
+            parameters: {
+                type: "object",
+                properties: {
+                    scriptConfig: { type: "object", properties: { code: { type: "string" } } },
+                    transformConfig: { type: "object", properties: { expression: { type: "string" } } },
+                    condition: { type: "string" }
+                }
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "mark_node_failed",
+            description: "Mark a specific node as failed/unfixable for this session. This tells the system to skip trying to fix this node and proceed with other tasks or stop.",
+            parameters: {
+                type: "object",
+                properties: {
+                    nodeIdentifier: { type: "string", description: "Node ID or Label" },
+                    reason: { type: "string", description: "Reason for giving up on this node" }
+                },
+                required: ["nodeIdentifier", "reason"]
             }
         }
     },

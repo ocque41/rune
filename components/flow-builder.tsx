@@ -47,6 +47,7 @@ import { RuneDrawer } from '@/components/ui/drawer';
 import { AutoPilotContainer } from '@/components/playground/auto-pilot-container';
 import { Bot, Activity, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
 import { animate, stagger } from 'animejs';
+import ErrorHandlerNode from './nodes/error-handler-node';
 
 const nodeTypes = {
     step: StepNode,
@@ -59,6 +60,7 @@ const nodeTypes = {
     ai: AINode,
     transform: TransformNode,
     webhook: WebhookNode,
+    error: ErrorHandlerNode,
 } as any;
 
 const initialNodes: Node[] = [
@@ -218,7 +220,7 @@ const FlowBuilderContent = ({
                     const newNodes = parsed.nodes.map((n: any, idx: number) => ({
                         ...n,
                         id: n.id || String(Date.now() + idx),
-                        position: n.position || { x: 100 + idx * 200, y: 100 },
+                        position: n.position || { x: 100, y: 100 + idx * 150 }, // Vertical layout with 150px spacing
                         type: n.type || 'step',
                         data: n.data || { label: `Node ${idx + 1}` }
                     }));

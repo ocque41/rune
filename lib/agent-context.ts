@@ -12,6 +12,8 @@ export interface AgentContext {
         draftId?: string;
         runId?: string;
         nodeId?: string; // Currently selected node
+        completedNodes?: string[];
+        failedNodes?: Record<string, any>;
     };
     workflow?: {
         id: string;
@@ -101,7 +103,9 @@ export async function buildAgentContext(
             workflowId: workflowId || undefined,
             draftId: session?.active_draft_id || undefined,
             runId: runId || undefined,
-            nodeId: selectedNodeId
+            nodeId: selectedNodeId,
+            completedNodes: session?.completed_nodes || [],
+            failedNodes: session?.failed_nodes || {}
         },
         workflow: workflowData,
         recentWorkflows: recentWorkflows,

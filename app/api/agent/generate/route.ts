@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildAgentContext } from '@/lib/agent-context';
-import { TOOLS_DEFINITION, getActiveContext, listWorkflows, getRecentRuns, runWorkflow, runNode, configureNode, scheduleMessage } from '@/lib/agent-tools';
+import { TOOLS_DEFINITION, getActiveContext, listWorkflows, getRecentRuns, runWorkflow, runNode, configureNode, scheduleMessage, validateNodeConfig, markNodeFailed } from '@/lib/agent-tools';
 
 export const runtime = 'nodejs';
 
@@ -10,6 +10,8 @@ interface GenerateRequest {
     workflowId?: string | null;
     chatId?: string | null;
     isTemporary?: boolean;
+    autonomousMode?: boolean;  // Enable auto-continuation
+    sessionId?: string;        // Resume from existing session
     config: {
         model: string;
         temperature: number;
@@ -34,7 +36,7 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json() as GenerateRequest;
-        const { input, config, workflowId, chatId, isTemporary } = body;
+        const { input, config, workflowId, chatId, isTemporary, autonomousMode, sessionId } = body;
 
         if (!input || !config?.model) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -178,7 +180,7 @@ export async function POST(req: NextRequest) {
 
         // Stream response based on provider
         if (provider === 'openai') {
-            return await streamOpenAI(apiKey, config, messages, supabase, user.id, activeChatId);
+            return await streamOpenAI(apiKey, config, messages, supabase, user.id, activeChatId, autonomousMode, sessionId, workflowId);
         } else if (provider === 'anthropic') {
             return await streamAnthropic(apiKey, config, messages);
         }
@@ -205,6 +207,17 @@ function formatContextToString(ctx: any): string {
         s += `\n## Active Context\n`;
         s += `Currently working on Workflow ID: ${ctx.active.workflowId}\n`;
         if (ctx.active.nodeId) s += `Selected Node: ${ctx.active.nodeId}\n`;
+
+        if (ctx.active.completedNodes && ctx.active.completedNodes.length > 0) {
+            s += `Completed Nodes: ${ctx.active.completedNodes.join(', ')}\n`;
+        }
+        if (ctx.active.failedNodes && Object.keys(ctx.active.failedNodes).length > 0) {
+            s += `\n⚠️ FAILED NODES (These nodes have failed repeatedly or were marked as broken):\n`;
+            Object.entries(ctx.active.failedNodes).forEach(([id, val]: [string, any]) => {
+                s += `- Node ${id}: ${val.attempts} attempts. ${val.skipped ? '[SKIPPED]' : ''} Error: ${val.lastError}\n`;
+            });
+            s += `\nInstructions: try to fix these nodes using 'configure_node'. If unfixable, use 'mark_node_failed' to skip them.\n`;
+        }
     }
 
     // Workflow
@@ -276,8 +289,14 @@ async function executeToolCall(supabase: any, userId: string, toolName: string, 
                 return await scheduleMessage(supabase, userId, {
                     message: args.message,
                     delayMinutes: args.delayMinutes,
-                    priority: args.priority
+                    priority: args.priority,
+                    chatId: undefined, // Only available if we passed it in context, but for now undefined is fine (will be null in DB)
+                    workflowId: undefined
                 });
+            case 'validate_node_config':
+                return await validateNodeConfig(args);
+            case 'mark_node_failed':
+                return await markNodeFailed(supabase, userId, args.nodeIdentifier, args.reason);
             default:
                 return { error: `Unknown tool: ${toolName}` };
         }
@@ -287,7 +306,7 @@ async function executeToolCall(supabase: any, userId: string, toolName: string, 
     }
 }
 
-async function streamOpenAI(apiKey: string, config: any, messages: any[], supabase: any, userId: string, chatId?: string | null) {
+async function streamOpenAI(apiKey: string, config: any, messages: any[], supabase: any, userId: string, chatId?: string | null, autonomousMode?: boolean, sessionId?: string, workflowId?: string | null) {
     // Filter tools based on user config
     const allowedTools = config.tools || [];
     const tools = TOOLS_DEFINITION.filter(t => allowedTools.includes(t.function.name));
@@ -361,7 +380,7 @@ async function streamOpenAI(apiKey: string, config: any, messages: any[], supaba
     // If we want server-side tools with streaming visibility:
     // 1. Receive chunks.
     // 2. If `tool_calls` appearing, buffer them. DO NOT stream to user yet (or stream a "Thinking..." status).
-    return handleOpenAIToolLoop(apiKey, requestBody, supabase, userId, chatId);
+    return handleOpenAIToolLoop(apiKey, requestBody, supabase, userId, chatId, autonomousMode, sessionId, workflowId || undefined);
 }
 
 // Helper to separate SSE stream parsing from main logic
@@ -394,16 +413,46 @@ function createTextStream(upstream: ReadableStream) {
     return upstream.pipeThrough(transformer);
 }
 
-async function handleOpenAIToolLoop(apiKey: string, initialBody: any, supabase: any, userId: string, chatId?: string | null): Promise<NextResponse> {
-    const MAX_TOOL_ROUNDS = 10; // Prevent infinite loops
+async function handleOpenAIToolLoop(
+    apiKey: string,
+    initialBody: any,
+    supabase: any,
+    userId: string,
+    chatId?: string | null,
+    autonomousMode?: boolean,
+    sessionId?: string,
+    workflowId?: string
+): Promise<NextResponse> {
+    const MAX_TOOL_ROUNDS = 10;
+    const MAX_TOTAL_ROUNDS = 50; // Absolute max for autonomous mode
     let currentMessages = [...initialBody.messages];
     let round = 0;
+    let totalRounds = 0;
+    let completedNodes: string[] = [];
+    let failedNodes: Record<string, { attempts: number; lastError: string }> = {};
 
-    while (round < MAX_TOOL_ROUNDS) {
+    // If resuming from session, load state
+    if (sessionId) {
+        const { data: session } = await supabase
+            .from('rune_agent_sessions')
+            .select('*')
+            .eq('id', sessionId)
+            .single();
+
+        if (session) {
+            currentMessages = session.messages_history || currentMessages;
+            totalRounds = session.total_rounds || 0;
+            completedNodes = session.completed_nodes || [];
+            failedNodes = session.failed_nodes || {};
+            console.log(`[OpenAI Tool Loop] Resuming session ${sessionId} at round ${totalRounds}`);
+        }
+    }
+
+    while (round < MAX_TOOL_ROUNDS && totalRounds < MAX_TOTAL_ROUNDS) {
         round++;
-        console.log(`[OpenAI Tool Loop] Round ${round}`);
+        totalRounds++;
+        console.log(`[OpenAI Tool Loop] Round ${round} (Total: ${totalRounds})`);
 
-        // Make non-streaming call to check for tool calls
         const requestBody = { ...initialBody, messages: currentMessages, stream: false };
 
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -419,13 +468,20 @@ async function handleOpenAIToolLoop(apiKey: string, initialBody: any, supabase: 
         const message = choice?.message;
         const finishReason = choice?.finish_reason;
 
-        // If no tool calls, return the final response
+        // If no tool calls, task is complete
         if (!message?.tool_calls || message.tool_calls.length === 0 || finishReason === 'stop') {
-            console.log(`[OpenAI Tool Loop] Completed after ${round} rounds`);
+            console.log(`[OpenAI Tool Loop] Completed after ${totalRounds} total rounds`);
+
+            // Clean up session if exists
+            if (sessionId) {
+                await supabase.from('rune_agent_sessions').update({
+                    status: 'completed',
+                    updated_at: new Date().toISOString()
+                }).eq('id', sessionId);
+            }
 
             const content = message?.content || "";
 
-            // Save assistant response to chat (if not temporary)
             if (chatId && content) {
                 await supabase.from('rune_chat_messages').insert({
                     chat_id: chatId,
@@ -434,7 +490,6 @@ async function handleOpenAIToolLoop(apiKey: string, initialBody: any, supabase: 
                 });
             }
 
-            // Return content as a stream
             const encoder = new TextEncoder();
             const simpleStream = new ReadableStream({
                 start(controller) {
@@ -442,10 +497,16 @@ async function handleOpenAIToolLoop(apiKey: string, initialBody: any, supabase: 
                     controller.close();
                 }
             });
-            return new NextResponse(simpleStream, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'X-Chat-Id': chatId || '' } });
+            return new NextResponse(simpleStream, {
+                headers: {
+                    'Content-Type': 'text/plain; charset=utf-8',
+                    'X-Chat-Id': chatId || '',
+                    'X-Session-Complete': 'true'
+                }
+            });
         }
 
-        // Execute tool calls
+        // Execute tool calls and track progress
         console.log(`[OpenAI Tool Loop] Executing ${message.tool_calls.length} tool(s)`);
 
         const toolResults = await Promise.all(message.tool_calls.map(async (toolCall: any) => {
@@ -453,8 +514,27 @@ async function handleOpenAIToolLoop(apiKey: string, initialBody: any, supabase: 
             try {
                 const args = JSON.parse(toolCall.function.arguments);
                 result = await executeToolCall(supabase, userId, toolCall.function.name, args);
+
+                // Track completed nodes
+                if (toolCall.function.name === 'run_node' && result?.success) {
+                    const nodeId = args.nodeIdentifier;
+                    if (nodeId && !completedNodes.includes(nodeId)) {
+                        completedNodes.push(nodeId);
+                    }
+                }
             } catch (e: any) {
                 result = { error: e.message || 'Failed to execute tool' };
+
+                // Track failed nodes
+                if (toolCall.function.name === 'run_node') {
+                    const args = JSON.parse(toolCall.function.arguments);
+                    const nodeId = args.nodeIdentifier;
+                    if (nodeId) {
+                        failedNodes[nodeId] = failedNodes[nodeId] || { attempts: 0, lastError: '' };
+                        failedNodes[nodeId].attempts++;
+                        failedNodes[nodeId].lastError = e.message;
+                    }
+                }
             }
 
             return {
@@ -464,16 +544,67 @@ async function handleOpenAIToolLoop(apiKey: string, initialBody: any, supabase: 
             };
         }));
 
-        // Add assistant message and tool results to conversation
-        currentMessages = [
-            ...currentMessages,
-            message,
-            ...toolResults
-        ];
+        currentMessages = [...currentMessages, message, ...toolResults];
     }
 
-    // If we hit max rounds, return what we have
-    console.warn(`[OpenAI Tool Loop] Hit max rounds (${MAX_TOOL_ROUNDS})`);
+    // Hit max rounds
+    console.warn(`[OpenAI Tool Loop] Hit max rounds (${round}/${MAX_TOOL_ROUNDS}, Total: ${totalRounds})`);
+
+    // If autonomous mode, save session and return continuation token
+    if (autonomousMode && totalRounds < MAX_TOTAL_ROUNDS) {
+        let currentSessionId = sessionId;
+
+        if (!currentSessionId) {
+            // Create new session
+            const { data: newSession } = await supabase
+                .from('rune_agent_sessions')
+                .insert({
+                    user_id: userId,
+                    workflow_id: workflowId || null,
+                    chat_id: chatId || null,
+                    status: 'paused',
+                    total_rounds: totalRounds,
+                    completed_nodes: completedNodes,
+                    failed_nodes: failedNodes,
+                    messages_history: currentMessages
+                })
+                .select('id')
+                .single();
+            currentSessionId = newSession?.id;
+        } else {
+            // Update existing session
+            await supabase
+                .from('rune_agent_sessions')
+                .update({
+                    status: 'paused',
+                    total_rounds: totalRounds,
+                    completed_nodes: completedNodes,
+                    failed_nodes: failedNodes,
+                    messages_history: currentMessages,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', currentSessionId);
+        }
+
+        const encoder = new TextEncoder();
+        const progressStream = new ReadableStream({
+            start(controller) {
+                controller.enqueue(encoder.encode(`[AUTONOMOUS] Progress: ${completedNodes.length} nodes completed, ${Object.keys(failedNodes).length} failed. Continuing...`));
+                controller.close();
+            }
+        });
+        return new NextResponse(progressStream, {
+            headers: {
+                'Content-Type': 'text/plain; charset=utf-8',
+                'X-Session-Id': currentSessionId || '',
+                'X-Session-Status': 'paused',
+                'X-Completed-Nodes': completedNodes.join(','),
+                'X-Total-Rounds': String(totalRounds)
+            }
+        });
+    }
+
+    // Not autonomous or hit absolute max
     const encoder = new TextEncoder();
     const errorStream = new ReadableStream({
         start(controller) {

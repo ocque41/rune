@@ -140,6 +140,10 @@ export class WorkflowEngine {
                     result = await this.executeTransform(data, input);
                     break;
 
+                case 'error':
+                    result = await this.executeErrorHandler(data, input);
+                    break;
+
                 case 'If / Else':
                 case 'if': // handle type check for newer nodes
                     const conditionResult = await this.evaluateCondition(data, input);
@@ -352,6 +356,43 @@ export class WorkflowEngine {
     }
 
     // --- Helpers ---
+
+    async executeErrorHandler(data: any, input: any) {
+        const { actionType, config } = data;
+        this.log('info', `Executing Error Handler: ${actionType}`);
+
+        if (actionType === 'email') {
+            // Adapt config to match executeSendEmail expectation
+            return this.executeSendEmail({
+                emailConfig: {
+                    recipient: config.recipient,
+                    subject: config.subject,
+                    body: config.body,
+                    sender: 'alerts@cumulus.app'
+                }
+            }, input);
+        } else if (actionType === 'slack') {
+            return this.executeHttpRequest({
+                httpRequest: {
+                    method: 'POST',
+                    url: config.webhookUrl,
+                    headers: JSON.stringify({ 'Content-Type': 'application/json' }),
+                    body: JSON.stringify({ text: config.message || `Alert from ${this.workflowName}` })
+                }
+            }, input);
+        } else if (actionType === 'webhook') {
+            return this.executeHttpRequest({
+                httpRequest: {
+                    method: 'POST',
+                    url: config.webhookUrl,
+                    headers: JSON.stringify({ 'Content-Type': 'application/json' }),
+                    body: config.payload || JSON.stringify(input)
+                }
+            }, input);
+        }
+
+        return { handled: true, action: actionType };
+    }
 
     private async log(level: 'info' | 'warn' | 'error', message: string, data?: any) {
         console.log(`[WorkflowEngine] [${level}] ${message}`, data || '');

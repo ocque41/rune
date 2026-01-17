@@ -15,7 +15,7 @@ import { Slider } from "@/components/ui/slider"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { History, MoreHorizontal, Code2, Save, Settings2, PlayCircle, Copy, Check, MessageSquare, Plus, Clock } from "lucide-react"
+import { History, MoreHorizontal, Code2, Save, Settings2, PlayCircle, Copy, Check, MessageSquare, Plus, Clock, Zap } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
 import { useAgentStore, ChatMessage } from "../store"
 import { cn } from "@/lib/utils"
@@ -48,6 +48,8 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
     const [copied, setCopied] = useState(false);
     const [saved, setSaved] = useState(false);
     const [showChatModal, setShowChatModal] = useState(false);
+    const [autonomousMode, setAutonomousMode] = useState(false);
+    const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
     // Slider handlers
     const handleTempChange = (vals: number[]) => updateConfig({ temperature: vals[0] });
@@ -88,29 +90,31 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
         setCurrentChat(chatId);
     };
 
-    const handleSubmit = async () => {
-        if (isGenerating) {
+    const handleSubmit = async (resumeSessionId?: string) => {
+        if (isGenerating && !resumeSessionId) {
             setIsGenerating(false);
             return;
         }
-        if (!input.trim()) return;
+        if (!input.trim() && !resumeSessionId) return;
 
         setIsGenerating(true);
-        setOutput("");
-
-        // Add user message to local state for immediate feedback
-        addMessage({ role: 'user', content: input });
+        if (!resumeSessionId) {
+            setOutput("");
+            addMessage({ role: 'user', content: input });
+        }
 
         try {
             const response = await fetch('/api/agent/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    input,
+                    input: resumeSessionId ? '' : input,
                     config,
                     workflowId,
                     chatId: currentChatId,
-                    isTemporary: isTemporaryChat
+                    isTemporary: isTemporaryChat,
+                    autonomousMode,
+                    sessionId: resumeSessionId || undefined
                 }),
             });
 
@@ -119,8 +123,11 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                 throw new Error(error.error || 'Failed to generate');
             }
 
-            // Get chatId from response header (if new chat was created)
+            // Get headers for session status
             const responseChatId = response.headers.get('X-Chat-Id');
+            const sessionStatus = response.headers.get('X-Session-Status');
+            const sessionId = response.headers.get('X-Session-Id');
+
             if (responseChatId && !currentChatId && !isTemporaryChat) {
                 setCurrentChat(responseChatId);
             }
@@ -136,23 +143,32 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
             let fullResponse = '';
             while (true) {
                 const { done, value } = await reader.read();
-
                 if (done) break;
-
                 const text = decoder.decode(value, { stream: true });
                 fullResponse += text;
                 setOutput(prev => prev + text);
             }
 
-            // Add assistant message to local state
+            // Check if we need to auto-continue
+            if (sessionStatus === 'paused' && sessionId && autonomousMode) {
+                setActiveSessionId(sessionId);
+                setOutput(prev => prev + '\n[Auto-continuing...]\n');
+                // Auto-trigger next batch after a small delay
+                setTimeout(() => handleSubmit(sessionId), 500);
+                return; // Don't clear state yet
+            }
+
+            // Session complete or not autonomous
+            setActiveSessionId(null);
             addMessage({ role: 'assistant', content: fullResponse });
-            setInput(''); // Clear input after successful send
+            if (!resumeSessionId) setInput('');
 
             setIsGenerating(false);
         } catch (error) {
             console.error("Generation failed:", error);
             setOutput(`[Error: ${error instanceof Error ? error.message : 'Failed to generate response'}]`);
             setIsGenerating(false);
+            setActiveSessionId(null);
         }
     };
 
@@ -238,6 +254,25 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                 disabled={!!currentChatId && !isTemporaryChat}
                                 className="scale-75 -mr-1 data-[state=checked]:bg-amber-500"
                             />
+                        </div>
+
+                        {/* Autonomous Mode Toggle */}
+                        <div
+                            className="flex items-center gap-1 px-2 py-1 rounded-md bg-white/5 border border-white/10 ml-1"
+                            title="Autonomous Mode: Agent will auto-continue until task is complete"
+                        >
+                            <Zap className={cn("w-3.5 h-3.5", autonomousMode ? "text-emerald-400" : "text-white/40")} />
+                            <span className={cn("text-xs hidden sm:inline", autonomousMode ? "text-emerald-400" : "text-white/50")}>
+                                Auto
+                            </span>
+                            <Switch
+                                checked={autonomousMode}
+                                onCheckedChange={setAutonomousMode}
+                                className="scale-75 -mr-1 data-[state=checked]:bg-emerald-500"
+                            />
+                            {activeSessionId && (
+                                <span className="ml-1 text-xs text-emerald-400 animate-pulse">●</span>
+                            )}
                         </div>
 
                         <div className="h-4 w-px bg-white/[0.08] mx-2" />
