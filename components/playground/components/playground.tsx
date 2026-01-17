@@ -378,7 +378,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            onClick={handleSubmit}
+                                            onClick={() => handleSubmit()}
                                             disabled={!input.trim() && !isGenerating}
                                             className="h-7 px-3 text-[10px] uppercase font-semibold tracking-wider text-white/50 hover:text-white/80 hover:bg-white/[0.06] transition-colors disabled:opacity-30"
                                         >
