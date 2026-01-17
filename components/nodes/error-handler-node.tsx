@@ -64,15 +64,21 @@ export default memo(function ErrorHandlerNode({ data, id, selected }: NodeProps<
     return (
         <div className="relative group">
             <NodeWrapper
-                requestId={id}
                 selected={selected}
-                title={data.label || 'Error Handler'}
-                icon={AlertTriangle}
-                status={data.status}
-                className="border-red-500/50 bg-red-500/5"
-                headerClassName="bg-red-500/10 border-b-red-500/20"
-                iconClassName="text-red-500"
+                className="border-red-500/50 bg-red-500/5 min-w-[200px]"
             >
+                {/* Custom Header rendered as child since NodeWrapper doesn't support title/icon props */}
+                <div className="flex items-center justify-between border-b border-red-500/20 px-4 py-3 bg-red-500/10 rounded-t-xl">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/10 text-red-500 ring-1 ring-red-500/20">
+                            <AlertTriangle size={16} />
+                        </div>
+                        <span className="text-sm font-semibold text-white/90 tracking-wide">
+                            {data.label || 'Error Handler'}
+                        </span>
+                    </div>
+                </div>
+
                 <div className="flex flex-col gap-2 p-3">
                     <div className="text-xs text-muted-foreground line-clamp-2">
                         {data.description || `Handle errors via ${actionType}`}
@@ -89,8 +95,9 @@ export default memo(function ErrorHandlerNode({ data, id, selected }: NodeProps<
                     </Button>
                 </div>
 
-                <Handle type="target" position={Position.Top} className="!bg-red-500" />
-                <Handle type="source" position={Position.Bottom} className="!bg-red-500" />
+                {/* Handles */}
+                <Handle type="target" position={Position.Top} className="!bg-red-500 !w-3 !h-3 !border-2 !border-[#000000]" />
+                <Handle type="source" position={Position.Bottom} className="!bg-red-500 !w-3 !h-3 !border-2 !border-[#000000]" />
             </NodeWrapper>
 
             {/* Configuration Panel - Simplified for this node */}
