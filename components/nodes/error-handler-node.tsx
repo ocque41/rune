@@ -1,7 +1,7 @@
 'use client';
 
-import React, { memo, useState } from 'react';
-import { Handle, Position, NodeProps } from '@xyflow/react';
+import React, { memo, useState, useCallback } from 'react';
+import { Handle, Position, NodeProps, useReactFlow } from '@xyflow/react';
 import { AlertTriangle, Settings, X, Mail, MessageSquare, Globe } from 'lucide-react';
 import { NodeWrapper } from './node-wrapper';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { useLocalWorkflowSession } from '@/hooks/useLocalWorkflowSession';
+// import { useLocalWorkflowSession } from '@/hooks/useLocalWorkflowSession'; // Removed invalid import
 
 export type ErrorHandlerNodeData = {
     label: string;
@@ -28,9 +28,19 @@ export type ErrorHandlerNodeData = {
 };
 
 export default memo(function ErrorHandlerNode({ data, id, selected }: NodeProps<any>) {
-    const { updateNodeData } = useLocalWorkflowSession();
-    const [showConfig, setShowConfig] = useState(false);
+    const { setNodes } = useReactFlow();
 
+    // Helper to update node data
+    const updateNodeData = useCallback((nodeId: string, newData: any) => {
+        setNodes((nodes) => nodes.map((n) => {
+            if (n.id === nodeId) {
+                return { ...n, data: { ...n.data, ...newData } };
+            }
+            return n;
+        }));
+    }, [setNodes]);
+
+    const [showConfig, setShowConfig] = useState(false);
     const [actionType, setActionType] = useState<ErrorHandlerNodeData['actionType']>(data.actionType || 'email');
     const [config, setConfig] = useState<ErrorHandlerNodeData['config']>(data.config || {
         recipient: 'support@cumulus.app',
