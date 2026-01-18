@@ -84,7 +84,7 @@ export async function GET() {
                         trigger: 'cron',
                         timestamp: new Date().toISOString(),
                         scheduleMetadata: scheduleNode.data
-                    });
+                    }, scheduleNode.id);
 
                     triggered.push(wf.name || wf.id);
                 } catch (e: any) {

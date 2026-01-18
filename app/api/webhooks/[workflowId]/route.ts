@@ -93,8 +93,19 @@ async function handleWorkflowTrigger(workflowId: string, payload: any) {
             latestVersion.id // Pass version ID
         );
 
+        // Find Webhook Node to trigger
+        const webhookNode = graph.nodes.find((n: any) => n.type === 'webhook');
+        const triggerNodeId = webhookNode?.id;
+
+        if (!triggerNodeId) {
+            return NextResponse.json(
+                { success: false, error: 'No Webhook trigger found in this workflow' },
+                { status: 400 }
+            );
+        }
+
         // 4. Run Execution
-        const runResult = await engine.run(payload);
+        const runResult = await engine.run(payload, triggerNodeId);
 
         return NextResponse.json({
             success: true,
