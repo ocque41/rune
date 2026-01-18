@@ -54,10 +54,42 @@ export class WorkflowEngine {
         await saveRun(this.supabase, run);
 
         try {
-            // Find Start Node
-            const startNode = this.nodes.find(n => n.data.label === 'Start Workflow');
+            // Determine Trigger Node
+            let startNode: Node | undefined;
+
+            // 1. If a specific trigger node ID is provided (e.g. from webhook), use it
+            // Note: We need to add triggerNodeId to run() signature or payload if we want strict targeting
+            // For now, let's infer or default.
+
+            // 2. Search for valid triggers
+            const triggerNodes = this.nodes.filter(n =>
+                (n.type === 'step' && n.data.label === 'Start Workflow') ||
+                n.type === 'webhook' ||
+                n.type === 'schedule'
+            );
+
+            if (triggerNodes.length === 0) {
+                throw new Error('No valid Trigger node found (Start, Webhook, or Schedule)');
+            }
+
+            // 3. For manual runs (no inputs keyed to specific nodes), prefer "Start Workflow"
+            // If strictly one trigger exists, use it.
+            if (triggerNodes.length === 1) {
+                startNode = triggerNodes[0];
+            } else {
+                // Multiple triggers exist. 
+                // Prioritize 'Start Workflow' for manual/test runs
+                startNode = triggerNodes.find(n => n.data.label === 'Start Workflow');
+
+                // If no manual start, pick the first one (e.g. Schedule) but log specific warning
+                if (!startNode) {
+                    startNode = triggerNodes[0];
+                    this.log('warn', `Multiple triggers found. Defaulting to ${startNode.data.label || startNode.id}`);
+                }
+            }
+
             if (!startNode) {
-                throw new Error('No "Start Workflow" node found');
+                throw new Error('Could not determine entry point');
             }
 
             this.context.inputs[startNode.id] = initialPayload;

@@ -20,16 +20,25 @@ export function validateGraph(nodes: Node[], edges: Edge[]): ValidationResult {
     const errors: ValidationError[] = [];
     const warnings: ValidationError[] = [];
 
-    // Find start node
-    const startNode = nodes.find(n => n.data.label === 'Start Workflow');
-    if (!startNode) {
+    // Find trigger node(s)
+    const triggerNodes = nodes.filter(n =>
+        (n.type === 'step' && n.data.label === 'Start Workflow') ||
+        n.type === 'webhook' ||
+        n.type === 'schedule'
+    );
+
+    if (triggerNodes.length === 0) {
         errors.push({
             type: 'error',
-            message: 'Workflow must have a "Start Workflow" node',
-            code: 'NO_START_NODE'
+            message: 'Workflow must have at least one Trigger node (Start, Webhook, or Schedule)',
+            code: 'NO_TRIGGER_NODE'
         });
         return { valid: false, errors, warnings };
     }
+
+    // Use the first trigger for connectivity checks if multiple exist
+    // (Ideally we should check connectivity from ALL triggers)
+    const startNode = triggerNodes[0];
 
     // Detect disconnected nodes
     const disconnected = detectDisconnectedNodes(nodes, edges, startNode.id);
