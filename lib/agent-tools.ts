@@ -367,258 +367,290 @@ export async function configureNode(
             success: false,
             error: `Node "${nodeIdentifier}" not found. Available nodes: ${availableNodes}`
         };
-    }
+        const node = nodes[nodeIndex];
+        const oldData = { ...node.data };
 
-    const node = nodes[nodeIndex];
-    const oldData = { ...node.data };
+        // 4. Validate and Deep merge the config into node.data
+        const label = node.data?.label || '';
 
-    // 4. Deep merge the config into node.data
-    // We merge each config key (emailConfig, httpRequest, scriptConfig, etc.)
-    for (const [key, value] of Object.entries(config)) {
-        if (typeof value === 'object' && value !== null && typeof node.data[key] === 'object') {
-            // Merge objects
-            node.data[key] = { ...node.data[key], ...value };
-        } else {
-            // Replace value
-            node.data[key] = value;
-        }
-    }
+        // --- SMART VALIDATION ---
+        // Prevent common hallucinations where agent sets URL/Code in 'description'
+        if (config.description && typeof config.description === 'string') {
+            const desc = config.description.trim();
+            const isUrl = desc.startsWith('http://') || desc.startsWith('https://');
+            const isCode = desc.includes('return') || desc.includes('{') || desc.length > 200;
 
-    // Update the node in the graph
-    nodes[nodeIndex] = node;
-    graph.nodes = nodes;
-
-    // 5. Save the updated graph to the database
-    const { error: updateError } = await supabase
-        .from('rune_workflows')
-        .update({
-            graph_json: graph,
-            updated_at: new Date().toISOString()
-        })
-        .eq('id', workflow.id);
-
-    if (updateError) {
-        console.error('[configureNode] Failed to save:', updateError);
-        return { success: false, error: `Failed to save configuration: ${updateError.message}` };
-    }
-
-    console.log(`[configureNode] Node ${node.id} updated successfully`);
-
-    return {
-        success: true,
-        nodeId: node.id,
-        nodeLabel: node.data?.label,
-        message: `Node "${node.data?.label}" configuration updated successfully.`,
-        updatedConfig: config,
-        previousConfig: oldData
-    };
-}
-
-/**
- * Schedule a message for proactive delivery to the user.
- * This allows the agent to "write first" even when the user hasn't prompted.
- */
-export async function scheduleMessage(
-    supabase: any,
-    userId: string,
-    params: {
-        message: string;
-        chatId?: string;
-        workflowId?: string;
-        delayMinutes?: number;
-        priority?: 'low' | 'normal' | 'high' | 'urgent';
-    }
-) {
-    const { message, chatId, workflowId, delayMinutes = 0, priority = 'normal' } = params;
-
-    // Calculate scheduled time
-    const scheduledFor = new Date();
-    scheduledFor.setMinutes(scheduledFor.getMinutes() + delayMinutes);
-
-    // Insert pending message
-    const { data, error } = await supabase
-        .from('rune_pending_messages')
-        .insert({
-            user_id: userId,
-            chat_id: chatId || null,
-            workflow_id: workflowId || null,
-            message,
-            priority,
-            scheduled_for: scheduledFor.toISOString()
-        })
-        .select('id')
-        .single();
-
-    if (error) {
-        console.error('[scheduleMessage] Insert error:', error);
-        return { success: false, error: error.message };
-    }
-
-    // If delay is 0 or very small, trigger immediate processing
-    if (delayMinutes <= 0) {
-        try {
-            await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/notifications/process`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ messageId: data.id })
-            });
-        } catch (e) {
-            // Don't fail if notification processing fails - it will be picked up by cron
-            console.warn('[scheduleMessage] Immediate processing failed, will retry via cron');
-        }
-    }
-
-    return {
-        success: true,
-        messageId: data.id,
-        scheduledFor: scheduledFor.toISOString(),
-        message: delayMinutes > 0
-            ? `Message scheduled for delivery in ${delayMinutes} minute(s).`
-            : `Message queued for immediate delivery.`
-    };
-}
-
-/**
- * Validate the configuration of a node without saving it.
- */
-export async function validateNodeConfig(
-    config: {
-        scriptConfig?: { code: string };
-        transformConfig?: { expression: string };
-        condition?: string;
-    }
-) {
-    const results: any = { valid: true, errors: [] };
-
-    if (config.scriptConfig?.code) {
-        try { new Function(config.scriptConfig.code); } catch (e: any) { results.valid = false; results.errors.push(`Script syntax error: ${e.message}`); }
-    }
-    if (config.transformConfig?.expression) {
-        try { new Function('params', config.transformConfig.expression); } catch (e: any) { results.valid = false; results.errors.push(`Transform expression error: ${e.message}`); }
-    }
-    if (config.condition) {
-        try { new Function('params', `return ${config.condition}`); } catch (e: any) { results.valid = false; results.errors.push(`Condition syntax error: ${e.message}`); }
-    }
-    return results;
-}
-
-/**
- * Mark a node as failed and instructions to skip/ignore it.
- */
-export async function markNodeFailed(
-    supabase: SupabaseClient,
-    userId: string,
-    nodeIdentifier: string,
-    reason: string
-) {
-    // 1. Get active context
-    const { data: session } = await supabase
-        .from('rune_agent_sessions')
-        .select('*')
-        .eq('user_id', userId)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .single();
-
-    if (!session) return { success: false, error: "No active session." };
-
-    // 2. Fetch workflow to get node ID if identifier is label
-    const { data: workflow } = await supabase.from('rune_workflows').select('graph_json').eq('id', session.active_workflow_id).single();
-    let nodeId = nodeIdentifier;
-    if (workflow?.graph_json?.nodes) {
-        const node = workflow.graph_json.nodes.find((n: any) => n.id === nodeIdentifier || n.data?.label?.toLowerCase() === nodeIdentifier.toLowerCase());
-        if (node) nodeId = node.id;
-    }
-
-    // 3. Update session's failed_nodes list
-    // We update the object structure to match route.ts persistence
-    const failedNodes = session.failed_nodes || {};
-
-    // Mark as skipped/failed with high attempt count to indicate fatal
-    failedNodes[nodeId] = {
-        attempts: (failedNodes[nodeId]?.attempts || 0) + 1,
-        lastError: `[Marked Failed] ${reason}`,
-        skipped: true,
-        marked_at: new Date().toISOString()
-    };
-
-    await supabase
-        .from('rune_agent_sessions')
-        .update({
-            failed_nodes: failedNodes,
-            // We can also append to metadata if we want to store the reason
-            metadata: { ...session.metadata, [`failure_reason_${nodeId}`]: reason }
-        })
-        .eq('id', session.id);
-
-    return {
-        success: true,
-        message: `Node ${nodeId} marked as failed. The agent should now skip this node or try an alternative approach.`,
-        skipped: true
-    };
-}
-
-export const TOOLS_DEFINITION = [
-    {
-        type: "function",
-        function: {
-            name: "get_active_context",
-            description: "Get the currently active workflow, selected node, and session details. Use this when the user asks about 'this workflow' or 'current context'.",
-            parameters: {
-                type: "object",
-                properties: {},
-                required: []
-            }
-        }
-    },
-    {
-        type: "function",
-        function: {
-            name: "list_workflows",
-            description: "List the user's recent workflows. Useful for finding a workflow ID.",
-            parameters: {
-                type: "object",
-                properties: {
-                    limit: { type: "number", description: "Number of workflows to return (default 5)" }
+            if (label === 'HTTP Request') {
+                if (isUrl && !config.httpRequest) {
+                    return {
+                        success: false,
+                        error: `Invalid configuration: You are trying to set the URL "${desc}" in the 'description' field. Please put it in 'config.httpRequest.url' instead.`,
+                        hint: `Correct format: { httpRequest: { url: "${desc}", method: "GET" } }`
+                    };
+                }
+            } else if (label === 'Run Script' || label === 'Transform') {
+                if (isCode && (!config.scriptConfig && !config.transformConfig)) {
+                    const targetField = label === 'Run Script' ? 'scriptConfig.code' : 'transformConfig.expression';
+                    return {
+                        success: false,
+                        error: `Invalid configuration: You are trying to put code in the 'description' field. Please put it in '${targetField}' instead.`,
+                        hint: `Correct format: { ${label === 'Run Script' ? 'scriptConfig' : 'transformConfig'}: { ${label === 'Run Script' ? 'code' : 'expression'}: "..." } }`
+                    };
                 }
             }
         }
-    },
-    {
-        type: "function",
-        function: {
-            name: "get_recent_runs",
-            description: "Get recent execution runs. Can be filtered by workflow.",
-            parameters: {
-                type: "object",
-                properties: {
-                    workflowId: { type: "string", description: "Optional workflow ID to filter runs." },
-                    limit: { type: "number", description: "Limit number of runs (default 5)" }
-                }
+
+        // Specific field validation
+        if (label === 'HTTP Request' && config.httpRequest) {
+            // Validation passed
+        }
+
+        // Merge logic
+        for (const [key, value] of Object.entries(config)) {
+            if (typeof value === 'object' && value !== null && typeof node.data[key] === 'object') {
+                // Merge objects
+                node.data[key] = { ...node.data[key], ...value };
+            } else {
+                // Replace value
+                node.data[key] = value;
             }
         }
-    },
-    {
-        type: "function",
-        function: {
-            name: "run_workflow",
-            description: "Execute the currently active workflow. Use when the user asks to 'run', 'execute', or 'test' their workflow.",
-            parameters: {
-                type: "object",
-                properties: {
-                    payload: {
-                        type: "object",
-                        description: "Optional input payload to pass to the workflow's Start node."
+
+        // Update the node in the graph
+        nodes[nodeIndex] = node;
+        graph.nodes = nodes;
+
+        // 5. Save the updated graph to the database
+        const { error: updateError } = await supabase
+            .from('rune_workflows')
+            .update({
+                graph_json: graph,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', workflow.id);
+
+        if (updateError) {
+            console.error('[configureNode] Failed to save:', updateError);
+            return { success: false, error: `Failed to save configuration: ${updateError.message}` };
+        }
+
+        console.log(`[configureNode] Node ${node.id} updated successfully`);
+
+        return {
+            success: true,
+            nodeId: node.id,
+            nodeLabel: node.data?.label,
+            message: `Node "${node.data?.label}" configuration updated successfully.`,
+            updatedConfig: config,
+            previousConfig: oldData
+        };
+    }
+
+    /**
+     * Schedule a message for proactive delivery to the user.
+     * This allows the agent to "write first" even when the user hasn't prompted.
+     */
+    export async function scheduleMessage(
+        supabase: any,
+        userId: string,
+        params: {
+            message: string;
+            chatId?: string;
+            workflowId?: string;
+            delayMinutes?: number;
+            priority?: 'low' | 'normal' | 'high' | 'urgent';
+        }
+    ) {
+        const { message, chatId, workflowId, delayMinutes = 0, priority = 'normal' } = params;
+
+        // Calculate scheduled time
+        const scheduledFor = new Date();
+        scheduledFor.setMinutes(scheduledFor.getMinutes() + delayMinutes);
+
+        // Insert pending message
+        const { data, error } = await supabase
+            .from('rune_pending_messages')
+            .insert({
+                user_id: userId,
+                chat_id: chatId || null,
+                workflow_id: workflowId || null,
+                message,
+                priority,
+                scheduled_for: scheduledFor.toISOString()
+            })
+            .select('id')
+            .single();
+
+        if (error) {
+            console.error('[scheduleMessage] Insert error:', error);
+            return { success: false, error: error.message };
+        }
+
+        // If delay is 0 or very small, trigger immediate processing
+        if (delayMinutes <= 0) {
+            try {
+                await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/notifications/process`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messageId: data.id })
+                });
+            } catch (e) {
+                // Don't fail if notification processing fails - it will be picked up by cron
+                console.warn('[scheduleMessage] Immediate processing failed, will retry via cron');
+            }
+        }
+
+        return {
+            success: true,
+            messageId: data.id,
+            scheduledFor: scheduledFor.toISOString(),
+            message: delayMinutes > 0
+                ? `Message scheduled for delivery in ${delayMinutes} minute(s).`
+                : `Message queued for immediate delivery.`
+        };
+    }
+
+    /**
+     * Validate the configuration of a node without saving it.
+     */
+    export async function validateNodeConfig(
+        config: {
+            scriptConfig?: { code: string };
+            transformConfig?: { expression: string };
+            condition?: string;
+        }
+    ) {
+        const results: any = { valid: true, errors: [] };
+
+        if (config.scriptConfig?.code) {
+            try { new Function(config.scriptConfig.code); } catch (e: any) { results.valid = false; results.errors.push(`Script syntax error: ${e.message}`); }
+        }
+        if (config.transformConfig?.expression) {
+            try { new Function('params', config.transformConfig.expression); } catch (e: any) { results.valid = false; results.errors.push(`Transform expression error: ${e.message}`); }
+        }
+        if (config.condition) {
+            try { new Function('params', `return ${config.condition}`); } catch (e: any) { results.valid = false; results.errors.push(`Condition syntax error: ${e.message}`); }
+        }
+        return results;
+    }
+
+    /**
+     * Mark a node as failed and instructions to skip/ignore it.
+     */
+    export async function markNodeFailed(
+        supabase: SupabaseClient,
+        userId: string,
+        nodeIdentifier: string,
+        reason: string
+    ) {
+        // 1. Get active context
+        const { data: session } = await supabase
+            .from('rune_agent_sessions')
+            .select('*')
+            .eq('user_id', userId)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (!session) return { success: false, error: "No active session." };
+
+        // 2. Fetch workflow to get node ID if identifier is label
+        const { data: workflow } = await supabase.from('rune_workflows').select('graph_json').eq('id', session.active_workflow_id).single();
+        let nodeId = nodeIdentifier;
+        if (workflow?.graph_json?.nodes) {
+            const node = workflow.graph_json.nodes.find((n: any) => n.id === nodeIdentifier || n.data?.label?.toLowerCase() === nodeIdentifier.toLowerCase());
+            if (node) nodeId = node.id;
+        }
+
+        // 3. Update session's failed_nodes list
+        // We update the object structure to match route.ts persistence
+        const failedNodes = session.failed_nodes || {};
+
+        // Mark as skipped/failed with high attempt count to indicate fatal
+        failedNodes[nodeId] = {
+            attempts: (failedNodes[nodeId]?.attempts || 0) + 1,
+            lastError: `[Marked Failed] ${reason}`,
+            skipped: true,
+            marked_at: new Date().toISOString()
+        };
+
+        await supabase
+            .from('rune_agent_sessions')
+            .update({
+                failed_nodes: failedNodes,
+                // We can also append to metadata if we want to store the reason
+                metadata: { ...session.metadata, [`failure_reason_${nodeId}`]: reason }
+            })
+            .eq('id', session.id);
+
+        return {
+            success: true,
+            message: `Node ${nodeId} marked as failed. The agent should now skip this node or try an alternative approach.`,
+            skipped: true
+        };
+    }
+
+    export const TOOLS_DEFINITION = [
+        {
+            type: "function",
+            function: {
+                name: "get_active_context",
+                description: "Get the currently active workflow, selected node, and session details. Use this when the user asks about 'this workflow' or 'current context'.",
+                parameters: {
+                    type: "object",
+                    properties: {},
+                    required: []
+                }
+            }
+        },
+        {
+            type: "function",
+            function: {
+                name: "list_workflows",
+                description: "List the user's recent workflows. Useful for finding a workflow ID.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        limit: { type: "number", description: "Number of workflows to return (default 5)" }
                     }
                 }
             }
-        }
-    },
-    {
-        type: "function",
-        function: {
-            name: "run_node",
-            description: `Execute a specific node in the active workflow by its name or ID. 
+        },
+        {
+            type: "function",
+            function: {
+                name: "get_recent_runs",
+                description: "Get recent execution runs. Can be filtered by workflow.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        workflowId: { type: "string", description: "Optional workflow ID to filter runs." },
+                        limit: { type: "number", description: "Limit number of runs (default 5)" }
+                    }
+                }
+            }
+        },
+        {
+            type: "function",
+            function: {
+                name: "run_workflow",
+                description: "Execute the currently active workflow. Use when the user asks to 'run', 'execute', or 'test' their workflow.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        payload: {
+                            type: "object",
+                            description: "Optional input payload to pass to the workflow's Start node."
+                        }
+                    }
+                }
+            }
+        },
+        {
+            type: "function",
+            function: {
+                name: "run_node",
+                description: `Execute a specific node in the active workflow by its name or ID. 
 
 IMPORTANT BEHAVIOR:
 1. Always report the execution result (success or failure) with specific output details
@@ -626,146 +658,153 @@ IMPORTANT BEHAVIOR:
 3. Show the error message to help the user understand the issue
 
 Use when the user asks to run, test, or execute a specific node like 'run the HTTP Request node' or 'test the Transform step'.`,
-            parameters: {
-                type: "object",
-                properties: {
-                    nodeIdentifier: {
-                        type: "string",
-                        description: "The node's label (e.g., 'HTTP Request', 'Send Email') or its ID."
-                    },
-                    input: {
-                        type: "object",
-                        description: "Optional input data to pass to the node for execution."
-                    }
-                },
-                required: ["nodeIdentifier"]
-            }
-        }
-    },
-    {
-        type: "function",
-        function: {
-            name: "configure_node",
-            description: `Update the configuration of a specific node in the active workflow. Changes are saved to the database immediately.
-
-IMPORTANT BEHAVIOR - Follow this sequence when fixing failing nodes:
-1. FIRST run the node to see the actual error (don't assume what's wrong)
-2. EXPLAIN what failed and what you will change to fix it
-3. Apply the configuration change using this tool
-4. Tell the user: "I've updated [node name]. The workflow has been modified - you may need to refresh the Flow Builder to see changes."
-5. Run the node again to verify the fix worked
-6. SUMMARIZE: what was the error → what you changed → the new result
-
-Always be explicit about what you're changing and why.`,
-            parameters: {
-                type: "object",
-                properties: {
-                    nodeIdentifier: {
-                        type: "string",
-                        description: "The node's label (e.g., 'Send Email') or its ID (e.g., '7')."
-                    },
-                    config: {
-                        type: "object",
-                        description: "Configuration to apply. Use the appropriate key based on node type: emailConfig (for Send Email), httpRequest (for HTTP Request), scriptConfig (for Run Script), slackConfig (for Slack Message), etc.",
-                        properties: {
-                            emailConfig: {
-                                type: "object",
-                                description: "Email node config: { recipient, sender, subject, body }"
-                            },
-                            httpRequest: {
-                                type: "object",
-                                description: "HTTP node config: { method, url, headers, body }"
-                            },
-                            scriptConfig: {
-                                type: "object",
-                                description: "Script node config: { code }"
-                            },
-                            slackConfig: {
-                                type: "object",
-                                description: "Slack node config: { webhookUrl, channel, message }"
-                            },
-                            transformConfig: {
-                                type: "object",
-                                description: "Transform node config: { expression } e.g. 'return { ...params, extra: 1 }'"
-                            },
-                            condition: {
-                                type: "string",
-                                description: "If/Else node condition: JavaScript expression returning boolean, e.g. 'params.value > 10'"
-                            },
-                            description: {
-                                type: "string",
-                                description: "Node description text"
-                            },
-                            errorHandlerConfig: {
-                                type: "object",
-                                description: "Error Handler config: { actionType: 'email'|'slack'|'webhook', emailConfig, slackConfig, webhookConfig }"
-                            }
+                parameters: {
+                    type: "object",
+                    properties: {
+                        nodeIdentifier: {
+                            type: "string",
+                            description: "The node's label (e.g., 'HTTP Request', 'Send Email') or its ID."
+                        },
+                        input: {
+                            type: "object",
+                            description: "Optional input data to pass to the node for execution."
                         }
-                    }
-                },
-                required: ["nodeIdentifier", "config"]
-            }
-        }
-    },
-    {
-        type: "function",
-        function: {
-            name: "validate_node_config",
-            description: "Validate a configuration (script, transform, condition) for syntax errors without saving. Use this BEFORE configure_node if you are unsure about the syntax.",
-            parameters: {
-                type: "object",
-                properties: {
-                    scriptConfig: { type: "object", properties: { code: { type: "string" } } },
-                    transformConfig: { type: "object", properties: { expression: { type: "string" } } },
-                    condition: { type: "string" }
+                    },
+                    required: ["nodeIdentifier"]
                 }
             }
-        }
-    },
-    {
-        type: "function",
-        function: {
-            name: "mark_node_failed",
-            description: "Mark a specific node as failed/unfixable for this session. This tells the system to skip trying to fix this node and proceed with other tasks or stop.",
-            parameters: {
-                type: "object",
-                properties: {
-                    nodeIdentifier: { type: "string", description: "Node ID or Label" },
-                    reason: { type: "string", description: "Reason for giving up on this node" }
-                },
-                required: ["nodeIdentifier", "reason"]
+        },
+        {
+            type: "function",
+            function: {
+                name: "configure_node",
+                description: `Update the configuration of a specific node. 
+            
+CRITICAL INSTRUCTION: You MUST use the correct nested configuration object for the node type.
+- For HTTP Request nodes: use 'httpRequest' (NOT description)
+- For Script nodes: use 'scriptConfig' (NOT description)
+- For Transform nodes: use 'transformConfig' (NOT description)
+
+Example usage:
+configure_node({
+  nodeIdentifier: "my-node",
+  config: {
+    httpRequest: { url: "https://api.com", method: "GET" }  // CORRECT
+  }
+})
+
+DO NOT DO THIS:
+configure_node({
+  nodeIdentifier: "my-node",
+  config: {
+    description: "https://api.com" // WRONG! This is just a label.
+  }
+})`,
+                parameters: {
+                    type: "object",
+                    properties: {
+                        nodeIdentifier: {
+                            type: "string",
+                            description: "The node's label (e.g., 'Send Email') or its ID (e.g., '7')."
+                        },
+                        config: {
+                            type: "object",
+                            description: "The configuration object. MUST contain the specific config key for the node type.",
+                            properties: {
+                                emailConfig: {
+                                    type: "object",
+                                    description: "Required for Email nodes: { recipient, sender, subject, body }"
+                                },
+                                httpRequest: {
+                                    type: "object",
+                                    description: "Required for HTTP nodes: { method, url, headers, body }"
+                                },
+                                scriptConfig: {
+                                    type: "object",
+                                    description: "Required for Script nodes: { code }"
+                                },
+                                transformConfig: {
+                                    type: "object",
+                                    description: "Required for Transform nodes: { expression }"
+                                },
+                                slackConfig: {
+                                    type: "object",
+                                    description: "Required for Slack nodes: { webhookUrl, channel, message }"
+                                },
+                                condition: {
+                                    type: "string",
+                                    description: "For If/Else nodes: JavaScript boolean expression"
+                                },
+                                description: {
+                                    type: "string",
+                                    description: "OPTIONAL. Only use for a human-readable description, NOT for logic/urls/code."
+                                }
+                            }
+                        }
+                    },
+                    required: ["nodeIdentifier", "config"]
+                }
             }
-        }
-    },
-    {
-        type: "function",
-        function: {
-            name: "schedule_message",
-            description: `Schedule a follow-up message to the user. Use this when:
+        },
+        {
+            type: "function",
+            function: {
+                name: "validate_node_config",
+                description: "Validate a configuration (script, transform, condition) for syntax errors without saving. Use this BEFORE configure_node if you are unsure about the syntax.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        scriptConfig: { type: "object", properties: { code: { type: "string" } } },
+                        transformConfig: { type: "object", properties: { expression: { type: "string" } } },
+                        condition: { type: "string" }
+                    }
+                }
+            }
+        },
+        {
+            type: "function",
+            function: {
+                name: "mark_node_failed",
+                description: "Mark a specific node as failed/unfixable for this session. This tells the system to skip trying to fix this node and proceed with other tasks or stop.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        nodeIdentifier: { type: "string", description: "Node ID or Label" },
+                        reason: { type: "string", description: "Reason for giving up on this node" }
+                    },
+                    required: ["nodeIdentifier", "reason"]
+                }
+            }
+        },
+        {
+            type: "function",
+            function: {
+                name: "schedule_message",
+                description: `Schedule a follow-up message to the user. Use this when:
 - You've completed a background task and want to notify the user
 - You need to send a delayed response or reminder
 - You're about to perform a long-running operation and want to report back
 
 The message will be delivered and the user will be notified (in-app and/or email based on their preferences).`,
-            parameters: {
-                type: "object",
-                properties: {
-                    message: {
-                        type: "string",
-                        description: "The message to send to the user"
+                parameters: {
+                    type: "object",
+                    properties: {
+                        message: {
+                            type: "string",
+                            description: "The message to send to the user"
+                        },
+                        delayMinutes: {
+                            type: "number",
+                            description: "Optional delay before sending (default: 0 = send immediately)"
+                        },
+                        priority: {
+                            type: "string",
+                            enum: ["low", "normal", "high", "urgent"],
+                            description: "Message priority (affects notification urgency)"
+                        }
                     },
-                    delayMinutes: {
-                        type: "number",
-                        description: "Optional delay before sending (default: 0 = send immediately)"
-                    },
-                    priority: {
-                        type: "string",
-                        enum: ["low", "normal", "high", "urgent"],
-                        description: "Message priority (affects notification urgency)"
-                    }
-                },
-                required: ["message"]
+                    required: ["message"]
+                }
             }
         }
-    }
-];
+    ];
