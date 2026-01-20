@@ -446,6 +446,21 @@ async function handleOpenAIToolLoop(
             failedNodes = session.failed_nodes || {};
             console.log(`[OpenAI Tool Loop] Resuming session ${sessionId} at round ${totalRounds}`);
         }
+
+        // CONTEXT FIX: Merge new user input if present
+        // initialBody.messages contains the latest state triggers (e.g. new User input)
+        // while session.messages_history contains the deep agent chain.
+        const lastIncoming = initialBody.messages[initialBody.messages.length - 1];
+        const lastHistory = currentMessages[currentMessages.length - 1];
+
+        // If the incoming message is a User message and different from history end, append it
+        if (lastIncoming && lastIncoming.role === 'user') {
+            // Simple deduplication check
+            if (!lastHistory || lastHistory.content !== lastIncoming.content) {
+                currentMessages.push(lastIncoming);
+                console.log('[OpenAI Tool Loop] Appended new user input to resumed context');
+            }
+        }
     }
 
     while (round < MAX_TOOL_ROUNDS && totalRounds < MAX_TOTAL_ROUNDS) {
