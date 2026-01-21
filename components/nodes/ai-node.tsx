@@ -15,7 +15,7 @@ export const AINode = (props: NodeProps<any>) => {
     const { data, isConnectable, selected } = props;
     const [showConfig, setShowConfig] = useState(false);
     const [prompt, setPrompt] = useState(data.prompt || '');
-    const [model, setModel] = useState(data.model || 'gemini-pro');
+    const [model, setModel] = useState(data.model || 'gemini-2.0-flash');
 
     return (
         <NodeWrapper
@@ -59,9 +59,10 @@ export const AINode = (props: NodeProps<any>) => {
                                     data.model = e.target.value;
                                 }}
                             >
-                                <option value="gemini-pro">Gemini Pro</option>
-                                <option value="gpt-4">GPT-4</option>
-                                <option value="claude-3">Claude 3</option>
+                                <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                                <option value="gpt-4o">GPT-4o</option>
                             </select>
                         </div>
 

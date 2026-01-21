@@ -668,7 +668,7 @@ export const generateContent = async (params: { prompt: string; model?: string; 
   "use step";
   const isSandbox = process.env.RUNE_WORKFLOW_MODE === 'sandbox' || (process.env.NODE_ENV !== 'production' && !process.env.RUNE_WORKFLOW_MODE);
   const provider = params.provider || 'openai';
-  const model = params.model || (provider === 'openai' ? 'gpt-4o' : provider === 'gemini' ? 'gemini-pro' : 'default');
+  const model = params.model || (provider === 'openai' ? 'gpt-4o' : provider === 'gemini' ? 'gemini-2.0-flash' : 'default');
   
   console.log("[AI] Generating content");
   console.log("[AI] Provider:", provider);
@@ -726,7 +726,9 @@ export const generateContent = async (params: { prompt: string; model?: string; 
     }
     
     if (provider === 'gemini' && geminiKey) {
-      const response = await fetch(\`https://generativelanguage.googleapis.com/v1beta/models/\${model}:generateContent?key=\${geminiKey}\`, {
+      // Use v1beta for new models like gemini-2.0-flash
+      const modelName = model;
+      const response = await fetch(\`https://generativelanguage.googleapis.com/v1beta/models/\${modelName}:generateContent?key=\${geminiKey}\`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -744,7 +746,7 @@ export const generateContent = async (params: { prompt: string; model?: string; 
         ok: true,
         status: 'success',
         content: data.candidates?.[0]?.content?.parts?.[0]?.text || '',
-        model,
+        model: modelName,
         provider
       };
     }
