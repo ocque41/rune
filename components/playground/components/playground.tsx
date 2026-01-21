@@ -16,9 +16,11 @@ import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { History, MoreHorizontal, Code2, Save, Settings2, PlayCircle, Copy, Check, MessageSquare, Plus, Clock, Zap } from "lucide-react"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useAgentStore, ChatMessage } from "../store"
 import { cn } from "@/lib/utils"
+import { getAvailableTools, AgentToolDef } from "@/app/actions/tools"
+import { animate, stagger } from "animejs"
 
 interface PlaygroundProps {
     workflowId?: string | null;
@@ -50,6 +52,9 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
     const [showChatModal, setShowChatModal] = useState(false);
     const [autonomousMode, setAutonomousMode] = useState(false);
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+    const [availableTools, setAvailableTools] = useState<AgentToolDef[]>([]);
+    const [isLoadingTools, setIsLoadingTools] = useState(false);
+    const toolsListRef = useRef<HTMLDivElement>(null);
 
     // Slider handlers
     const handleTempChange = (vals: number[]) => updateConfig({ temperature: vals[0] });
@@ -79,6 +84,39 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
             console.error('Failed to load chat:', e);
         }
     };
+
+    // Load tools on mount
+    useEffect(() => {
+        const loadTools = async () => {
+            setIsLoadingTools(true);
+            try {
+                const { tools } = await getAvailableTools();
+                setAvailableTools(tools);
+            } catch (e) {
+                console.error("Failed to load tools", e);
+            } finally {
+                setIsLoadingTools(false);
+            }
+        };
+        loadTools();
+    }, []);
+
+    // Animate tools when loaded
+    useEffect(() => {
+        if (!isLoadingTools && availableTools.length > 0 && toolsListRef.current) {
+            const items = toolsListRef.current.querySelectorAll('.tool-item');
+            if (items.length) {
+                // @ts-ignore
+                animate(items, {
+                    opacity: [0, 1],
+                    translateX: [-10, 0],
+                    delay: stagger(30),
+                    easing: 'easeOutQuad',
+                    duration: 300
+                });
+            }
+        }
+    }, [isLoadingTools, availableTools]);
 
     const handleNewChat = () => {
         clearCurrentChat();
@@ -447,23 +485,50 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
 
                             <Separator className="bg-border/60" />
 
-                            {/* Active Tools */}
+                            {/* Chat Actions - History & New */}
+                            <div className="space-y-2 mb-6">
+                                <button
+                                    onClick={() => setShowChatModal(true)}
+                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-md bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 text-xs transition-colors border border-white/10"
+                                >
+                                    <History className="w-4 h-4" />
+                                    <span>Chat History</span>
+                                    {currentChatId && !isTemporaryChat && (
+                                        <span className="ml-auto text-[10px] text-blue-400">saved</span>
+                                    )}
+                                </button>
+                                <button
+                                    onClick={handleNewChat}
+                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-md bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 text-xs transition-colors border border-white/10"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    <span>New Chat</span>
+                                </button>
+                            </div>
+
+                            <Separator className="bg-border/60" />
+
+                            {/* Active Tools (Dynamic) */}
                             <div className="space-y-3">
-                                <Label className="text-xs font-medium text-white/70">Active Tools</Label>
-                                <div className="space-y-2">
-                                    {[
-                                        { id: 'get_active_context', label: 'Read Context', desc: 'Active workflow state' },
-                                        { id: 'list_workflows', label: 'List Workflows', desc: 'Saved workflows' },
-                                        { id: 'get_recent_runs', label: 'Recent Runs', desc: 'Execution history' },
-                                        { id: 'run_workflow', label: 'Run Workflow', desc: 'Execute active workflow' },
-                                        { id: 'run_node', label: 'Run Node', desc: 'Execute specific node' },
-                                        { id: 'configure_node', label: 'Configure Node', desc: 'Edit node settings' },
-                                        { id: 'schedule_message', label: 'Schedule Message', desc: 'Proactive notifications' }
-                                    ].map(tool => {
+                                <div className="flex items-center justify-between">
+                                    <Label className="text-xs font-medium text-white/70">Agent Capabilities</Label>
+                                    {isLoadingTools && <span className="text-[10px] text-white/30 animate-pulse">Loading...</span>}
+                                </div>
+
+                                <div className="space-y-2" ref={toolsListRef}>
+                                    {availableTools.length === 0 && !isLoadingTools && (
+                                        <p className="text-[10px] text-white/30 italic px-1">No tools available.</p>
+                                    )}
+
+                                    {/* Group tools by type/server if needed, or simple list for now */}
+                                    {availableTools.map(tool => {
                                         const isChecked = config.tools?.includes(tool.id);
+                                        const isMcp = tool.type === 'mcp';
+
                                         return (
                                             <div
                                                 key={tool.id}
+                                                className="tool-item opacity-0" // Start hidden for animation
                                                 onClick={() => {
                                                     const current = config.tools || [];
                                                     const next = isChecked
@@ -471,47 +536,38 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                                         : [...current, tool.id];
                                                     updateConfig({ tools: next });
                                                 }}
-                                                className={cn(
-                                                    "flex items-center justify-between p-2 rounded-md border text-xs cursor-pointer transition-all",
+                                            >
+                                                <div className={cn(
+                                                    "flex items-center justify-between p-2 rounded-md border text-xs cursor-pointer transition-all group relative",
                                                     isChecked
                                                         ? "bg-white/[0.08] border-white/[0.2] text-white"
                                                         : "bg-transparent border-white/[0.06] text-white/50 hover:bg-white/[0.03]"
-                                                )}
-                                            >
-                                                <div className="flex flex-col">
-                                                    <span className="font-medium">{tool.label}</span>
-                                                    <span className="text-[10px] opacity-70">{tool.desc}</span>
-                                                </div>
-                                                <div className={cn(
-                                                    "h-4 w-4 rounded border flex items-center justify-center transition-colors",
-                                                    isChecked ? "bg-white text-black border-white" : "border-white/20"
                                                 )}>
-                                                    {isChecked && <Check className="h-3 w-3" />}
+                                                    <div className="flex flex-col min-w-0 flex-1 mr-2">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className={cn("font-medium truncate", isMcp && "text-[var(--neon-blue)]")}>
+                                                                {tool.label}
+                                                            </span>
+                                                            {isMcp && tool.serverName && (
+                                                                <span className="text-[9px] px-1 rounded bg-white/10 text-white/40 uppercase tracking-wider">
+                                                                    {tool.serverName}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-[10px] opacity-70 truncate" title={tool.description}>
+                                                            {tool.description}
+                                                        </span>
+                                                    </div>
+                                                    <div className={cn(
+                                                        "h-3.5 w-3.5 rounded border flex items-center justify-center transition-colors flex-none",
+                                                        isChecked ? "bg-white text-black border-white" : "border-white/20 group-hover:border-white/40"
+                                                    )}>
+                                                        {isChecked && <Check className="h-2.5 w-2.5" />}
+                                                    </div>
                                                 </div>
                                             </div>
                                         );
                                     })}
-                                </div>
-
-                                {/* Chat Actions - History & New (below tools) */}
-                                <div className="pt-3 mt-2 border-t border-white/[0.06] space-y-2">
-                                    <button
-                                        onClick={() => setShowChatModal(true)}
-                                        className="w-full flex items-center gap-2 px-3 py-2 rounded-md bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 text-xs transition-colors border border-white/10"
-                                    >
-                                        <History className="w-4 h-4" />
-                                        <span>Chat History</span>
-                                        {currentChatId && !isTemporaryChat && (
-                                            <span className="ml-auto text-[10px] text-blue-400">saved</span>
-                                        )}
-                                    </button>
-                                    <button
-                                        onClick={handleNewChat}
-                                        className="w-full flex items-center gap-2 px-3 py-2 rounded-md bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 text-xs transition-colors border border-white/10"
-                                    >
-                                        <Plus className="w-4 h-4" />
-                                        <span>New Chat</span>
-                                    </button>
                                 </div>
                             </div>
 

@@ -4,7 +4,6 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
-    DialogFooter,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
@@ -15,37 +14,85 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plug, Server, Database, FileText, Plus, Trash2, Command, Terminal, Globe, Key } from "lucide-react"
-import { useState } from "react"
+import { Plug, Server, Database, FileText, Plus, Trash2, Command, Terminal, Globe, Key, AlertCircle, Loader2 } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { getMcpServers, addMcpServer, deleteMcpServer, toggleMcpServerConnection, McpServer } from "@/app/actions/mcp"
+import { toast } from "sonner"
+import { animate, stagger } from 'animejs'
+import { cn } from "@/lib/utils"
 
 export function McpModal() {
-    // Mock State for MCP Servers
-    const [servers, setServers] = useState([
-        { id: 'filesystem', name: 'Filesystem', type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem'], env: {}, icon: FileText, connected: true, tools: ['list_dir', 'read_file', 'write_file', 'search_files'] },
-        { id: 'postgres', name: 'Postgres DB', type: 'stdio', command: 'docker', args: ['run', '-i', '--rm', 'mcp/postgres'], env: { POSTGRES_URL: 'postgresql://...' }, icon: Database, connected: false, tools: ['execute_query', 'list_tables', 'describe_table'] },
-        { id: 'brave', name: 'Brave Search', type: 'sse', url: 'https://mcp-proxy.brave.com/sse', env: { BRAVE_API_KEY: 'BS...' }, icon: Globe, connected: true, tools: ['search_web', 'get_weather'] },
-    ])
-
-    const toggleServer = (id: string) => {
-        setServers(servers.map(s =>
-            s.id === id ? { ...s, connected: !s.connected } : s
-        ))
-    }
+    const [servers, setServers] = useState<McpServer[]>([])
+    const [isLoading, setIsLoading] = useState(true)
+    const [activeTab, setActiveTab] = useState("list")
+    const listRef = useRef<HTMLDivElement>(null)
 
     // New Server State
     const [newServer, setNewServer] = useState({
         name: '',
-        type: 'stdio',
+        type: 'stdio' as 'stdio' | 'sse',
         command: '',
         url: '',
         args: [''],
         env: [] as { key: string, value: string }[]
     })
-
-    // UI States
     const [isVerifying, setIsVerifying] = useState(false)
-    const [activeTab, setActiveTab] = useState("list")
 
+    useEffect(() => {
+        loadServers()
+    }, [])
+
+    useEffect(() => {
+        if (activeTab === 'list' && listRef.current && servers.length > 0) {
+            // @ts-ignore
+            animate(listRef.current.children, {
+                opacity: [0, 1],
+                translateY: [20, 0],
+                delay: stagger(100),
+                easing: 'easeOutExpo',
+                duration: 600
+            })
+        }
+    }, [activeTab, servers])
+
+    const loadServers = async () => {
+        try {
+            const data = await getMcpServers()
+            setServers(data)
+        } catch (error) {
+            toast.error("Failed to load MCP servers")
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    const handleToggleServer = async (id: string, currentStatus: string) => {
+        try {
+            const newStatus = currentStatus === 'connected' ? 'disconnected' : 'connected'
+
+            // Optimistic update
+            setServers(prev => prev.map(s => s.id === id ? { ...s, status: newStatus } : s))
+
+            await toggleMcpServerConnection(id, currentStatus)
+            toast.success(newStatus === 'connected' ? 'Server connected' : 'Server disconnected')
+        } catch (error) {
+            // Revert on error
+            toast.error("Failed to update connection")
+            loadServers()
+        }
+    }
+
+    const handleDeleteServer = async (id: string) => {
+        try {
+            await deleteMcpServer(id)
+            setServers(prev => prev.filter(s => s.id !== id))
+            toast.success("Server removed")
+        } catch (error) {
+            toast.error("Failed to delete server")
+        }
+    }
+
+    // Form Handlers
     const handleAddArg = () => setNewServer({ ...newServer, args: [...newServer.args, ''] })
     const handleArgChange = (index: number, value: string) => {
         const newArgs = [...newServer.args]
@@ -66,161 +113,172 @@ export function McpModal() {
         setNewServer({ ...newServer, env: newServer.env.filter((_, i) => i !== index) })
     }
 
-    const generateMockTools = (name: string) => {
-        const n = name.toLowerCase()
-        if (n.includes('git')) return ['git_status', 'git_commit', 'git_push', 'git_log']
-        if (n.includes('github')) return ['create_issue', 'list_prs', 'get_repo']
-        if (n.includes('linear')) return ['create_issue', 'get_issue', 'update_status']
-        if (n.includes('slack')) return ['send_message', 'list_channels', 'read_history']
-        return ['custom_tool_run', 'get_status', 'execute_command']
-    }
-
     const handleSaveServer = async () => {
         if (!newServer.name) return
-
         setIsVerifying(true)
 
-        // Simulate Verification Delay
-        await new Promise(resolve => setTimeout(resolve, 1500))
+        try {
+            const envObject = newServer.env.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {})
 
-        const id = newServer.name.toLowerCase().replace(/\s+/g, '-')
-        const serverConfig = {
-            id,
-            name: newServer.name,
-            type: newServer.type,
-            ...(newServer.type === 'stdio' ? { command: newServer.command, args: newServer.args.filter(a => a) } : { url: newServer.url }),
-            env: newServer.env.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {}),
-            icon: Terminal,
-            connected: true,
-            tools: generateMockTools(newServer.name)
+            await addMcpServer({
+                name: newServer.name,
+                type: newServer.type,
+                command: newServer.type === 'stdio' ? newServer.command : undefined,
+                args: newServer.type === 'stdio' ? newServer.args.filter(a => a) : undefined,
+                url: newServer.type === 'sse' ? newServer.url : undefined,
+                env: envObject
+            })
+
+            toast.success("Server added successfully")
+            setActiveTab("list")
+            loadServers()
+            // Reset form
+            setNewServer({ name: '', type: 'stdio', command: '', url: '', args: [''], env: [] })
+        } catch (error) {
+            toast.error("Failed to add server. Check connection details.")
+        } finally {
+            setIsVerifying(false)
         }
-
-        // @ts-ignore
-        setServers([...servers, serverConfig])
-        setIsVerifying(false)
-        setActiveTab("list")
-
-        // Reset form
-        setNewServer({ name: '', type: 'stdio', command: '', url: '', args: [''], env: [] })
     }
 
     return (
         <Dialog>
             <DialogTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1.5 text-muted-foreground hover:text-foreground hover:bg-accent/50">
-                    <Plug className="h-3.5 w-3.5" />
-                    MCP
+                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1.5 text-muted-foreground hover:text-foreground hover:bg-accent/50 group">
+                    <Plug className="h-3.5 w-3.5 group-hover:text-[var(--neon-green)] transition-colors" />
+                    MCP Extension
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px] bg-background/95 backdrop-blur-xl border-border/60 shadow-2xl max-h-[85vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2 text-lg font-medium">
-                        <Plug className="h-5 w-5 text-primary" />
-                        MCP Configuration
+            <DialogContent className="sm:max-w-[650px] bg-[#0A0A0A]/95 backdrop-blur-xl border-white/10 shadow-2xl max-h-[85vh] overflow-y-auto text-white">
+                <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden rounded-lg">
+                    <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(circle_at_center,theme(colors.green.500/0.05),transparent_50%)]" />
+                </div>
+
+                <DialogHeader className="relative z-10">
+                    <DialogTitle className="flex items-center gap-2 text-lg font-bold tracking-tight">
+                        <div className="p-1.5 rounded-lg bg-[var(--neon-green)]/10 border border-[var(--neon-green)]/20">
+                            <Plug className="h-5 w-5 text-[var(--neon-green)]" />
+                        </div>
+                        MCP Intelligence Gateway
                     </DialogTitle>
-                    <DialogDescription>
-                        Manage connections to external tool servers.
+                    <DialogDescription className="text-white/50 text-xs">
+                        Connect external tools and context providers to the agent runtime.
                     </DialogDescription>
                 </DialogHeader>
 
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="list">Active Servers</TabsTrigger>
-                        <TabsTrigger value="add">Add Server</TabsTrigger>
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full relative z-10">
+                    <TabsList className="grid w-full grid-cols-2 bg-white/5 border border-white/5 p-1">
+                        <TabsTrigger value="list" className="data-[state=active]:bg-[var(--neon-green)]/10 data-[state=active]:text-[var(--neon-green)]">Active Servers</TabsTrigger>
+                        <TabsTrigger value="add" className="data-[state=active]:bg-[var(--neon-green)]/10 data-[state=active]:text-[var(--neon-green)]">Add Server</TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="list" className="space-y-4 py-4">
-                        <div className="grid gap-4">
-                            {servers.map((server) => (
-                                <div key={server.id} className="flex flex-col gap-4 p-4 rounded-xl border border-border/40 bg-card/50 hover:bg-card/80 transition-all shadow-sm">
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex items-start gap-4">
-                                            <div className={`p-2.5 rounded-lg border border-border/20 ${server.connected ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
-                                                <server.icon className="h-5 w-5" />
-                                            </div>
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <Label className="text-base font-medium">{server.name}</Label>
-                                                    <span className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium tracking-wide uppercased ${server.connected ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-muted text-muted-foreground border border-border/50'}`}>
-                                                        <span className={`h-1.5 w-1.5 rounded-full ${server.connected ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground'}`} />
-                                                        {server.connected ? 'Connected' : 'Disabled'}
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground font-mono">
-                                                    <span className="flex items-center gap-1 bg-muted/50 px-1.5 py-0.5 rounded text-[10px]">
-                                                        {server.type === 'stdio' ? <Terminal className="h-3 w-3" /> : <Globe className="h-3 w-3" />}
-                                                        {/* @ts-ignore */}
-                                                        <span className="opacity-70">{server.type === 'stdio' ? 'STDIO' : 'SSE'}</span>
-                                                    </span>
+                    <TabsContent value="list" className="space-y-4 py-4 min-h-[300px]">
+                        {isLoading ? (
+                            <div className="flex items-center justify-center h-[200px] text-[var(--neon-green)]">
+                                <Loader2 className="h-8 w-8 animate-spin" />
+                            </div>
+                        ) : servers.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-[200px] text-white/30 gap-2 border border-dashed border-white/10 rounded-xl bg-white/5">
+                                <Server className="h-8 w-8 opacity-50" />
+                                <p className="text-sm">No servers connected</p>
+                                <Button variant="link" onClick={() => setActiveTab('add')} className="text-[var(--neon-green)] h-auto p-0 text-xs">
+                                    Add your first server
+                                </Button>
+                            </div>
+                        ) : (
+                            <div ref={listRef} className="grid gap-3">
+                                {servers.map((server) => (
+                                    <div key={server.id} className="group relative flex flex-col gap-3 p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/[0.07] transition-all overflow-hidden">
+                                        <div className="absolute inset-0 bg-gradient-to-r from-[var(--neon-green)]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
-                                                    {/* @ts-ignore */}
-                                                    {server.type === 'stdio' && <span className="opacity-60 truncate max-w-[200px]">{server.command} {server.args[0]}...</span>}
-                                                    {/* @ts-ignore */}
-                                                    {server.type === 'sse' && <span className="opacity-60 truncate max-w-[200px]">{server.url}</span>}
+                                        <div className="flex items-start justify-between relative z-10">
+                                            <div className="flex items-center gap-3">
+                                                <div className={cn("p-2.5 rounded-lg border",
+                                                    server.status === 'connected'
+                                                        ? "bg-[var(--neon-green)]/10 border-[var(--neon-green)]/20 text-[var(--neon-green)]"
+                                                        : "bg-white/5 border-white/10 text-white/40"
+                                                )}>
+                                                    <Terminal className="h-5 w-5" />
                                                 </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Label className="text-base font-medium text-white/90">{server.name}</Label>
+                                                        <span className={cn("flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-mono font-medium tracking-wide uppercase border",
+                                                            server.status === 'connected'
+                                                                ? "bg-[var(--neon-green)]/10 text-[var(--neon-green)] border-[var(--neon-green)]/20"
+                                                                : "bg-red-500/10 text-red-500 border-red-500/20"
+                                                        )}>
+                                                            <span className={cn("h-1.5 w-1.5 rounded-full",
+                                                                server.status === 'connected' ? "bg-[var(--neon-green)] animate-pulse" : "bg-red-500"
+                                                            )} />
+                                                            {server.status}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-[10px] text-white/40 font-mono mt-1 opacity-70">
+                                                        {server.server_type === 'stdio' ? 'STDIO Process' : 'SSE Stream'}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2">
+                                                <Switch
+                                                    checked={server.status === 'connected'}
+                                                    onCheckedChange={() => handleToggleServer(server.id, server.status as string)}
+                                                    className="data-[state=checked]:bg-[var(--neon-green)]"
+                                                />
+                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-white/30 hover:text-red-400 hover:bg-red-500/10" onClick={() => handleDeleteServer(server.id)}>
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
                                             </div>
                                         </div>
-                                        <Switch checked={server.connected} onCheckedChange={() => toggleServer(server.id)} />
-                                    </div>
 
-                                    {server.connected && (
-                                        <div className="pl-[52px] space-y-3">
-                                            {/* Tools Section */}
-                                            <div>
-                                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold mb-2">Available Tools</div>
+                                        {server.rune_mcp_tools && server.rune_mcp_tools.length > 0 && (
+                                            <div className="relative z-10 pt-3 border-t border-white/5">
                                                 <div className="flex flex-wrap gap-1.5">
-                                                    {server.tools.map(tool => (
-                                                        <span key={tool} className="flex items-center gap-1.5 text-[11px] bg-background border border-border/40 px-2 py-1 rounded-md text-foreground/80 font-mono shadow-sm hover:border-primary/30 transition-colors cursor-default">
-                                                            <div className="h-1 w-1 rounded-full bg-primary/50" />
-                                                            {tool}
+                                                    {server.rune_mcp_tools.map(tool => (
+                                                        <span key={tool.id} className="flex items-center gap-1 text-[10px] bg-white/5 border border-white/10 px-2 py-1 rounded text-white/70 font-mono">
+                                                            <div className="h-1 w-1 rounded-full bg-[var(--neon-green)]/50" />
+                                                            {tool.tool_name}
                                                         </span>
                                                     ))}
                                                 </div>
                                             </div>
+                                        )}
 
-                                            {/* Env Vars (Obfuscated) */}
-                                            {/* @ts-ignore */}
-                                            {server.env && Object.keys(server.env).length > 0 && (
-                                                <div className="pt-3 mt-1 border-t border-border/30">
-                                                    <div className="flex flex-wrap gap-3">
-                                                        {/* @ts-ignore */}
-                                                        {Object.entries(server.env).map(([k, v]) => (
-                                                            <div key={k} className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-muted/30 px-2 py-1 rounded border border-border/20">
-                                                                <Key className="h-3 w-3 opacity-60" />
-                                                                <span className="font-mono font-medium">{k}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
+                                        {server.error_message && (
+                                            <div className="relative z-10 pt-2 text-[10px] text-red-400 flex items-center gap-2">
+                                                <AlertCircle className="h-3 w-3" />
+                                                {server.error_message}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </TabsContent>
 
-                    <TabsContent value="add" className="space-y-4 py-4 px-1">
+                    <TabsContent value="add" className="space-y-4 py-4">
                         <div className="space-y-4">
                             <div className="grid gap-2">
-                                <Label>Server Name</Label>
+                                <Label className="text-white/80 text-xs">Server Name</Label>
                                 <Input
-                                    placeholder="e.g. My Custom Tool"
+                                    className="bg-white/5 border-white/10 text-white focus:border-[var(--neon-green)]/50"
+                                    placeholder="e.g. Production DB"
                                     value={newServer.name}
                                     onChange={(e) => setNewServer({ ...newServer, name: e.target.value })}
                                 />
                             </div>
 
                             <div className="grid gap-2">
-                                <Label>Transport Type</Label>
+                                <Label className="text-white/80 text-xs">Transport Type</Label>
                                 <Select
                                     value={newServer.type}
                                     onValueChange={(val) => setNewServer({ ...newServer, type: val as 'stdio' | 'sse' })}
                                 >
-                                    <SelectTrigger>
+                                    <SelectTrigger className="bg-white/5 border-white/10 text-white">
                                         <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="bg-[#1A1A1A] border-white/10 text-white">
                                         <SelectItem value="stdio">Stdio (Local Process)</SelectItem>
                                         <SelectItem value="sse">SSE (Remote URL)</SelectItem>
                                     </SelectContent>
@@ -230,11 +288,11 @@ export function McpModal() {
                             {newServer.type === 'stdio' ? (
                                 <>
                                     <div className="grid gap-2">
-                                        <Label>Command</Label>
+                                        <Label className="text-white/80 text-xs">Command</Label>
                                         <div className="relative">
-                                            <Terminal className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                                            <Terminal className="absolute left-2 top-2.5 h-4 w-4 text-white/30" />
                                             <Input
-                                                className="pl-8 font-mono text-xs"
+                                                className="pl-8 font-mono text-xs bg-white/5 border-white/10 text-white focus:border-[var(--neon-green)]/50"
                                                 placeholder="npx, python, /path/to/binary"
                                                 value={newServer.command}
                                                 onChange={(e) => setNewServer({ ...newServer, command: e.target.value })}
@@ -242,22 +300,22 @@ export function McpModal() {
                                         </div>
                                     </div>
                                     <div className="grid gap-2">
-                                        <Label>Arguments</Label>
+                                        <Label className="text-white/80 text-xs">Arguments</Label>
                                         <div className="space-y-2">
                                             {newServer.args.map((arg, i) => (
                                                 <div key={i} className="flex gap-2">
                                                     <Input
-                                                        className="font-mono text-xs"
+                                                        className="font-mono text-xs bg-white/5 border-white/10 text-white focus:border-[var(--neon-green)]/50"
                                                         placeholder={`Arg ${i + 1}`}
                                                         value={arg}
                                                         onChange={(e) => handleArgChange(i, e.target.value)}
                                                     />
-                                                    <Button size="icon" variant="ghost" onClick={() => removeArg(i)} disabled={newServer.args.length === 1 && !arg}>
+                                                    <Button size="icon" variant="ghost" onClick={() => removeArg(i)} disabled={newServer.args.length === 1 && !arg} className="text-white/50 hover:text-white">
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
                                                 </div>
                                             ))}
-                                            <Button size="sm" variant="outline" className="w-full text-xs border-dashed" onClick={handleAddArg}>
+                                            <Button size="sm" variant="outline" className="w-full text-xs border-dashed border-white/20 bg-transparent text-white/60 hover:text-[var(--neon-green)] hover:border-[var(--neon-green)]/30" onClick={handleAddArg}>
                                                 <Plus className="h-3 w-3 mr-1" /> Add Argument
                                             </Button>
                                         </div>
@@ -265,11 +323,11 @@ export function McpModal() {
                                 </>
                             ) : (
                                 <div className="grid gap-2">
-                                    <Label>Server URL</Label>
+                                    <Label className="text-white/80 text-xs">Server URL</Label>
                                     <div className="relative">
-                                        <Globe className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                                        <Globe className="absolute left-2 top-2.5 h-4 w-4 text-white/30" />
                                         <Input
-                                            className="pl-8 font-mono text-xs"
+                                            className="pl-8 font-mono text-xs bg-white/5 border-white/10 text-white focus:border-[var(--neon-green)]/50"
                                             placeholder="https://api.example.com/sse"
                                             value={newServer.url}
                                             onChange={(e) => setNewServer({ ...newServer, url: e.target.value })}
@@ -278,31 +336,30 @@ export function McpModal() {
                                 </div>
                             )}
 
-                            <div className="space-y-2 pt-4 border-t border-border/50">
-                                <Label>Environment Variables</Label>
-                                <p className="text-[10px] text-muted-foreground">Secrets and configuration (e.g. API_KEY)</p>
+                            <div className="space-y-2 pt-4 border-t border-white/10">
+                                <Label className="text-white/80 text-xs">Environment Variables</Label>
                                 <div className="space-y-2">
                                     {newServer.env.map((env, i) => (
                                         <div key={i} className="flex gap-2">
                                             <Input
-                                                className="font-mono text-xs flex-1"
+                                                className="font-mono text-xs flex-1 bg-white/5 border-white/10 text-white focus:border-[var(--neon-green)]/50"
                                                 placeholder="KEY"
                                                 value={env.key}
                                                 onChange={(e) => handleEnvChange(i, 'key', e.target.value)}
                                             />
                                             <Input
-                                                className="font-mono text-xs flex-1"
+                                                className="font-mono text-xs flex-1 bg-white/5 border-white/10 text-white focus:border-[var(--neon-green)]/50"
                                                 placeholder="VALUE"
                                                 type="password"
                                                 value={env.value}
                                                 onChange={(e) => handleEnvChange(i, 'value', e.target.value)}
                                             />
-                                            <Button size="icon" variant="ghost" onClick={() => removeEnv(i)}>
+                                            <Button size="icon" variant="ghost" onClick={() => removeEnv(i)} className="text-white/50 hover:text-white">
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
                                         </div>
                                     ))}
-                                    <Button size="sm" variant="outline" className="w-full text-xs border-dashed" onClick={handleAddEnv}>
+                                    <Button size="sm" variant="outline" className="w-full text-xs border-dashed border-white/20 bg-transparent text-white/60 hover:text-[var(--neon-green)] hover:border-[var(--neon-green)]/30" onClick={handleAddEnv}>
                                         <Plus className="h-3 w-3 mr-1" /> Add Environment Variable
                                     </Button>
                                 </div>
@@ -311,13 +368,13 @@ export function McpModal() {
 
                         <div className="pt-4">
                             <Button
-                                className="w-full h-10 gap-2 transition-all"
+                                className="w-full h-10 gap-2 transition-all bg-[var(--neon-green)] hover:bg-[var(--neon-green)]/90 text-black font-medium"
                                 onClick={handleSaveServer}
                                 disabled={isVerifying || !newServer.name || (newServer.type === 'stdio' ? !newServer.command : !newServer.url)}
                             >
                                 {isVerifying ? (
                                     <>
-                                        <div className="h-4 w-4 rounded-full border-2 border-background/30 border-t-background animate-spin" />
+                                        <Loader2 className="h-4 w-4 animate-spin" />
                                         Verifying Connection...
                                     </>
                                 ) : (
@@ -326,14 +383,9 @@ export function McpModal() {
                                     </>
                                 )}
                             </Button>
-                            {!isVerifying && <p className="text-center text-[10px] text-muted-foreground mt-2">Will attempt to handshake with the server before saving.</p>}
                         </div>
                     </TabsContent>
                 </Tabs>
-
-                <DialogFooter className="hidden">
-                    {/* Footer managed by Tabs content actions */}
-                </DialogFooter>
             </DialogContent>
         </Dialog>
     )

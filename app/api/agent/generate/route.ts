@@ -298,6 +298,10 @@ async function executeToolCall(supabase: any, userId: string, toolName: string, 
             case 'mark_node_failed':
                 return await markNodeFailed(supabase, userId, args.nodeIdentifier, args.reason);
             default:
+                // Check if it's an MCP tool (prefixed with mcp__)
+                if (toolName.startsWith('mcp__')) {
+                    return await executeMcpTool(supabase, userId, toolName, args);
+                }
                 return { error: `Unknown tool: ${toolName}` };
         }
     } catch (e: any) {
@@ -306,10 +310,76 @@ async function executeToolCall(supabase: any, userId: string, toolName: string, 
     }
 }
 
+async function executeMcpTool(supabase: any, userId: string, namespacedName: string, args: any) {
+    // Format: mcp__SERVER__TOOL
+    const parts = namespacedName.split('__');
+    if (parts.length < 3) return { error: "Invalid MCP tool name format" };
+
+    // const serverName = parts[1]; // Not strictly needed if we look up by name, but good for verify
+    const toolName = parts.slice(2).join('__'); // Rejoin in case tool name had __ (unlikely but safe)
+
+    // In a real implementation, we would call the persistent MCP client here.
+    // For now, checks if the tool exists in DB and log execution.
+    // TODO: Connect to actual MCP Runtime / Bridge
+
+    const { data: tool } = await supabase
+        .from('rune_mcp_tools')
+        .select('*')
+        .eq('tool_name', toolName)
+        // .eq('user_id', userId) // optional depending on RLS
+        .single();
+
+    if (!tool) {
+        return { error: `MCP tool not found: ${toolName}` };
+    }
+
+    console.log(`[MCP] Executing ${toolName} on server... (Simulation)`);
+    // Here we would dispatch to the MCP server.
+    // Return a mock success for now to ensure the loop works.
+    return {
+        status: "success",
+        output: `Executed ${toolName} successfully. (MCP Integration Pending)`,
+        args_received: args
+    };
+}
+
 async function streamOpenAI(apiKey: string, config: any, messages: any[], supabase: any, userId: string, chatId?: string | null, autonomousMode?: boolean, sessionId?: string, workflowId?: string | null) {
     // Filter tools based on user config
     const allowedTools = config.tools || [];
-    const tools = TOOLS_DEFINITION.filter(t => allowedTools.includes(t.function.name));
+    const systemTools = TOOLS_DEFINITION.filter(t => allowedTools.includes(t.function.name));
+
+    // Fetch MCP tools if any selected (IDs start with mcp:)
+    const mcpToolIds = allowedTools.filter((id: string) => id.startsWith('mcp:'));
+    let mcpTools: any[] = [];
+
+    if (mcpToolIds.length > 0) {
+        // Parse IDs: mcp:server:tool_name
+        const mcpNames = mcpToolIds.map((id: string) => {
+            const parts = id.split(':');
+            return parts.length >= 3 ? parts[2] : null;
+        }).filter(Boolean);
+
+        if (mcpNames.length > 0) {
+            const { data: dbTools } = await supabase
+                .from('rune_mcp_tools')
+                .select('tool_name, description, input_schema, rune_mcp_servers(name)')
+                .in('tool_name', mcpNames);
+
+            if (dbTools) {
+                mcpTools = dbTools.map((t: any) => ({
+                    type: 'function',
+                    function: {
+                        // Sanitize name for OpenAI: mcp__SERVER__TOOL
+                        name: `mcp__${t.rune_mcp_servers.name}__${t.tool_name}`.replace(/[^a-zA-Z0-9_]/g, '_'),
+                        description: t.description || `Tool from ${t.rune_mcp_servers.name}`,
+                        parameters: t.input_schema || { type: 'object', properties: {} }
+                    }
+                }));
+            }
+        }
+    }
+
+    const allTools = [...systemTools, ...mcpTools];
 
     const requestBody: any = {
         model: config.model,
@@ -320,8 +390,8 @@ async function streamOpenAI(apiKey: string, config: any, messages: any[], supaba
     };
 
     // Only add tools if there are any enabled
-    if (tools.length > 0) {
-        requestBody.tools = tools;
+    if (allTools.length > 0) {
+        requestBody.tools = allTools;
         requestBody.tool_choice = "auto";
     }
 
