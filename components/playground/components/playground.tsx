@@ -377,33 +377,46 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                             {/* Preset Selector */}
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <div>
-                                        <Select onValueChange={handleLoadPreset}>
-                                            <SelectTrigger className="w-[160px] h-8 text-xs bg-white/[0.03] border-white/[0.08] focus:ring-0 shadow-none hover:bg-white/[0.06] transition-colors text-white/70">
-                                                <SelectValue placeholder="Load a preset..." />
-                                            </SelectTrigger>
-                                            <SelectContent className="bg-[#0A0A0A] border-white/[0.08]">
-                                                {presets.length === 0 ? (
-                                                    <div className="p-2 text-[10px] text-white/30 italic">No saved presets</div>
-                                                ) : (
-                                                    presets.map(p => (
-                                                        <SelectItem key={p.id} value={p.id} className="text-xs group focus:bg-white/10 cursor-pointer">
-                                                            <div className="flex items-center justify-between w-full min-w-[200px]">
-                                                                <span>{p.name}</span>
-                                                                <div
-                                                                    role="button"
-                                                                    onClick={(e) => handleDeletePreset(p.id, e)}
-                                                                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-white/40 transition-all hover:bg-white/10 rounded"
-                                                                >
-                                                                    <Trash2 className="h-3 w-3" />
-                                                                </div>
-                                                            </div>
-                                                        </SelectItem>
-                                                    ))
-                                                )}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="w-[160px] h-8 text-xs bg-white/[0.03] border border-white/[0.08] hover:bg-white/[0.06] transition-colors text-white/70 justify-between"
+                                            >
+                                                <span>Load a preset...</span>
+                                                <Settings2 className="h-3 w-3 ml-2 opacity-50" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent className="bg-[#0A0A0A] border-white/[0.08] w-[200px]">
+                                            <DropdownMenuLabel className="text-[10px] text-white/40 font-mono">
+                                                Saved Presets
+                                            </DropdownMenuLabel>
+                                            <DropdownMenuSeparator className="bg-white/[0.08]" />
+                                            {presets.length === 0 ? (
+                                                <div className="p-2 text-[10px] text-white/30 italic">No saved presets</div>
+                                            ) : (
+                                                presets.map(p => (
+                                                    <DropdownMenuItem
+                                                        key={p.id}
+                                                        className="text-xs group focus:bg-white/10 cursor-pointer"
+                                                        onSelect={() => handleLoadPreset(p.id)}
+                                                    >
+                                                        <div className="flex items-center justify-between w-full">
+                                                            <span>{p.name}</span>
+                                                            <button
+                                                                onClick={(e) => handleDeletePreset(p.id, e)}
+                                                                className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-white/40 transition-all hover:bg-white/10 rounded z-50"
+                                                                aria-label="Delete preset"
+                                                            >
+                                                                <Trash2 className="h-3 w-3" />
+                                                            </button>
+                                                        </div>
+                                                    </DropdownMenuItem>
+                                                ))
+                                            )}
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom" className="bg-[#1A1A1A] border-white/10 text-xs text-white">
                                     Load a saved agent configuration
