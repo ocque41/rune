@@ -183,7 +183,7 @@ export function ShimmeringJunoConfig({ config, onChange, onMcpConfigure }: Shimm
                         <span>Model Architecture</span>
                     </div>
                     <div className="grid grid-cols-1 gap-2">
-                        {['gpt-4-turbo', 'claude-3-sonnet', 'mistral-large'].map((model) => (
+                        {['gemini-3-flash-preview', 'gemini-3-pro-preview'].map((model) => (
                             <button
                                 key={model}
                                 onClick={() => handleChange('model', model)}

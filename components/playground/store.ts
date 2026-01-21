@@ -69,7 +69,7 @@ interface AgentState {
 }
 
 const defaultConfig: LLMConfig = {
-    model: 'gpt-4-turbo',
+    model: 'gemini-3-flash-preview',
     temperature: 0.7,
     systemPrompt: '',
     topP: 0.9,

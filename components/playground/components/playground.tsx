@@ -655,17 +655,15 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                             <div className="space-y-4">
                                 <div className="text-xs font-medium flex items-center justify-between text-white/70">
                                     <span>Model</span>
-                                    <span className="text-[10px] bg-white/[0.06] text-white/60 border border-white/[0.12] px-1.5 py-0.5 rounded font-mono">v2.1</span>
+                                    <span className="text-[10px] bg-white/[0.06] text-white/60 border border-white/[0.12] px-1.5 py-0.5 rounded font-mono">v3.0</span>
                                 </div>
                                 <Select value={config.model} onValueChange={(val) => updateConfig({ model: val })}>
                                     <SelectTrigger className="bg-white/[0.03] border-white/[0.08] h-9 text-xs text-white/80">
                                         <SelectValue placeholder="Select model" />
                                     </SelectTrigger>
                                     <SelectContent className="bg-[#0A0A0A] border-white/[0.08]">
-                                        <SelectItem value="gpt-4-turbo">gpt-4-turbo</SelectItem>
-                                        <SelectItem value="gpt-4">gpt-4</SelectItem>
-                                        <SelectItem value="gemini-1.5-flash">gemini-1.5-flash</SelectItem>
-                                        <SelectItem value="gemini-1.5-pro">gemini-1.5-pro</SelectItem>
+                                        <SelectItem value="gemini-3-flash-preview">Gemini 3 Flash (Preview)</SelectItem>
+                                        <SelectItem value="gemini-3-pro-preview">Gemini 3 Pro (Preview)</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
