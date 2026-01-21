@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { LLMConfig } from '@/lib/types/agent';
+export type { LLMConfig };
 
 export interface ChatMessage {
     id?: string;
