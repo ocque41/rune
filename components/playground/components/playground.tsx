@@ -15,17 +15,33 @@ import { Slider } from "@/components/ui/slider"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { History, MoreHorizontal, Code2, Save, Settings2, PlayCircle, Copy, Check, MessageSquare, Plus, Clock, Zap } from "lucide-react"
+import { History, MoreHorizontal, Code2, Save, Settings2, PlayCircle, Copy, Check, MessageSquare, Plus, Clock, Zap, Trash2 } from "lucide-react"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useAgentStore, ChatMessage, LLMConfig } from "../store"
 import { cn } from "@/lib/utils"
 // @ts-ignore
 import { toast } from "sonner"
 import { getAvailableTools, AgentToolDef } from "@/app/actions/tools"
-import { getAgentPresets, saveAgentPreset, AgentPreset } from "@/app/actions/presets"
+import { getAgentPresets, saveAgentPreset, deleteAgentPreset, AgentPreset } from "@/app/actions/presets"
 import { animate, stagger } from "animejs"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { animate, stagger } from "animejs"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Download, Trash2, Code2, Copy, Check, MoreHorizontal, Plug, PlayCircle, Save, Clock, Zap, Plus, History, Settings2, Loader2, Globe, Terminal } from "lucide-react"
 
 interface PlaygroundProps {
     workflowId?: string | null;
@@ -66,6 +82,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
     const [showSavePreset, setShowSavePreset] = useState(false);
     const [newPresetName, setNewPresetName] = useState("");
     const [isSavingPreset, setIsSavingPreset] = useState(false);
+    const [showCodeModal, setShowCodeModal] = useState(false);
 
     // Slider handlers
     const handleTempChange = (vals: number[]) => updateConfig({ temperature: vals[0] });
@@ -140,6 +157,19 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
             toast.error("Failed to save preset");
         } finally {
             setIsSavingPreset(false);
+        }
+    };
+
+    const handleDeletePreset = async (presetId: string, e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        try {
+            await deleteAgentPreset(presetId);
+            setPresets(prev => prev.filter(p => p.id !== presetId));
+            toast.success("Preset deleted");
+        } catch (error) {
+            toast.error("Failed to delete preset");
         }
     };
 
@@ -252,11 +282,41 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
         }
     };
 
-    const handleCopy = () => {
-        if (!output) return;
-        navigator.clipboard.writeText(output);
+    const handleCopyChat = () => {
+        if (messages.length === 0 && !output) return;
+
+        const formattedChat = messages.map(m => {
+            const role = m.role === 'user' ? 'User' : 'Agent';
+            return `${role}:\n${m.content}`;
+        }).join('\n\n');
+
+        // Append current streaming output if exists and not yet in messages
+        const finalCopy = output && isGenerating
+            ? `${formattedChat}\n\nAgent:\n${output}`
+            : formattedChat;
+
+        navigator.clipboard.writeText(finalCopy);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleDownloadConversation = () => {
+        const data = {
+            id: currentChatId,
+            config: config,
+            messages: messages,
+            timestamp: new Date().toISOString()
+        };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `chat-export-${new Date().getTime()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast.success("Conversation downloaded");
     };
 
     const handleSaveLocal = () => {
@@ -282,116 +342,209 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
             {/* Main Container */}
             <div className="flex flex-col h-full w-full overflow-hidden bg-[#000000]">
                 {/* Header (Top Bar) */}
-                <div className="h-14 border-b border-white/[0.06] flex items-center justify-between px-4 bg-black">
-                    <div className="flex items-center gap-3">
-                        <div className="p-1.5 rounded-md bg-white/[0.04] text-white/60">
-                            <PlayCircle className="h-4 w-4" />
+                {/* Header (Top Bar) */}
+                <TooltipProvider delayDuration={300}>
+                    <div className="h-14 border-b border-white/[0.06] flex items-center justify-between px-4 bg-black">
+                        <div className="flex items-center gap-3">
+                            <div className="p-1.5 rounded-md bg-white/[0.04] text-white/60">
+                                <PlayCircle className="h-4 w-4" />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="font-semibold text-sm leading-none tracking-tight text-white/90">LLM Generation</span>
+                                <span className="text-[10px] text-white/30 font-mono mt-0.5">step_01_generate</span>
+                            </div>
                         </div>
-                        <div className="flex flex-col">
-                            <span className="font-semibold text-sm leading-none tracking-tight text-white/90">LLM Generation</span>
-                            <span className="text-[10px] text-white/30 font-mono mt-0.5">step_01_generate</span>
+
+                        <div className="flex items-center gap-2">
+                            {/* Preset Selector */}
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div>
+                                        <Select onValueChange={handleLoadPreset}>
+                                            <SelectTrigger className="w-[160px] h-8 text-xs bg-white/[0.03] border-white/[0.08] focus:ring-0 shadow-none hover:bg-white/[0.06] transition-colors text-white/70">
+                                                <SelectValue placeholder="Load a preset..." />
+                                            </SelectTrigger>
+                                            <SelectContent className="bg-[#0A0A0A] border-white/[0.08]">
+                                                {presets.length === 0 ? (
+                                                    <div className="p-2 text-[10px] text-white/30 italic">No saved presets</div>
+                                                ) : (
+                                                    presets.map(p => (
+                                                        <SelectItem key={p.id} value={p.id} className="text-xs group focus:bg-white/10 cursor-pointer">
+                                                            <div className="flex items-center justify-between w-full min-w-[200px]">
+                                                                <span>{p.name}</span>
+                                                                <div
+                                                                    role="button"
+                                                                    onClick={(e) => handleDeletePreset(p.id, e)}
+                                                                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-white/40 transition-all hover:bg-white/10 rounded"
+                                                                >
+                                                                    <Trash2 className="h-3 w-3" />
+                                                                </div>
+                                                            </div>
+                                                        </SelectItem>
+                                                    ))
+                                                )}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="bg-[#1A1A1A] border-white/10 text-xs text-white">
+                                    Load a saved agent configuration
+                                </TooltipContent>
+                            </Tooltip>
+
+                            {/* Save Button with feedback */}
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setShowSavePreset(true)}
+                                        className={cn(
+                                            "ml-1 h-8 px-2 text-xs gap-1.5 transition-all duration-200",
+                                            saved ? "text-white hover:text-white hover:bg-white/10" : "text-white/50 hover:text-white/80 hover:bg-white/[0.06]"
+                                        )}
+                                    >
+                                        {saved ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />}
+                                        <span className="hidden sm:inline">{saved ? 'Saved' : 'Save'}</span>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="bg-[#1A1A1A] border-white/10 text-xs text-white">
+                                    Save current configuration as a preset
+                                </TooltipContent>
+                            </Tooltip>
+
+                            {/* Temporary Chat Toggle */}
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div className={cn(
+                                        "flex items-center gap-1 px-2 py-1 rounded-md bg-white/5 border border-white/10 ml-1 transition-opacity",
+                                        currentChatId && !isTemporaryChat && "opacity-50 cursor-not-allowed"
+                                    )}>
+                                        <Clock className={cn("w-3.5 h-3.5", isTemporaryChat ? "text-amber-400" : "text-white/40")} />
+                                        <span className={cn("text-xs hidden sm:inline", isTemporaryChat ? "text-amber-400" : "text-white/50")}>
+                                            Temp
+                                        </span>
+                                        <Switch
+                                            checked={isTemporaryChat}
+                                            onCheckedChange={setIsTemporaryChat}
+                                            disabled={!!currentChatId && !isTemporaryChat}
+                                            className="scale-75 -mr-1 data-[state=unchecked]:bg-white/10 data-[state=unchecked]:border-white/20 data-[state=checked]:bg-amber-500 border border-transparent transition-all"
+                                        />
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="bg-[#1A1A1A] border-white/10 text-xs text-white">
+                                    Temporary Chat: History is not saved to user database
+                                </TooltipContent>
+                            </Tooltip>
+
+                            {/* Autonomous Mode Toggle */}
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-white/5 border border-white/10 ml-1">
+                                        <Zap className={cn("w-3.5 h-3.5", autonomousMode ? "text-emerald-400" : "text-white/40")} />
+                                        <span className={cn("text-xs hidden sm:inline", autonomousMode ? "text-emerald-400" : "text-white/50")}>
+                                            Auto
+                                        </span>
+                                        <Switch
+                                            checked={autonomousMode}
+                                            onCheckedChange={setAutonomousMode}
+                                            className="scale-75 -mr-1 data-[state=unchecked]:bg-white/10 data-[state=unchecked]:border-white/20 data-[state=checked]:bg-emerald-500 border border-transparent transition-all"
+                                        />
+                                        {activeSessionId && (
+                                            <span className="ml-1 text-xs text-emerald-400 animate-pulse">●</span>
+                                        )}
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="bg-[#1A1A1A] border-white/10 text-xs text-white">
+                                    Autonomous Mode: Agent runs recursively to complete tasks (up to 50 rounds)
+                                </TooltipContent>
+                            </Tooltip>
+
+                            <div className="h-4 w-px bg-white/[0.08] mx-2" />
+
+                            <div className="flex items-center gap-1">
+                                {/* Copy Button */}
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={handleCopyChat}
+                                            disabled={messages.length === 0 && !output}
+                                            className={cn(
+                                                "h-7 px-2 text-xs gap-1.5 transition-all duration-200",
+                                                copied ? "text-white hover:text-white hover:bg-white/10" : "text-white/50 hover:text-white/80 hover:bg-white/[0.06]"
+                                            )}
+                                        >
+                                            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                            {copied ? 'Copied' : 'Copy'}
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom" className="bg-[#1A1A1A] border-white/10 text-xs text-white">
+                                        Copy full chat history to clipboard
+                                    </TooltipContent>
+                                </Tooltip>
+                                <div className="h-3 w-px bg-white/[0.08] mx-1" />
+
+                                {/* MCP Modal */}
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <div>
+                                            <McpModal />
+                                        </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom" className="bg-[#1A1A1A] border-white/10 text-xs text-white">
+                                        Manage Model Context Protocol (MCP) tools and connections
+                                    </TooltipContent>
+                                </Tooltip>
+
+                                {/* Code Button */}
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setShowCodeModal(true)}
+                                            className="h-7 px-2 text-xs gap-1.5 text-white/50 hover:text-white/80 hover:bg-white/[0.06]"
+                                        >
+                                            <Code2 className="h-3.5 w-3.5" />
+                                            Code
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom" className="bg-[#1A1A1A] border-white/10 text-xs text-white">
+                                        View conversation logs as JSON/Code
+                                    </TooltipContent>
+                                </Tooltip>
+
+                                {/* More Menu */}
+                                <DropdownMenu>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-white/50 hover:text-white/80 hover:bg-white/[0.06]">
+                                                    <MoreHorizontal className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="bottom" className="bg-[#1A1A1A] border-white/10 text-xs text-white">
+                                            More options
+                                        </TooltipContent>
+                                    </Tooltip>
+                                    <DropdownMenuContent align="end" className="bg-[#1A1A1A] border-white/10 text-white">
+                                        <DropdownMenuItem onClick={handleNewChat} className="text-xs hover:bg-white/10 focus:bg-white/10 cursor-pointer">
+                                            <Trash2 className="mr-2 h-3.5 w-3.5 text-white/50" />
+                                            <span>Clear Chat</span>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={handleDownloadConversation} className="text-xs hover:bg-white/10 focus:bg-white/10 cursor-pointer">
+                                            <Download className="mr-2 h-3.5 w-3.5 text-white/50" />
+                                            <span>Download JSON</span>
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
                         </div>
                     </div>
-
-                    <div className="flex items-center gap-2">
-                        {/* Preset Selector */}
-                        <Select onValueChange={handleLoadPreset}>
-                            <SelectTrigger className="w-[160px] h-8 text-xs bg-white/[0.03] border-white/[0.08] focus:ring-0 shadow-none hover:bg-white/[0.06] transition-colors text-white/70">
-                                <SelectValue placeholder="Load a preset..." />
-                            </SelectTrigger>
-                            <SelectContent className="bg-[#0A0A0A] border-white/[0.08]">
-                                {presets.length === 0 ? (
-                                    <div className="p-2 text-[10px] text-white/30 italic">No saved presets</div>
-                                ) : (
-                                    presets.map(p => (
-                                        <SelectItem key={p.id} value={p.id} className="text-xs">{p.name}</SelectItem>
-                                    ))
-                                )}
-                            </SelectContent>
-                        </Select>
-
-                        {/* Save Button with feedback */}
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setShowSavePreset(true)}
-                            className={cn(
-                                "ml-1 h-8 px-2 text-xs gap-1.5 transition-all duration-200",
-                                saved ? "text-white hover:text-white hover:bg-white/10" : "text-white/50 hover:text-white/80 hover:bg-white/[0.06]"
-                            )}
-                        >
-                            {saved ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />}
-                            <span className="hidden sm:inline">{saved ? 'Saved' : 'Save'}</span>
-                        </Button>
-
-                        {/* Temporary Chat Toggle - between Save and Copy */}
-                        <div className={cn(
-                            "flex items-center gap-1 px-2 py-1 rounded-md bg-white/5 border border-white/10 ml-1 transition-opacity",
-                            currentChatId && !isTemporaryChat && "opacity-50 cursor-not-allowed"
-                        )} title={currentChatId && !isTemporaryChat ? "Persistent chats cannot be made temporary" : "Toggle temporary chat"}>
-                            <Clock className={cn("w-3.5 h-3.5", isTemporaryChat ? "text-amber-400" : "text-white/40")} />
-                            <span className={cn("text-xs hidden sm:inline", isTemporaryChat ? "text-amber-400" : "text-white/50")}>
-                                Temp
-                            </span>
-                            <Switch
-                                checked={isTemporaryChat}
-                                onCheckedChange={setIsTemporaryChat}
-                                disabled={!!currentChatId && !isTemporaryChat}
-                                className="scale-75 -mr-1 data-[state=unchecked]:bg-white/10 data-[state=unchecked]:border-white/20 data-[state=checked]:bg-amber-500 border border-transparent transition-all"
-                            />
-                        </div>
-
-                        {/* Autonomous Mode Toggle */}
-                        <div
-                            className="flex items-center gap-1 px-2 py-1 rounded-md bg-white/5 border border-white/10 ml-1"
-                            title="Autonomous Mode: Agent will auto-continue until task is complete"
-                        >
-                            <Zap className={cn("w-3.5 h-3.5", autonomousMode ? "text-emerald-400" : "text-white/40")} />
-                            <span className={cn("text-xs hidden sm:inline", autonomousMode ? "text-emerald-400" : "text-white/50")}>
-                                Auto
-                            </span>
-                            <Switch
-                                checked={autonomousMode}
-                                onCheckedChange={setAutonomousMode}
-                                className="scale-75 -mr-1 data-[state=unchecked]:bg-white/10 data-[state=unchecked]:border-white/20 data-[state=checked]:bg-emerald-500 border border-transparent transition-all"
-                            />
-                            {activeSessionId && (
-                                <span className="ml-1 text-xs text-emerald-400 animate-pulse">●</span>
-                            )}
-                        </div>
-
-                        <div className="h-4 w-px bg-white/[0.08] mx-2" />
-
-                        <div className="flex items-center gap-1">
-                            {/* Copy Button with feedback */}
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={handleCopy}
-                                disabled={!output}
-                                className={cn(
-                                    "h-7 px-2 text-xs gap-1.5 transition-all duration-200",
-                                    copied ? "text-white hover:text-white hover:bg-white/10" : "text-white/50 hover:text-white/80 hover:bg-white/[0.06]"
-                                )}
-                            >
-                                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                                {copied ? 'Copied' : 'Copy'}
-                            </Button>
-                            <div className="h-3 w-px bg-white/[0.08] mx-1" />
-
-                            {/* MCP Modal */}
-                            <McpModal />
-
-                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1.5 text-white/50 hover:text-white/80 hover:bg-white/[0.06]">
-                                <Code2 className="h-3.5 w-3.5" />
-                                Code
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-white/50 hover:text-white/80 hover:bg-white/[0.06]">
-                                <MoreHorizontal className="h-3.5 w-3.5" />
-                            </Button>
-                        </div>
-                    </div>
-                </div>
+                </TooltipProvider>
 
                 <div className="flex-1 flex overflow-hidden">
                     {/* Main Stage (Left/Center) - with gradient */}
@@ -509,10 +662,10 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                         <SelectValue placeholder="Select model" />
                                     </SelectTrigger>
                                     <SelectContent className="bg-[#0A0A0A] border-white/[0.08]">
-                                        <SelectItem value="gpt-4">gpt-4</SelectItem>
                                         <SelectItem value="gpt-4-turbo">gpt-4-turbo</SelectItem>
-                                        <SelectItem value="claude-3-5-sonnet-20240620">claude-3.5-sonnet</SelectItem>
-                                        <SelectItem value="mistral-large-latest">mistral-large</SelectItem>
+                                        <SelectItem value="gpt-4">gpt-4</SelectItem>
+                                        <SelectItem value="gemini-1.5-flash">gemini-1.5-flash</SelectItem>
+                                        <SelectItem value="gemini-1.5-pro">gemini-1.5-pro</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -556,65 +709,58 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                             <Separator className="bg-border/60" />
 
                             {/* Active Tools (Dynamic) */}
-                            <div className="space-y-3">
+                            <div className="space-y-4">
                                 <div className="flex items-center justify-between">
                                     <Label className="text-xs font-medium text-white/70">Agent Capabilities</Label>
                                     {isLoadingTools && <span className="text-[10px] text-white/30 animate-pulse">Loading...</span>}
                                 </div>
 
-                                <div className="space-y-2" ref={toolsListRef}>
+                                <div className="space-y-4" ref={toolsListRef}>
                                     {availableTools.length === 0 && !isLoadingTools && (
                                         <p className="text-[10px] text-white/30 italic px-1">No tools available.</p>
                                     )}
 
-                                    {/* Group tools by type/server if needed, or simple list for now */}
-                                    {availableTools.map(tool => {
-                                        const isChecked = config.tools?.includes(tool.id);
-                                        const isMcp = tool.type === 'mcp';
+                                    {/* System Tools Group */}
+                                    {availableTools.some(t => t.type === 'system') && (
+                                        <div className="space-y-1.5">
+                                            <div className="text-[10px] uppercase tracking-wider text-white/30 font-semibold px-1">System</div>
+                                            {availableTools.filter(t => t.type === 'system').map(tool => (
+                                                <ToolItem
+                                                    key={tool.id}
+                                                    tool={tool}
+                                                    active={config.tools?.includes(tool.id) || false}
+                                                    onToggle={() => {
+                                                        const current = config.tools || [];
+                                                        const next = current.includes(tool.id)
+                                                            ? current.filter(t => t !== tool.id)
+                                                            : [...current, tool.id];
+                                                        updateConfig({ tools: next });
+                                                    }}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
 
-                                        return (
-                                            <div
-                                                key={tool.id}
-                                                className="tool-item opacity-0" // Start hidden for animation
-                                                onClick={() => {
-                                                    const current = config.tools || [];
-                                                    const next = isChecked
-                                                        ? current.filter(t => t !== tool.id)
-                                                        : [...current, tool.id];
-                                                    updateConfig({ tools: next });
-                                                }}
-                                            >
-                                                <div className={cn(
-                                                    "flex items-center justify-between p-2 rounded-md border text-xs cursor-pointer transition-all group relative",
-                                                    isChecked
-                                                        ? "bg-white/[0.08] border-white/[0.2] text-white"
-                                                        : "bg-transparent border-white/[0.06] text-white/50 hover:bg-white/[0.03]"
-                                                )}>
-                                                    <div className="flex flex-col min-w-0 flex-1 mr-2">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span className={cn("font-medium truncate", isMcp && "text-[var(--neon-blue)]")}>
-                                                                {tool.label}
-                                                            </span>
-                                                            {isMcp && tool.serverName && (
-                                                                <span className="text-[9px] px-1 rounded bg-white/10 text-white/40 uppercase tracking-wider">
-                                                                    {tool.serverName}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <span className="text-[10px] opacity-70 truncate" title={tool.description}>
-                                                            {tool.description}
-                                                        </span>
-                                                    </div>
-                                                    <div className={cn(
-                                                        "h-3.5 w-3.5 rounded border flex items-center justify-center transition-colors flex-none",
-                                                        isChecked ? "bg-white text-black border-white" : "border-white/20 group-hover:border-white/40"
-                                                    )}>
-                                                        {isChecked && <Check className="h-2.5 w-2.5" />}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
+                                    {/* MCP Tools Group */}
+                                    {availableTools.some(t => t.type === 'mcp') && (
+                                        <div className="space-y-1.5">
+                                            <div className="text-[10px] uppercase tracking-wider text-[var(--neon-blue)]/50 font-semibold px-1">MCP Extensions</div>
+                                            {availableTools.filter(t => t.type === 'mcp').map(tool => (
+                                                <ToolItem
+                                                    key={tool.id}
+                                                    tool={tool}
+                                                    active={config.tools?.includes(tool.id) || false}
+                                                    onToggle={() => {
+                                                        const current = config.tools || [];
+                                                        const next = current.includes(tool.id)
+                                                            ? current.filter(t => t !== tool.id)
+                                                            : [...current, tool.id];
+                                                        updateConfig({ tools: next });
+                                                    }}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -770,5 +916,45 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
             />
         </div>
     )
+}
+
+function ToolItem({ tool, active, onToggle }: { tool: AgentToolDef, active: boolean, onToggle: () => void }) {
+    const isMcp = tool.type === 'mcp';
+
+    return (
+        <div
+            className="tool-item opacity-0" // Start hidden for animation
+            onClick={onToggle}
+        >
+            <div className={cn(
+                "flex items-center justify-between p-2 rounded-md border text-xs cursor-pointer transition-all group relative select-none",
+                active
+                    ? "bg-white/[0.08] border-white/[0.2] text-white"
+                    : "bg-transparent border-white/[0.06] text-white/50 hover:bg-white/[0.03]"
+            )}>
+                <div className="flex flex-col min-w-0 flex-1 mr-2">
+                    <div className="flex items-center gap-1.5">
+                        <span className={cn("font-medium truncate", isMcp && "text-[var(--neon-blue)]")}>
+                            {tool.label}
+                        </span>
+                        {isMcp && tool.serverName && (
+                            <span className="text-[9px] px-1 rounded bg-white/10 text-white/40 uppercase tracking-wider">
+                                {tool.serverName}
+                            </span>
+                        )}
+                    </div>
+                    <span className="text-[10px] opacity-70 truncate" title={tool.description}>
+                        {tool.description}
+                    </span>
+                </div>
+                <div className={cn(
+                    "h-3.5 w-3.5 rounded border flex items-center justify-center transition-colors flex-none",
+                    active ? "bg-white text-black border-white" : "border-white/20 group-hover:border-white/40"
+                )}>
+                    {active && <Check className="h-2.5 w-2.5" />}
+                </div>
+            </div>
+        </div>
+    );
 }
 

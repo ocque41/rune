@@ -2,8 +2,28 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildAgentContext } from '@/lib/agent-context';
 import { TOOLS_DEFINITION, getActiveContext, listWorkflows, getRecentRuns, runWorkflow, runNode, configureNode, scheduleMessage, validateNodeConfig, markNodeFailed } from '@/lib/agent-tools';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, FunctionDeclaration, FunctionDeclarationSchemaType } from '@google/generative-ai';
 
 export const runtime = 'nodejs';
+
+// ... (GenerateRequest interface)
+
+// ... (POST function start)
+
+function getProvider(model: string): 'openai' | 'anthropic' | 'google' | null {
+    if (model.startsWith('gpt-')) return 'openai';
+    if (model.startsWith('claude-')) return 'anthropic';
+    if (model.startsWith('gemini-')) return 'google';
+    if (model.startsWith('o1-')) return 'openai';
+    return null;
+}
+
+function getApiKey(provider: 'openai' | 'anthropic' | 'google'): string | undefined {
+    if (provider === 'openai') return process.env.OPENAI_API_KEY;
+    if (provider === 'anthropic') return process.env.ANTHROPIC_API_KEY;
+    if (provider === 'google') return process.env.GOOGLE_API_KEY;
+    return undefined;
+}
 
 interface GenerateRequest {
     input: string;
@@ -183,6 +203,8 @@ export async function POST(req: NextRequest) {
             return await streamOpenAI(apiKey, config, messages, supabase, user.id, activeChatId, autonomousMode, sessionId, workflowId);
         } else if (provider === 'anthropic') {
             return await streamAnthropic(apiKey, config, messages);
+        } else if (provider === 'google') {
+            return await streamGoogle(apiKey, config, messages);
         }
 
         return NextResponse.json({ error: 'Provider not implemented' }, { status: 501 });
@@ -193,6 +215,88 @@ export async function POST(req: NextRequest) {
             error: error instanceof Error ? error.message : 'Internal server error'
         }, { status: 500 });
     }
+}
+
+// ... (formatContextToString)
+// ... (getProvider updated above)
+// ... (getApiKey updated above)
+// ... (executeToolCall, executeMcpTool, streamOpenAI, handleOpenAIToolLoop, createTextStream)
+
+// ... (streamAnthropic)
+
+async function streamGoogle(apiKey: string, config: any, messages: any[]) {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const modelFn = genAI.getGenerativeModel({ model: config.model });
+
+    // Transform messages to Gemini format
+    // Gemini expects history + current prompt
+    // standard: [{ role: 'user'|'model', parts: [{ text: '...' }] }]
+
+    // Extract system prompt
+    const systemMessage = messages.find(m => m.role === 'system');
+    const systemInstruction = systemMessage ? systemMessage.content : config.systemPrompt;
+
+    // Filter history (everything except system)
+    const history = messages
+        .filter(m => m.role !== 'system')
+        .map(m => ({
+            role: m.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: m.content }]
+        }));
+
+    // The last message is the "current" prompt for sendMessageStream?
+    // chatSession.sendMessageStream takes the new input.
+    // history should be everything BEFORE the last user message.
+
+    const lastMessage = history.length > 0 ? history[history.length - 1] : null;
+    let chatHistory = history.slice(0, -1);
+    let prompt = "";
+
+    if (lastMessage && lastMessage.role === 'user') {
+        prompt = lastMessage.parts[0].text;
+    } else {
+        // If last message was model (continuation?), or empty
+        // Just use empty prompt? Or take previous.
+        // Usually 'messages' array ends with user input.
+        prompt = "Continue"; // Fallback
+    }
+
+    if (systemInstruction) {
+        modelFn.systemInstruction = { parts: [{ text: systemInstruction }], role: "system" };
+    }
+
+    const chat = modelFn.startChat({
+        history: chatHistory,
+        generationConfig: {
+            maxOutputTokens: config.maxLength || 1000,
+            temperature: config.temperature,
+            topP: config.topP || 0.9,
+        }
+    });
+
+    const result = await chat.sendMessageStream(prompt);
+
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+        async start(controller) {
+            try {
+                for await (const chunk of result.stream) {
+                    const chunkText = chunk.text();
+                    if (chunkText) {
+                        controller.enqueue(encoder.encode(chunkText));
+                    }
+                }
+                controller.close();
+            } catch (e) {
+                console.error("Google Stream Error", e);
+                controller.error(e);
+            }
+        }
+    });
+
+    return new NextResponse(stream, {
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+    });
 }
 
 function formatContextToString(ctx: any): string {

@@ -133,7 +133,7 @@ export function McpModal() {
             <DialogTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1.5 text-muted-foreground hover:text-foreground hover:bg-accent/50 group">
                     <Plug className="h-3.5 w-3.5 group-hover:text-white transition-colors" />
-                    MCP Extension
+                    MCPs
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[650px] bg-[#0A0A0A]/95 backdrop-blur-xl border-white/10 shadow-2xl max-h-[85vh] overflow-y-auto text-white">
