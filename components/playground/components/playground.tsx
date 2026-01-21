@@ -17,10 +17,15 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { History, MoreHorizontal, Code2, Save, Settings2, PlayCircle, Copy, Check, MessageSquare, Plus, Clock, Zap } from "lucide-react"
 import { useState, useEffect, useCallback, useRef } from "react"
-import { useAgentStore, ChatMessage } from "../store"
+import { useAgentStore, ChatMessage, LLMConfig } from "../store"
 import { cn } from "@/lib/utils"
+// @ts-ignore
+import { toast } from "sonner"
 import { getAvailableTools, AgentToolDef } from "@/app/actions/tools"
+import { getAgentPresets, saveAgentPreset, AgentPreset } from "@/app/actions/presets"
 import { animate, stagger } from "animejs"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 
 interface PlaygroundProps {
     workflowId?: string | null;
@@ -56,6 +61,12 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
     const [isLoadingTools, setIsLoadingTools] = useState(false);
     const toolsListRef = useRef<HTMLDivElement>(null);
 
+    // Preset State
+    const [presets, setPresets] = useState<AgentPreset[]>([]);
+    const [showSavePreset, setShowSavePreset] = useState(false);
+    const [newPresetName, setNewPresetName] = useState("");
+    const [isSavingPreset, setIsSavingPreset] = useState(false);
+
     // Slider handlers
     const handleTempChange = (vals: number[]) => updateConfig({ temperature: vals[0] });
     const handleMaxLengthChange = (vals: number[]) => updateConfig({ maxLength: vals[0] });
@@ -85,21 +96,52 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
         }
     };
 
-    // Load tools on mount
+    // Load tools and presets on mount
     useEffect(() => {
-        const loadTools = async () => {
+        const loadInitialData = async () => {
             setIsLoadingTools(true);
             try {
-                const { tools } = await getAvailableTools();
+                const [{ tools }, loadedPresets] = await Promise.all([
+                    getAvailableTools(),
+                    getAgentPresets()
+                ]);
                 setAvailableTools(tools);
+                setPresets(loadedPresets);
             } catch (e) {
-                console.error("Failed to load tools", e);
+                console.error("Failed to load initial data", e);
             } finally {
                 setIsLoadingTools(false);
             }
         };
-        loadTools();
+        loadInitialData();
     }, []);
+
+    const handleLoadPreset = (presetId: string) => {
+        const preset = presets.find(p => p.id === presetId);
+        if (preset) {
+            updateConfig(preset.config);
+            toast.success(`Loaded preset: ${preset.name}`);
+        }
+    };
+
+    const handleSavePreset = async () => {
+        if (!newPresetName.trim()) return;
+        setIsSavingPreset(true);
+        try {
+            const savedPreset = await saveAgentPreset(newPresetName, config);
+            setPresets(prev => [savedPreset, ...prev]);
+            setShowSavePreset(false);
+            setNewPresetName("");
+            toast.success("Preset saved");
+            setSaved(true);
+            setTimeout(() => setSaved(false), 2000);
+        } catch (e) {
+            console.error("Failed to save preset", e);
+            toast.error("Failed to save preset");
+        } finally {
+            setIsSavingPreset(false);
+        }
+    };
 
     // Animate tools when loaded
     useEffect(() => {
@@ -253,13 +295,18 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
 
                     <div className="flex items-center gap-2">
                         {/* Preset Selector */}
-                        <Select>
+                        <Select onValueChange={handleLoadPreset}>
                             <SelectTrigger className="w-[160px] h-8 text-xs bg-white/[0.03] border-white/[0.08] focus:ring-0 shadow-none hover:bg-white/[0.06] transition-colors text-white/70">
                                 <SelectValue placeholder="Load a preset..." />
                             </SelectTrigger>
                             <SelectContent className="bg-[#0A0A0A] border-white/[0.08]">
-                                <SelectItem value="preset1">Grammar correction</SelectItem>
-                                <SelectItem value="preset2">Summarize for a 2nd grader</SelectItem>
+                                {presets.length === 0 ? (
+                                    <div className="p-2 text-[10px] text-white/30 italic">No saved presets</div>
+                                ) : (
+                                    presets.map(p => (
+                                        <SelectItem key={p.id} value={p.id} className="text-xs">{p.name}</SelectItem>
+                                    ))
+                                )}
                             </SelectContent>
                         </Select>
 
@@ -267,7 +314,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={handleSaveLocal}
+                            onClick={() => setShowSavePreset(true)}
                             className={cn(
                                 "ml-1 h-8 px-2 text-xs gap-1.5 transition-all duration-200",
                                 saved ? "text-white hover:text-white hover:bg-white/10" : "text-white/50 hover:text-white/80 hover:bg-white/[0.06]"
@@ -290,7 +337,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                 checked={isTemporaryChat}
                                 onCheckedChange={setIsTemporaryChat}
                                 disabled={!!currentChatId && !isTemporaryChat}
-                                className="scale-75 -mr-1 data-[state=checked]:bg-amber-500"
+                                className="scale-75 -mr-1 data-[state=unchecked]:bg-white/10 data-[state=unchecked]:border-white/20 data-[state=checked]:bg-amber-500 border border-transparent transition-all"
                             />
                         </div>
 
@@ -306,7 +353,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                             <Switch
                                 checked={autonomousMode}
                                 onCheckedChange={setAutonomousMode}
-                                className="scale-75 -mr-1 data-[state=checked]:bg-emerald-500"
+                                className="scale-75 -mr-1 data-[state=unchecked]:bg-white/10 data-[state=unchecked]:border-white/20 data-[state=checked]:bg-emerald-500 border border-transparent transition-all"
                             />
                             {activeSessionId && (
                                 <span className="ml-1 text-xs text-emerald-400 animate-pulse">●</span>
@@ -677,6 +724,41 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                 </div>
             </div>
 
+
+            {/* Save Preset Dialog */}
+            <Dialog open={showSavePreset} onOpenChange={setShowSavePreset}>
+                <DialogContent className="sm:max-w-[425px] bg-[#0A0A0A] border-white/10 text-white">
+                    <DialogHeader>
+                        <DialogTitle className="text-sm font-semibold">Save Agent Preset</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="name" className="text-white/70 text-xs">Preset Name</Label>
+                            <Input
+                                id="name"
+                                value={newPresetName}
+                                onChange={(e) => setNewPresetName(e.target.value)}
+                                className="col-span-3 bg-white/5 border-white/10 text-white text-xs h-8"
+                                placeholder="e.g., Coding Assistant (Strict)"
+                                autoFocus
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" size="sm" onClick={() => setShowSavePreset(false)} className="text-xs h-8">
+                            Cancel
+                        </Button>
+                        <Button
+                            size="sm"
+                            onClick={handleSavePreset}
+                            disabled={!newPresetName.trim() || isSavingPreset}
+                            className="bg-white text-black hover:bg-white/90 text-xs h-8"
+                        >
+                            {isSavingPreset ? 'Saving...' : 'Save Preset'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Chat List Modal */}
             <ChatListModal

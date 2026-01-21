@@ -37,10 +37,8 @@ export async function getMcpServers() {
 
 export async function addMcpServer(data: {
     name: string
-    type: 'stdio' | 'sse'
-    command?: string
-    url?: string
-    args?: string[]
+    type: 'sse' // Enforce SSE only
+    url: string
     env?: Record<string, string>
 }) {
     const supabase = await createClient()
@@ -49,14 +47,11 @@ export async function addMcpServer(data: {
 
     // Validation
     if (!data.name) throw new Error('Name is required')
-    if (data.type === 'stdio' && !data.command) throw new Error('Command is required for stdio')
-    if (data.type === 'sse' && !data.url) throw new Error('URL is required for SSE')
+    if (data.type !== 'sse' || !data.url) throw new Error('Valid SSE URL is required')
 
     // Config object to store connection details
     const config = {
-        command: data.command,
         url: data.url,
-        args: data.args || [],
         env: data.env || {}
     }
 
