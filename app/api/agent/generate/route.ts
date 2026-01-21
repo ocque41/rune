@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildAgentContext } from '@/lib/agent-context';
 import { TOOLS_DEFINITION, getActiveContext, listWorkflows, getRecentRuns, runWorkflow, runNode, configureNode, scheduleMessage, validateNodeConfig, markNodeFailed } from '@/lib/agent-tools';
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, FunctionDeclaration, FunctionDeclarationSchemaType } from '@google/generative-ai';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, FunctionDeclaration, FunctionDeclarationSchema } from '@google/generative-ai';
 
 export const runtime = 'nodejs';
 
@@ -360,18 +360,7 @@ function formatContextToString(ctx: any): string {
     return s;
 }
 
-function getProvider(model: string): 'openai' | 'anthropic' | null {
-    if (model.startsWith('gpt-')) return 'openai';
-    if (model.startsWith('claude-')) return 'anthropic';
-    if (model.startsWith('o1-')) return 'openai';
-    return null;
-}
 
-function getApiKey(provider: 'openai' | 'anthropic'): string | undefined {
-    if (provider === 'openai') return process.env.OPENAI_API_KEY;
-    if (provider === 'anthropic') return process.env.ANTHROPIC_API_KEY;
-    return undefined;
-}
 
 async function executeToolCall(supabase: any, userId: string, toolName: string, args: any) {
     console.log(`[ToolExec] Executing ${toolName} for ${userId}`, args);

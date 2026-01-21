@@ -24,7 +24,7 @@ import { toast } from "sonner"
 import { getAvailableTools, AgentToolDef } from "@/app/actions/tools"
 import { getAgentPresets, saveAgentPreset, deleteAgentPreset, AgentPreset } from "@/app/actions/presets"
 import { animate, stagger } from "animejs"
-import { animate, stagger } from "animejs"
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import {
@@ -41,7 +41,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Download, Trash2, Code2, Copy, Check, MoreHorizontal, Plug, PlayCircle, Save, Clock, Zap, Plus, History, Settings2, Loader2, Globe, Terminal } from "lucide-react"
+
 
 interface PlaygroundProps {
     workflowId?: string | null;
