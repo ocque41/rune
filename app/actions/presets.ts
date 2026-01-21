@@ -43,15 +43,14 @@ export async function saveAgentPreset(name: string, config: any, description?: s
             user_id: user.id,
             name,
             description,
-            config,
-            updated_at: new Date().toISOString()
+            config
         })
         .select()
         .single();
 
     if (error) throw new Error(error.message);
 
-    revalidatePath('/');
+    revalidatePath('/playground');
     return data;
 }
 
@@ -69,5 +68,5 @@ export async function deleteAgentPreset(id: string) {
 
     if (error) throw new Error(error.message);
 
-    revalidatePath('/');
+    revalidatePath('/playground');
 }

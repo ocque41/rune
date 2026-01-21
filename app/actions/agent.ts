@@ -38,16 +38,12 @@ export async function saveAgentPreset(data: {
 
     if (!data.name) throw new Error('Name is required')
 
-    // Create or Update (if name matches? No, usually separate. Let's assume create new for now or update if ID known. 
-    // Requirement says "user is asked to name the preset and then it gets saved". 
-    // If name exists, we probably shouldn't overwrite without asking, but for MVP let's just insert new.)
-
     const { data: preset, error } = await supabase
         .from('rune_agent_presets')
         .insert({
             user_id: user.id,
             name: data.name,
-            config: data.config, // Ensure this contains: model, temp, tools, prompt, etc.
+            config: data.config,
             description: data.description
         })
         .select()
@@ -58,7 +54,8 @@ export async function saveAgentPreset(data: {
         throw new Error('Failed to save preset')
     }
 
-    revalidatePath('/')
+    // Only revalidate specific paths to avoid full page revalidation overhead
+    revalidatePath('/playground')
     return preset
 }
 
@@ -74,7 +71,7 @@ export async function deleteAgentPreset(id: string) {
         .eq('user_id', user.id)
 
     if (error) throw error
-    revalidatePath('/')
+    revalidatePath('/playground')
 }
 
 export async function togglePresetFavorite(id: string, isFavorite: boolean) {
@@ -89,5 +86,5 @@ export async function togglePresetFavorite(id: string, isFavorite: boolean) {
         .eq('user_id', user.id)
 
     if (error) throw error
-    revalidatePath('/')
+    revalidatePath('/playground')
 }

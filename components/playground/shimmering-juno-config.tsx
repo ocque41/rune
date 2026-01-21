@@ -18,10 +18,17 @@ export function ShimmeringJunoConfig({ config, onChange, onMcpConfigure }: Shimm
     const [isSaving, setIsSaving] = useState(false);
     const [presetName, setPresetName] = useState('');
     const [showSaveInput, setShowSaveInput] = useState(false);
+    const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+    const [selectedPresetName, setSelectedPresetName] = useState<string | null>(null);
     const presetsRef = useRef<HTMLDivElement>(null);
 
     const handleChange = (key: keyof LLMConfig, value: any) => {
         onChange({ [key]: value });
+        // Clear selected preset when config changes manually
+        if (selectedPresetId) {
+            setSelectedPresetId(null);
+            setSelectedPresetName(null);
+        }
     };
 
     // Load Presets
@@ -55,17 +62,41 @@ export function ShimmeringJunoConfig({ config, onChange, onMcpConfigure }: Shimm
     const handleSavePreset = async () => {
         if (!presetName.trim()) return;
         setIsSaving(true);
+
+        // Optimistic update - create temporary preset
+        const tempPreset: AgentPreset = {
+            id: `temp-${Date.now()}`,
+            name: presetName,
+            config: config,
+            description: `Created on ${new Date().toLocaleDateString()}`,
+            is_favorite: false,
+            updated_at: new Date().toISOString()
+        };
+
+        // Update UI immediately
+        setPresets(prev => [tempPreset, ...prev]);
+        setSelectedPresetId(tempPreset.id);
+        setSelectedPresetName(presetName);
+        setPresetName('');
+        setShowSaveInput(false);
+        setIsPresetsOpen(false);
+
         try {
-            await saveAgentPreset({
-                name: presetName,
+            const savedPreset = await saveAgentPreset({
+                name: tempPreset.name,
                 config: config,
-                description: `Created on ${new Date().toLocaleDateString()}`
+                description: tempPreset.description
             });
+
+            // Replace temp preset with real one
+            setPresets(prev => prev.map(p => p.id === tempPreset.id ? savedPreset : p));
+            setSelectedPresetId(savedPreset.id);
             toast.success('Preset saved');
-            setPresetName('');
-            setShowSaveInput(false);
-            await loadPresets();
         } catch (e) {
+            // Revert on error
+            setPresets(prev => prev.filter(p => p.id !== tempPreset.id));
+            setSelectedPresetId(null);
+            setSelectedPresetName(null);
             toast.error('Failed to save preset');
         } finally {
             setIsSaving(false);
@@ -74,17 +105,33 @@ export function ShimmeringJunoConfig({ config, onChange, onMcpConfigure }: Shimm
 
     const handleLoadPreset = (preset: AgentPreset) => {
         onChange(preset.config);
+        setSelectedPresetId(preset.id);
+        setSelectedPresetName(preset.name);
         toast.success(`Loaded preset: ${preset.name}`);
         setIsPresetsOpen(false);
     };
 
     const handleDeletePreset = async (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
+
+        // Optimistic update
+        const deletedPreset = presets.find(p => p.id === id);
+        setPresets(prev => prev.filter(p => p.id !== id));
+
+        // Clear selection if deleting selected preset
+        if (selectedPresetId === id) {
+            setSelectedPresetId(null);
+            setSelectedPresetName(null);
+        }
+
         try {
             await deleteAgentPreset(id);
             toast.success('Preset deleted');
-            await loadPresets();
         } catch (e) {
+            // Revert on error
+            if (deletedPreset) {
+                setPresets(prev => [deletedPreset, ...prev]);
+            }
             toast.error('Failed to delete preset');
         }
     };
@@ -117,7 +164,7 @@ export function ShimmeringJunoConfig({ config, onChange, onMcpConfigure }: Shimm
                             className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-md transition-colors border border-white/5 hover:border-white/10"
                         >
                             <Save className="w-3.5 h-3.5" />
-                            <span>Presets</span>
+                            <span>{selectedPresetName || 'Presets'}</span>
                             <ChevronDown className={cn("w-3 h-3 transition-transform", isPresetsOpen && "rotate-180")} />
                         </button>
 
@@ -157,13 +204,18 @@ export function ShimmeringJunoConfig({ config, onChange, onMcpConfigure }: Shimm
                                     ) : (
                                         presets.map(preset => (
                                             <div key={preset.id} className="group/item flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer" onClick={() => handleLoadPreset(preset)}>
-                                                <div className="flex flex-col overflow-hidden">
-                                                    <span className="text-xs font-medium text-white/80 truncate group-hover/item:text-white transition-colors">{preset.name}</span>
-                                                    <span className="text-[9px] text-white/40 truncate">{preset.description || 'Custom Config'}</span>
+                                                <div className="flex items-center gap-2 overflow-hidden flex-1">
+                                                    {selectedPresetId === preset.id && (
+                                                        <Check className="w-3 h-3 text-[var(--neon-green)] flex-shrink-0" />
+                                                    )}
+                                                    <div className="flex flex-col overflow-hidden">
+                                                        <span className="text-xs font-medium text-white/80 truncate group-hover/item:text-white transition-colors">{preset.name}</span>
+                                                        <span className="text-[9px] text-white/40 truncate">{preset.description || 'Custom Config'}</span>
+                                                    </div>
                                                 </div>
                                                 <button
                                                     onClick={(e) => handleDeletePreset(e, preset.id)}
-                                                    className="opacity-0 group-hover/item:opacity-100 p-1 hover:bg-red-500/20 text-red-400 rounded-md transition-all"
+                                                    className="opacity-0 group-hover/item:opacity-100 p-1 hover:bg-red-500/20 text-red-400 rounded-md transition-all flex-shrink-0"
                                                 >
                                                     <Trash2 className="w-3.5 h-3.5" />
                                                 </button>
