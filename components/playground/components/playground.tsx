@@ -76,6 +76,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
     const [availableTools, setAvailableTools] = useState<AgentToolDef[]>([]);
     const [isLoadingTools, setIsLoadingTools] = useState(false);
     const toolsListRef = useRef<HTMLDivElement>(null);
+    const chatMessagesRef = useRef<HTMLDivElement>(null);
 
     // Preset State
     const [presets, setPresets] = useState<AgentPreset[]>([]);
@@ -189,6 +190,23 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
             }
         }
     }, [isLoadingTools, availableTools]);
+
+    // Animate chat messages on update
+    useEffect(() => {
+        if (messages.length > 0 && chatMessagesRef.current) {
+            const bubbles = chatMessagesRef.current.querySelectorAll('.chat-message');
+            if (bubbles.length) {
+                // Animate only the last bubble for new messages
+                const lastBubble = bubbles[bubbles.length - 1];
+                animate(lastBubble, {
+                    opacity: [0, 1],
+                    translateY: [15, 0],
+                    easing: 'easeOutQuad',
+                    duration: 250
+                });
+            }
+        }
+    }, [messages]);
 
     const handleNewChat = () => {
         clearCurrentChat();
@@ -563,12 +581,12 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                     </p>
                                 </div>
                             ) : (
-                                <div className="flex flex-col gap-4 px-6 py-4">
+                                <div ref={chatMessagesRef} className="flex flex-col gap-4 px-6 py-4">
                                     {messages.map((msg, idx) => (
                                         <div
                                             key={idx}
                                             className={cn(
-                                                "flex gap-3 max-w-[85%]",
+                                                "chat-message flex gap-3 max-w-[85%]",
                                                 msg.role === 'user' ? "self-end flex-row-reverse" : "self-start"
                                             )}
                                         >

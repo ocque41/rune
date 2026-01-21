@@ -216,10 +216,10 @@ export async function POST(req: NextRequest) {
         const GeminiProviderImport = await import('@/lib/agent/providers/gemini');
         const { GeminiProvider } = GeminiProviderImport;
 
-        const apiKey = process.env.GOOGLE_API_KEY;
-        if (!apiKey) throw new Error("GOOGLE_API_KEY is not set");
+        const geminiApiKey = process.env.GOOGLE_API_KEY;
+        if (!geminiApiKey) throw new Error("GOOGLE_API_KEY is not set");
 
-        const agentProvider = new GeminiProvider(apiKey);
+        const agentProvider = new GeminiProvider(geminiApiKey);
         const runtime = new AgentRuntime(agentProvider, supabase, user.id);
 
         // Convert messages to AgentMessage format
@@ -238,7 +238,7 @@ export async function POST(req: NextRequest) {
         };
 
         const stream = await runtime.run(agentMessages, allTools, runtimeConfig, {
-            chatId: activeChatId,
+            chatId: activeChatId ?? undefined,
             workflowId: workflowId || undefined,
             autonomousMode: autonomousMode,
             sessionId: sessionId
@@ -881,3 +881,10 @@ export async function POST(req: NextRequest) {
                 headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' },
             });
         }
+    } catch (error) {
+        console.error('Generate API error:', error);
+        return NextResponse.json({
+            error: error instanceof Error ? error.message : 'Internal server error'
+        }, { status: 500 });
+    }
+}
