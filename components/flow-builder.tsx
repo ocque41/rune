@@ -1088,8 +1088,11 @@ const FlowBuilderContent = ({
                                                         <p className="text-sm opacity-60" style={{ color: 'var(--foreground-subtitle)' }}>{template.description || 'No description'}</p>
                                                     </div>
                                                     <button
-                                                        onClick={(e) => onDeleteTemplate(template.id, e)}
-                                                        className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-opacity"
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            onDeleteTemplate(template.id, e);
+                                                        }}
+                                                        className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-opacity z-10 relative"
                                                         title="Delete Template"
                                                     >
                                                         <Trash2 size={14} />

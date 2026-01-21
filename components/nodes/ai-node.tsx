@@ -16,7 +16,11 @@ export const AINode = (props: NodeProps<any>) => {
     const { data, isConnectable, selected } = props;
     const [showConfig, setShowConfig] = useState(false);
     const [prompt, setPrompt] = useState(data.prompt || '');
-    const [model, setModel] = useState(data.model || 'gemini-3-flash-preview');
+    const [model, setModel] = useState(() => {
+        // Enforce Gemini 3 models even if legacy data exists
+        if (data.model?.startsWith('gemini-3')) return data.model;
+        return 'gemini-3-flash-preview';
+    });
     const [thinkingLevel, setThinkingLevel] = useState(data.thinkingLevel || 'high');
 
     return (
