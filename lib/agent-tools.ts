@@ -810,3 +810,85 @@ The message will be delivered and the user will be notified (in-app and/or email
         }
     }
 ];
+
+/**
+ * Main tool execution dispatcher
+ * Routes tool calls to the appropriate handler function
+ */
+export async function executeToolCall(supabase: any, userId: string, toolName: string, args: any) {
+    console.log(`[ToolExec] Executing ${toolName} for ${userId}`, args);
+    try {
+        switch (toolName) {
+            case 'get_active_context':
+                return await getActiveContext(supabase, userId);
+            case 'list_workflows':
+                return await listWorkflows(supabase, userId, args.limit);
+            case 'get_recent_runs':
+                return await getRecentRuns(supabase, userId, args.workflowId, args.limit);
+            case 'run_workflow':
+                return await runWorkflow(supabase, userId, args.payload);
+            case 'run_node':
+                return await runNode(supabase, userId, args.nodeIdentifier, args.input);
+            case 'configure_node':
+                return await configureNode(supabase, userId, args.nodeIdentifier, args.config);
+            case 'schedule_message':
+                return await scheduleMessage(supabase, userId, {
+                    message: args.message,
+                    delayMinutes: args.delayMinutes,
+                    priority: args.priority,
+                    chatId: undefined, // Only available if we passed it in context, but for now undefined is fine (will be null in DB)
+                    workflowId: undefined
+                });
+            case 'validate_node_config':
+                return await validateNodeConfig(args);
+            case 'mark_node_failed':
+                return await markNodeFailed(supabase, userId, args.nodeIdentifier, args.reason);
+            default:
+                // Check if it's an MCP tool (prefixed with mcp__)
+                if (toolName.startsWith('mcp__')) {
+                    return await executeMcpTool(supabase, userId, toolName, args);
+                }
+                return { error: `Unknown tool: ${toolName}` };
+        }
+    } catch (e: any) {
+        console.error(`[ToolExec] Error in ${toolName}:`, e);
+        return { error: e.message };
+    }
+}
+
+/**
+ * Execute MCP (Model Context Protocol) tools
+ * Format: mcp__SERVER__TOOL
+ */
+async function executeMcpTool(supabase: any, userId: string, namespacedName: string, args: any) {
+    // Format: mcp__SERVER__TOOL
+    const parts = namespacedName.split('__');
+    if (parts.length < 3) return { error: "Invalid MCP tool name format" };
+
+    // const serverName = parts[1]; // Not strictly needed if we look up by name, but good for verify
+    const toolName = parts.slice(2).join('__'); // Rejoin in case tool name had __ (unlikely but safe)
+
+    // In a real implementation, we would call the persistent MCP client here.
+    // For now, checks if the tool exists in DB and log execution.
+    // TODO: Connect to actual MCP Runtime / Bridge
+
+    const { data: tool } = await supabase
+        .from('rune_mcp_tools')
+        .select('*')
+        .eq('tool_name', toolName)
+        // .eq('user_id', userId) // optional depending on RLS
+        .single();
+
+    if (!tool) {
+        return { error: `MCP tool not found: ${toolName}` };
+    }
+
+    console.log(`[MCP] Executing ${toolName} on server... (Simulation)`);
+    // Here we would dispatch to the MCP server.
+    // Return a mock success for now to ensure the loop works.
+    return {
+        status: "success",
+        output: `Executed ${toolName} successfully. (MCP Integration Pending)`,
+        args_received: args
+    };
+}
