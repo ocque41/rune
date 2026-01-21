@@ -155,7 +155,7 @@ export interface ApprovalResult {
 export interface AiConfig {
     prompt: string;
     model?: string;
-    provider?: 'openai' | 'gemini' | 'anthropic' | 'generic';
+    provider?: 'gemini' | 'anthropic' | 'generic';
     maxTokens?: number;
 }
 

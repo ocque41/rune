@@ -668,7 +668,7 @@ export const generateContent = async (params: { prompt: string; model?: string; 
   "use step";
   const isSandbox = process.env.RUNE_WORKFLOW_MODE === 'sandbox' || (process.env.NODE_ENV !== 'production' && !process.env.RUNE_WORKFLOW_MODE);
   const provider = params.provider || 'openai';
-  const model = params.model || (provider === 'openai' ? 'gpt-4o' : provider === 'gemini' ? 'gemini-3-flash-preview' : 'default');
+  const model = params.model || (provider === 'gemini' ? 'gemini-3-flash-preview' : 'default');
   
   console.log("[AI] Generating content");
   console.log("[AI] Provider:", provider);
@@ -695,36 +695,6 @@ export const generateContent = async (params: { prompt: string; model?: string; 
   }
   
   try {
-    if (provider === 'openai' && openaiKey) {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': \`Bearer \${openaiKey}\`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: 'user', content: params.prompt }],
-          max_tokens: params.maxTokens || 1000,
-        }),
-      });
-      
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(\`OpenAI API error: \${error}\`);
-      }
-      
-      const data = await response.json();
-      return {
-        ok: true,
-        status: 'success',
-        content: data.choices?.[0]?.message?.content || '',
-        model,
-        provider,
-        usage: data.usage
-      };
-    }
-    
     if (provider === 'gemini' && geminiKey) {
       // Use v1beta for new models like gemini-2.0-flash and gemini-3
       const modelName = model;
