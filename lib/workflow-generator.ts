@@ -664,11 +664,11 @@ export const waitForApproval = async (params: { approverEmail: string; timeout?:
 
   // Add reusable AI step
   const aiStepDefinition = `
-export const generateContent = async (params: { prompt: string; model?: string; provider?: string; maxTokens?: number }) => {
+export const generateContent = async (params: { prompt: string; model?: string; provider?: string; maxTokens?: number; thinkingLevel?: string }) => {
   "use step";
   const isSandbox = process.env.RUNE_WORKFLOW_MODE === 'sandbox' || (process.env.NODE_ENV !== 'production' && !process.env.RUNE_WORKFLOW_MODE);
   const provider = params.provider || 'openai';
-  const model = params.model || (provider === 'openai' ? 'gpt-4o' : provider === 'gemini' ? 'gemini-2.0-flash' : 'default');
+  const model = params.model || (provider === 'openai' ? 'gpt-4o' : provider === 'gemini' ? 'gemini-3-flash-preview' : 'default');
   
   console.log("[AI] Generating content");
   console.log("[AI] Provider:", provider);
@@ -726,14 +726,27 @@ export const generateContent = async (params: { prompt: string; model?: string; 
     }
     
     if (provider === 'gemini' && geminiKey) {
-      // Use v1beta for new models like gemini-2.0-flash
+      // Use v1beta for new models like gemini-2.0-flash and gemini-3
       const modelName = model;
+      
+      // Construct request body
+      const requestBody: any = {
+        contents: [{ parts: [{ text: params.prompt }] }],
+      };
+
+      // Add thinking config for Gemini 3 models
+      if (modelName.includes('gemini-3') && params.thinkingLevel) {
+          requestBody.generationConfig = {
+              thinkingConfig: {
+                  thinkingLevel: params.thinkingLevel
+              }
+          };
+      }
+
       const response = await fetch(\`https://generativelanguage.googleapis.com/v1beta/models/\${modelName}:generateContent?key=\${geminiKey}\`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: params.prompt }] }],
-        }),
+        body: JSON.stringify(requestBody),
       });
       
       if (!response.ok) {
@@ -974,7 +987,8 @@ function traverseGraph(
       const config = (currentNode.data as any).aiConfig || {};
       const prompt = config.promptTemplate || (currentNode.data as any).prompt || '';
       const model = config.model || (currentNode.data as any).model || 'gpt-4o';
-      const provider = config.provider || 'generic';
+      const provider = config.provider || 'gemini'; // Default to gemini if not set, or keep generic? logic check below uses 'generic' default in orig code but 'gemini' seems better for this app context. Sticking to logic flow.
+      const thinkingLevel = (currentNode.data as any).thinkingLevel;
 
       const nextEdge = edges.find(e => e.source === currentId);
       const nextCode = nextEdge ? generateNodeCall(nodes.find(n => n.id === nextEdge.target)!) + traverseGraph(nextEdge.target, nodes, edges, visited) : '';
@@ -982,7 +996,8 @@ function traverseGraph(
       return `\n    const aiResult = await generateContent({ 
         prompt: \`${prompt.replace(/`/g, '\\`')}\`, 
         model: "${model}",
-        provider: "${provider}"
+        provider: "${provider}",
+        thinkingLevel: "${thinkingLevel || ''}"
     });\n    ${nextCode}`;
     }
   }

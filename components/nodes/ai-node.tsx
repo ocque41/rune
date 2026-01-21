@@ -9,13 +9,15 @@ export type AINodeData = {
     label: string;
     prompt?: string;
     model?: string;
+    thinkingLevel?: string;
 };
 
 export const AINode = (props: NodeProps<any>) => {
     const { data, isConnectable, selected } = props;
     const [showConfig, setShowConfig] = useState(false);
     const [prompt, setPrompt] = useState(data.prompt || '');
-    const [model, setModel] = useState(data.model || 'gemini-2.0-flash');
+    const [model, setModel] = useState(data.model || 'gemini-3-flash-preview');
+    const [thinkingLevel, setThinkingLevel] = useState(data.thinkingLevel || 'high');
 
     return (
         <NodeWrapper
@@ -59,12 +61,37 @@ export const AINode = (props: NodeProps<any>) => {
                                     data.model = e.target.value;
                                 }}
                             >
+                                <option value="gemini-3-pro-preview">Gemini 3 Pro (Preview)</option>
+                                <option value="gemini-3-flash-preview">Gemini 3 Flash (Preview)</option>
                                 <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
                                 <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
                                 <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
                                 <option value="gpt-4o">GPT-4o</option>
                             </select>
                         </div>
+
+                        {model.startsWith('gemini-3') && (
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Thinking Level</label>
+                                <select
+                                    className="w-full rounded-lg bg-[#222222] border-none px-2 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
+                                    value={thinkingLevel}
+                                    onChange={(e) => {
+                                        setThinkingLevel(e.target.value);
+                                        data.thinkingLevel = e.target.value;
+                                    }}
+                                >
+                                    <option value="high">High (Default)</option>
+                                    <option value="low">Low</option>
+                                    {model.includes('flash') && (
+                                        <>
+                                            <option value="medium">Medium</option>
+                                            <option value="minimal">Minimal</option>
+                                        </>
+                                    )}
+                                </select>
+                            </div>
+                        )}
 
                         <div className="space-y-1.5">
                             <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Prompt</label>
