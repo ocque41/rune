@@ -15,7 +15,7 @@ import { Slider } from "@/components/ui/slider"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { History, MoreHorizontal, Code2, Save, Settings2, PlayCircle, Copy, Check, MessageSquare, Plus, Clock, Zap, Trash2 } from "lucide-react"
+import { History, MoreHorizontal, Code2, Save, Settings2, PlayCircle, Copy, Check, MessageSquare, Plus, Clock, Zap, Trash2, Download, Plug, Loader2, Globe, Terminal } from "lucide-react"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useAgentStore, ChatMessage, LLMConfig } from "../store"
 import { cn } from "@/lib/utils"
@@ -41,7 +41,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Download, Trash2, Code2, Copy, Check, MoreHorizontal, Plug, PlayCircle, Save, Clock, Zap, Plus, History, Settings2, Loader2, Globe, Terminal } from "lucide-react"
+
 
 interface PlaygroundProps {
     workflowId?: string | null;
