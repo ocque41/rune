@@ -8,6 +8,8 @@ export interface AgentPreset {
     name: string;
     description?: string;
     config: any; // LLMConfig
+    is_favorite?: boolean;
+    user_id: string;
     updated_at: string;
 }
 

@@ -55,9 +55,35 @@ export class GeminiProvider implements AgentProvider {
             ...toolConfig
         });
 
-        // 3. Send Message
-        const result = await chat.sendMessage(lastPart);
-        const response = result.response;
+        // 3. Send Message with Retry Logic
+        let response;
+        let attempt = 0;
+        const maxRetries = 3;
+
+        while (attempt < maxRetries) {
+            try {
+                const result = await chat.sendMessage(lastPart);
+                response = result.response;
+                break; // Success
+            } catch (e: any) {
+                const isOverloaded = e.message?.includes('503') || e.message?.includes('Overloaded') || e.status === 503;
+
+                if (isOverloaded && attempt < maxRetries - 1) {
+                    attempt++;
+                    const delay = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s, 8s
+                    console.warn(`[Gemini] Model overloaded (503). Retrying in ${delay}ms... (Attempt ${attempt}/${maxRetries})`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+
+                // If not 503 or max retries reached, throw
+                throw e;
+            }
+        }
+
+        if (!response) {
+            throw new Error('Failed to get response from Gemini after retries');
+        }
 
         // 4. Map Response
         const candidates = response.candidates;

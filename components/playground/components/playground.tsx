@@ -84,6 +84,9 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
     const [newPresetName, setNewPresetName] = useState("");
     const [isSavingPreset, setIsSavingPreset] = useState(false);
     const [showCodeModal, setShowCodeModal] = useState(false);
+    const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+    const [selectedPresetName, setSelectedPresetName] = useState<string | null>(null);
+    const isLoadingPresetRef = useRef(false);
 
     // Slider handlers
     const handleTempChange = (vals: number[]) => updateConfig({ temperature: vals[0] });
@@ -137,25 +140,70 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
     const handleLoadPreset = (presetId: string) => {
         const preset = presets.find(p => p.id === presetId);
         if (preset) {
+            isLoadingPresetRef.current = true;
             updateConfig(preset.config);
+            setSelectedPresetId(preset.id);
+            setSelectedPresetName(preset.name);
             toast.success(`Loaded preset: ${preset.name}`);
         }
     };
 
+    // Track config changes to clear selection
+    useEffect(() => {
+        if (isLoadingPresetRef.current) {
+            isLoadingPresetRef.current = false;
+            return;
+        }
+        // If config changes manually, clear selection
+        if (selectedPresetId) {
+            setSelectedPresetId(null);
+            setSelectedPresetName(null);
+        }
+    }, [config, selectedPresetId]);
+
     const handleSavePreset = async () => {
         if (!newPresetName.trim()) return;
         setIsSavingPreset(true);
+
+        // Optimistic Update
+        const tempId = `temp-${Date.now()}`;
+        const tempPreset: AgentPreset = {
+            id: tempId,
+            name: newPresetName,
+            config: config,
+            description: "",
+            is_favorite: false,
+            updated_at: new Date().toISOString(),
+            user_id: "current-user"
+        };
+
+        setPresets(prev => [tempPreset, ...prev]);
+        setSelectedPresetId(tempId);
+        setSelectedPresetName(newPresetName);
+        setShowSavePreset(false);
+        setNewPresetName("");
+
         try {
             const savedPreset = await saveAgentPreset(newPresetName, config);
-            setPresets(prev => [savedPreset, ...prev]);
-            setShowSavePreset(false);
-            setNewPresetName("");
+
+            setPresets(prev => prev.map(p => p.id === tempId ? savedPreset : p));
+            if (selectedPresetId === tempId) {
+                setSelectedPresetId(savedPreset.id);
+            }
+
             toast.success("Preset saved");
             setSaved(true);
             setTimeout(() => setSaved(false), 2000);
         } catch (e) {
             console.error("Failed to save preset", e);
             toast.error("Failed to save preset");
+
+            // Revert
+            setPresets(prev => prev.filter(p => p.id !== tempId));
+            if (selectedPresetId === tempId) {
+                setSelectedPresetId(null);
+                setSelectedPresetName(null);
+            }
         } finally {
             setIsSavingPreset(false);
         }
@@ -165,12 +213,22 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
         e.preventDefault();
         e.stopPropagation();
 
+        const deletedPreset = presets.find(p => p.id === presetId);
+        setPresets(prev => prev.filter(p => p.id !== presetId));
+
+        if (selectedPresetId === presetId) {
+            setSelectedPresetId(null);
+            setSelectedPresetName(null);
+        }
+
         try {
             await deleteAgentPreset(presetId);
-            setPresets(prev => prev.filter(p => p.id !== presetId));
             toast.success("Preset deleted");
         } catch (error) {
             toast.error("Failed to delete preset");
+            if (deletedPreset) {
+                setPresets(prev => [deletedPreset, ...prev]);
+            }
         }
     };
 
@@ -384,7 +442,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                                 size="sm"
                                                 className="w-[160px] h-8 text-xs bg-white/[0.03] border border-white/[0.08] hover:bg-white/[0.06] transition-colors text-white/70 justify-between"
                                             >
-                                                <span>Load a preset...</span>
+                                                <span>{selectedPresetName || 'Load a preset...'}</span>
                                                 <Settings2 className="h-3 w-3 ml-2 opacity-50" />
                                             </Button>
                                         </DropdownMenuTrigger>
@@ -403,7 +461,10 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                                         onSelect={() => handleLoadPreset(p.id)}
                                                     >
                                                         <div className="flex items-center justify-between w-full">
-                                                            <span>{p.name}</span>
+                                                            <div className="flex items-center gap-2 overflow-hidden">
+                                                                {selectedPresetId === p.id && <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" />}
+                                                                <span className={cn("truncate", selectedPresetId === p.id && "text-white")}>{p.name}</span>
+                                                            </div>
                                                             <button
                                                                 onClick={(e) => handleDeletePreset(p.id, e)}
                                                                 className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-white/40 transition-all hover:bg-white/10 rounded z-50"

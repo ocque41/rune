@@ -216,6 +216,18 @@ export async function POST(req: NextRequest) {
         const GeminiProviderImport = await import('@/lib/agent/providers/gemini');
         const { GeminiProvider } = GeminiProviderImport;
 
+        // --- Tool Awareness Injection ---
+        // Identify which tools are available in the system vs which are allowed by the user
+        // This allows the agent to know what it COULD do if the user enabled it
+        const disabledTools = TOOLS_DEFINITION.filter(t => !allowedToolNames.includes(t.function.name));
+
+        if (disabledTools.length > 0) {
+            systemPromptWithContext += `\n\n## Available Tools (Disabled)\nThe following tools are available in the platform but currently disabled by the user's configuration. If you strictly need one of these to fulfill the request, explain to the user that they need to enable explicitly:\n`;
+            disabledTools.forEach(t => {
+                systemPromptWithContext += `- ${t.function.name}: ${t.function.description}\n`;
+            });
+        }
+
         const geminiApiKey = process.env.GOOGLE_API_KEY;
         if (!geminiApiKey) throw new Error("GOOGLE_API_KEY is not set");
 
