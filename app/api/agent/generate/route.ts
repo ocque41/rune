@@ -629,8 +629,8 @@ export async function POST(req: NextRequest) {
             sessionId?: string,
             workflowId?: string
         ): Promise<NextResponse> {
-            const MAX_TOOL_ROUNDS = 25;
-            const MAX_TOTAL_ROUNDS = 50; // Absolute max for autonomous mode
+            const MAX_TOOL_ROUNDS = 10;
+            const MAX_TOTAL_ROUNDS = 15; // Reduced to 15 to prevent Vercel 300s timeout
             let currentMessages = [...initialBody.messages];
             let round = 0;
             let totalRounds = 0;

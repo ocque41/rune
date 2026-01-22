@@ -43,9 +43,10 @@ export interface WorkflowRun {
 /**
  * Save a new run or update an existing one
  */
-export async function saveRun(supabase: SupabaseClient, run: WorkflowRun): Promise<void> {
+export async function saveRun(supabase: SupabaseClient, run: WorkflowRun, userId: string): Promise<void> {
     const runData = {
         id: run.id,
+        user_id: userId,
         workflow_id: run.workflowId || null,
         workflow_version_id: run.workflowVersionId || null,
         workflow_name: run.workflowName,
@@ -217,9 +218,10 @@ export async function updateRunStatus(
 export async function updateStepExecution(
     supabase: SupabaseClient,
     runId: string,
-    stepExecution: StepExecution
+    stepExecution: StepExecution,
+    userId: string
 ): Promise<void> {
-    await recordRunProgress(supabase, runId, stepExecution);
+    await recordRunProgress(supabase, runId, stepExecution, userId);
 }
 
 /**
@@ -230,6 +232,7 @@ export async function recordRunProgress(
     supabase: SupabaseClient,
     runId: string,
     stepExecution: StepExecution,
+    userId: string,
     logEntry?: RunLog,
     runUpdates?: Partial<WorkflowRun>
 ): Promise<void> {
@@ -237,6 +240,7 @@ export async function recordRunProgress(
     // 1. Insert/Update step in rune_run_steps with production column names
     const stepData = {
         run_id: runId,
+        user_id: userId,
         node_id: stepExecution.stepId, // Production uses node_id, not step_id
         status: stepExecution.status,
         started_at: stepExecution.startTime,

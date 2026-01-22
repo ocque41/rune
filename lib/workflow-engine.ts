@@ -20,7 +20,8 @@ export class WorkflowEngine {
         private workflowName: string,
         private nodes: Node[],
         private edges: Edge[],
-        private workflowVersionId?: string // Added
+        private userId: string,
+        private workflowVersionId?: string
     ) {
         this.context = {
             runId: crypto.randomUUID(),
@@ -53,7 +54,7 @@ export class WorkflowEngine {
             steps: []
         };
 
-        await saveRun(this.supabase, run);
+        await saveRun(this.supabase, run, this.userId);
 
         try {
             // Determine Trigger Node
@@ -217,7 +218,7 @@ export class WorkflowEngine {
                 durationMs,
                 result,
                 error: errorMsg
-            });
+            }, this.userId);
 
             // Inject timing into result for context consistency
             if (result && typeof result === 'object') {

@@ -138,6 +138,7 @@ export async function runWorkflow(supabase: SupabaseClient, userId: string, payl
         workflow.name,
         graph.nodes || [],
         graph.edges || [],
+        userId,
         latestVersion?.id
     );
 
@@ -229,7 +230,8 @@ export async function runNode(supabase: SupabaseClient, userId: string, nodeIden
         workflow.id,
         workflow.name,
         nodes,
-        graph.edges || []
+        graph.edges || [],
+        userId
     );
 
     // Use provided input or empty object
