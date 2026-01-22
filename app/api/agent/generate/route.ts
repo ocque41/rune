@@ -257,7 +257,10 @@ export async function POST(req: NextRequest) {
         });
 
         return new NextResponse(stream, {
-            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+            headers: {
+                'Content-Type': 'text/plain; charset=utf-8',
+                'X-Chat-Id': activeChatId || ''
+            }
         });
 
         // ... (formatContextToString)

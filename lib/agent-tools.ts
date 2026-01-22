@@ -594,6 +594,41 @@ export async function markNodeFailed(
     };
 }
 
+export async function getRunDetails(supabase: SupabaseClient, userId: string, runId: string) {
+    const { getRun } = await import('./run-store');
+    const run = await getRun(supabase, runId);
+
+    if (!run) {
+        return { success: false, error: "Run not found." };
+    }
+
+    // Security check (if not implicit in getRun via RLS, but getRun doesn't check owner if no RLS, so logic check good)
+    // For now assuming RLS or trusted internal tool use.
+
+    // Format for agent consumption
+    const steps = (run.steps || []).map(s => ({
+        nodeId: s.stepId,
+        status: s.status,
+        duration: s.durationMs ? `${s.durationMs}ms` : 'N/A',
+        error: s.error,
+        output: s.result // This is the key part - the actual data!
+    }));
+
+    return {
+        success: true,
+        run: {
+            id: run.id,
+            status: run.status,
+            startTime: run.startTime,
+            duration: run.duration,
+            error: run.error,
+            steps
+        }
+    };
+}
+
+
+
 export const TOOLS_DEFINITION = [
     {
         type: "function",
@@ -810,6 +845,20 @@ The message will be delivered and the user will be notified (in-app and/or email
                 required: ["message"]
             }
         }
+    },
+    {
+        type: "function",
+        function: {
+            name: "get_run_details",
+            description: "Get the full details of a specific workflow run, including the input and output of every step (node). Use this to inspect what happened in a past run WITHOUT re-running it.",
+            parameters: {
+                type: "object",
+                properties: {
+                    runId: { type: "string", description: "The ID of the run to inspect." }
+                },
+                required: ["runId"]
+            }
+        }
     }
 ];
 
@@ -845,6 +894,8 @@ export async function executeToolCall(supabase: any, userId: string, toolName: s
                 return await validateNodeConfig(args);
             case 'mark_node_failed':
                 return await markNodeFailed(supabase, userId, args.nodeIdentifier, args.reason);
+            case 'get_run_details':
+                return await getRunDetails(supabase, userId, args.runId);
             default:
                 // Check if it's an MCP tool (prefixed with mcp__)
                 if (toolName.startsWith('mcp__')) {

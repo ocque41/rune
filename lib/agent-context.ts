@@ -14,6 +14,12 @@ export interface AgentContext {
         nodeId?: string; // Currently selected node
         completedNodes?: string[];
         failedNodes?: Record<string, any>;
+        lastRun?: {
+            id: string;
+            status: string;
+            timeAgo: string;
+            stepsSummary: string;
+        };
     };
     workflow?: {
         id: string;
@@ -83,8 +89,29 @@ export async function buildAgentContext(
 
     // 4. Fetch Recent Runs (scoped to workflow if active, otherwise global recent)
     let recentRuns = [];
+    let lastRunSummary = undefined;
+
     if (workflowId) {
         recentRuns = await getRecentRuns(supabase, userId, workflowId);
+
+        // Enrich context with the very last run's outcome immediately
+        if (recentRuns.length > 0) {
+            const lastRunId = recentRuns[0].id;
+            const { getRun } = await import('./run-store');
+            const fullLastRun = await getRun(supabase, lastRunId);
+
+            if (fullLastRun) {
+                const steps = fullLastRun.steps || [];
+                const stepSummary = steps.map(s => `${s.stepLabel || s.stepId}: ${s.status}`).join(', ');
+
+                lastRunSummary = {
+                    id: fullLastRun.id,
+                    status: fullLastRun.status,
+                    timeAgo: fullLastRun.endTime ? `${Math.round((Date.now() - new Date(fullLastRun.endTime).getTime()) / 1000)}s ago` : 'Running',
+                    stepsSummary: stepSummary
+                };
+            }
+        }
     } else {
         recentRuns = await getRecentRuns(supabase, userId);
     }
@@ -105,7 +132,8 @@ export async function buildAgentContext(
             runId: runId || undefined,
             nodeId: selectedNodeId,
             completedNodes: session?.completed_nodes || [],
-            failedNodes: session?.failed_nodes || {}
+            failedNodes: session?.failed_nodes || {},
+            lastRun: lastRunSummary
         },
         workflow: workflowData,
         recentWorkflows: recentWorkflows,
