@@ -752,23 +752,61 @@ configure_node({
                         properties: {
                             emailConfig: {
                                 type: "object",
-                                description: "Required for Email nodes: { recipient, sender, subject, body }"
+                                description: "Required for Email nodes",
+                                properties: {
+                                    recipient: { type: "string" },
+                                    sender: { type: "string" },
+                                    subject: { type: "string" },
+                                    body: { type: "string" }
+                                }
                             },
                             httpRequest: {
                                 type: "object",
-                                description: "Required for HTTP nodes: { method, url, headers, body }"
+                                description: "Required for HTTP nodes",
+                                properties: {
+                                    method: { type: "string", enum: ["GET", "POST", "PUT", "DELETE", "PATCH"] },
+                                    url: { type: "string" },
+                                    headers: { type: "string", description: "JSON string of headers" },
+                                    body: { type: "string", description: "Request body or JSON string" }
+                                }
                             },
                             scriptConfig: {
                                 type: "object",
-                                description: "Required for Script nodes: { code }"
+                                description: "Required for Script nodes",
+                                properties: {
+                                    code: { type: "string" }
+                                }
                             },
                             transformConfig: {
                                 type: "object",
-                                description: "Required for Transform nodes: { expression }"
+                                description: "Required for Transform nodes",
+                                properties: {
+                                    expression: { type: "string" }
+                                }
                             },
                             slackConfig: {
                                 type: "object",
-                                description: "Required for Slack nodes: { webhookUrl, channel, message }"
+                                description: "Required for Slack nodes",
+                                properties: {
+                                    webhookUrl: { type: "string" },
+                                    channel: { type: "string" },
+                                    message: { type: "string" }
+                                }
+                            },
+                            aiConfig: {
+                                type: "object",
+                                description: "Required for AI Generate nodes",
+                                properties: {
+                                    prompt: { type: "string" },
+                                    model: { type: "string" },
+                                    thinkingConfig: {
+                                        type: "object",
+                                        properties: {
+                                            thinkingLevel: { type: "string", enum: ["low", "medium", "high"] },
+                                            thinkingBudget: { type: "number" }
+                                        }
+                                    }
+                                }
                             },
                             condition: {
                                 type: "string",
@@ -776,7 +814,7 @@ configure_node({
                             },
                             description: {
                                 type: "string",
-                                description: "OPTIONAL. Only use for a human-readable description, NOT for logic/urls/code."
+                                description: "OPTIONAL. Human-readable description."
                             }
                         }
                     }
