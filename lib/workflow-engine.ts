@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Node, Edge } from '@xyflow/react';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { saveRun, updateRunStatus, updateStepExecution, setRunWaiting, WorkflowRun, StepExecution, appendLog } from './run-store';
 
 type ExecutionContext = {
@@ -182,6 +183,10 @@ export class WorkflowEngine {
 
                 case 'error':
                     result = await this.executeErrorHandler(data, input);
+                    break;
+
+                case 'AI Generate':
+                    result = await this.executeAiGenerate(data, input);
                     break;
 
                 case 'If / Else':
@@ -432,6 +437,52 @@ export class WorkflowEngine {
         }
 
         return { handled: true, action: actionType };
+    }
+
+    private async executeAiGenerate(data: any, input: any) {
+        const config = data.aiConfig || {};
+        const apiKey = process.env.GOOGLE_API_KEY;
+
+        if (!apiKey) {
+            throw new Error("GOOGLE_API_KEY is not configured in the environment.");
+        }
+
+        let prompt = config.prompt;
+        if (!prompt) {
+            // Check if input is string, use that
+            if (typeof input === 'string') prompt = input;
+            else if (input.prompt) prompt = input.prompt;
+            else prompt = JSON.stringify(input);
+        } else {
+            // Templating (simple interpolation) for {{input}} or {{input.field}}
+            // For V1, simplest is just replacing {{input}} with JSON
+            prompt = prompt.replace('{{input}}', typeof input === 'string' ? input : JSON.stringify(input));
+            // Todo: Better templating engine
+        }
+
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: config.model || 'gemini-pro' });
+
+        this.log('info', `Generating AI content with model ${config.model || 'gemini-pro'}`, { promptLength: prompt.length });
+
+        try {
+            const result = await model.generateContent(prompt);
+            const response = result.response;
+            const text = response.text();
+
+            this.log('info', `AI Generation successful. Length: ${text.length}`);
+
+            return {
+                status: 'success',
+                text: text,
+                // Try to parse JSON if requested or looks like JSON?
+                // For now, raw text is safer as 'result'
+                data: text
+            };
+        } catch (e: any) {
+            this.log('error', `AI Generation Failed: ${e.message}`);
+            throw e;
+        }
     }
 
     private async log(level: 'info' | 'warn' | 'error', message: string, data?: any) {

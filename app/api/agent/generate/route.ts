@@ -358,6 +358,13 @@ export async function POST(req: NextRequest) {
                 s += `Currently working on Workflow ID: ${ctx.active.workflowId}\n`;
                 if (ctx.active.nodeId) s += `Selected Node: ${ctx.active.nodeId}\n`;
 
+                if (ctx.active.lastRun) {
+                    s += `\n### Last Run Outcome (ID: ${ctx.active.lastRun.id})\n`;
+                    s += `Status: ${ctx.active.lastRun.status.toUpperCase()} (${ctx.active.lastRun.timeAgo})\n`;
+                    s += `Steps: ${ctx.active.lastRun.stepsSummary}\n`;
+                    s += `>> TIP: To inspect specific step outputs or errors, use the \`get_run_details\` tool with runId: "${ctx.active.lastRun.id}".\n`;
+                }
+
                 if (ctx.active.completedNodes && ctx.active.completedNodes.length > 0) {
                     s += `Completed Nodes: ${ctx.active.completedNodes.join(', ')}\n`;
                 }
