@@ -462,7 +462,9 @@ export class WorkflowEngine {
         }
 
         const genAI = new GoogleGenerativeAI(apiKey);
-        const modelName = config.model || 'gemini-3-pro-preview';
+
+        // Use gemini-2.0-flash as the only supported model for now
+        const modelName = 'gemini-2.0-flash';
 
         // Prepare generation config with thinking config support
         const generationConfig: any = {};
@@ -470,7 +472,6 @@ export class WorkflowEngine {
             generationConfig.thinkingConfig = config.thinkingConfig;
         }
 
-        // Use gemini-3-pro-preview as default if user requested 3.0 Pro
         const model = genAI.getGenerativeModel({
             model: modelName,
             ...generationConfig

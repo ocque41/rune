@@ -25,6 +25,9 @@ export class AgentRuntime {
         let messages = [...initialMessages];
         let round = 0;
         let isComplete = false;
+        let consecutiveFailures = 0;
+        let lastErrorSignature = '';
+        const MAX_CONSECUTIVE_FAILURES = 3;
 
         // Capture context to avoid 'this' binding issues in ReadableStream
         const provider = this.provider;
@@ -84,6 +87,36 @@ export class AgentRuntime {
                                     }
                                 };
                             }));
+
+                            // Check for consecutive failures (detect same error repeating)
+                            const hasErrors = results.some((r: any) => {
+                                const parsed = JSON.parse(r.toolResult.output);
+                                return parsed.error || parsed.success === false;
+                            });
+
+                            if (hasErrors) {
+                                const errorSignature = results
+                                    .map((r: any) => JSON.parse(r.toolResult.output).error || '')
+                                    .filter(Boolean)
+                                    .join('|');
+
+                                if (errorSignature === lastErrorSignature) {
+                                    consecutiveFailures++;
+                                    emitDebug(`Consecutive failure ${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}`);
+
+                                    if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+                                        emit(`\n\n[Agent stopped: Same error occurred ${MAX_CONSECUTIVE_FAILURES} times. Please fix the underlying issue and try again.]`);
+                                        isComplete = true;
+                                    }
+                                } else {
+                                    lastErrorSignature = errorSignature;
+                                    consecutiveFailures = 1;
+                                }
+                            } else {
+                                // Reset on success
+                                consecutiveFailures = 0;
+                                lastErrorSignature = '';
+                            }
 
                             // Add tool results to history
                             messages.push(...results);
