@@ -462,9 +462,21 @@ export class WorkflowEngine {
         }
 
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: config.model || 'gemini-1.5-flash' });
+        const modelName = config.model || 'gemini-3-pro-preview';
 
-        this.log('info', `Generating AI content with model ${config.model || 'gemini-1.5-flash'}`, { promptLength: prompt.length });
+        // Prepare generation config with thinking config support
+        const generationConfig: any = {};
+        if (config.thinkingConfig) {
+            generationConfig.thinkingConfig = config.thinkingConfig;
+        }
+
+        // Use gemini-3-pro-preview as default if user requested 3.0 Pro
+        const model = genAI.getGenerativeModel({
+            model: modelName,
+            ...generationConfig
+        });
+
+        this.log('info', `Generating AI content with model ${modelName}`, { promptLength: prompt.length, thinking: !!config.thinkingConfig });
 
         try {
             const result = await model.generateContent(prompt);
