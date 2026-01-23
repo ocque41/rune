@@ -93,6 +93,21 @@ export class GeminiProvider implements AgentProvider {
 
         const candidate = candidates[0];
         const content = candidate.content;
+
+        // Safety check: sometimes content or parts might be undefined (e.g. safety blocks)
+        if (!content || !content.parts) {
+            console.warn('[Gemini] Response content or parts missing:', JSON.stringify(candidate));
+            // Check for safety ratings or finish reason
+            if (candidate.finishReason !== 'STOP') {
+                // Return empty message or error details
+                return {
+                    message: { role: 'assistant', content: `[Gemini Error] Generation stopped. Reason: ${candidate.finishReason}` },
+                    finishReason: 'stop'
+                };
+            }
+            throw new Error(`Gemini returned empty content. FinishReason: ${candidate.finishReason}`);
+        }
+
         const textPart = content.parts.find(p => p.text);
         const functionCalls = content.parts.filter(p => p.functionCall);
 
