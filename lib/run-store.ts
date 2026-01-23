@@ -13,6 +13,7 @@ export interface StepExecution {
     startTime?: string;
     endTime?: string;
     durationMs?: number;
+    input?: any;
     result?: any;
     error?: string;
 }
@@ -107,14 +108,15 @@ export async function getRun(supabase: SupabaseClient, id: string): Promise<Work
         logs: (run.logs as unknown as RunLog[]) || [],
         steps: ((run.steps as unknown as any[]) || []).map(s => ({
             ...s,
-            startTime: s.started_at,  // Production uses started_at
-            endTime: s.finished_at,    // Production uses finished_at
+            startTime: s.started_at,
+            endTime: s.finished_at,
             durationMs: s.finished_at && s.started_at
                 ? new Date(s.finished_at).getTime() - new Date(s.started_at).getTime()
                 : undefined,
-            stepId: s.node_id,          // Production uses node_id
-            stepLabel: s.node_id,       // No step_label in production, use node_id
-            result: s.output_json       // Production uses output_json
+            stepId: s.node_id,
+            stepLabel: s.node_id, // Fallback as no label in DB
+            input: s.input_json,
+            result: s.output_json
         })).sort((a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()),
         waitingFor: run.waiting_for as unknown as WaitingFor | undefined
     };
@@ -237,17 +239,19 @@ export async function recordRunProgress(
     runUpdates?: Partial<WorkflowRun>
 ): Promise<void> {
 
-    // 1. Insert/Update step in rune_run_steps with production column names
+    // 1. Insert/Update step in rune_run_steps
+    // 1. Insert/Update step in rune_run_steps (Live Schema)
     const stepData = {
         run_id: runId,
         user_id: userId,
-        node_id: stepExecution.stepId, // Production uses node_id, not step_id
+        node_id: stepExecution.stepId, // Storing execution UUID in node_id column
         status: stepExecution.status,
         started_at: stepExecution.startTime,
         finished_at: stepExecution.endTime,
         attempts: 1,
-        output_json: stepExecution.result, // Production uses output_json, not output
-        error_json: stepExecution.error ? { message: stepExecution.error } : null, // Production uses error_json
+        input_json: stepExecution.input,
+        output_json: stepExecution.result,
+        error_json: stepExecution.error ? { message: stepExecution.error } : null,
     };
 
     const { error: stepError } = await supabase

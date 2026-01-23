@@ -221,6 +221,7 @@ export class WorkflowEngine {
                 startTime,
                 endTime,
                 durationMs,
+                input, // Pass input to be saved
                 result,
                 error: errorMsg
             }, this.userId);
@@ -461,9 +462,9 @@ export class WorkflowEngine {
         }
 
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: config.model || 'gemini-pro' });
+        const model = genAI.getGenerativeModel({ model: config.model || 'gemini-1.5-flash' });
 
-        this.log('info', `Generating AI content with model ${config.model || 'gemini-pro'}`, { promptLength: prompt.length });
+        this.log('info', `Generating AI content with model ${config.model || 'gemini-1.5-flash'}`, { promptLength: prompt.length });
 
         try {
             const result = await model.generateContent(prompt);
