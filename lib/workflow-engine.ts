@@ -319,12 +319,20 @@ export class WorkflowEngine {
     }
 
     private async executeSendEmail(data: any, input: any) {
-        const config = data.emailConfig;
+        // Merge top-level overrides with nested emailConfig
+        // Top-level fields (set by agent's configure_node) take priority
+        const baseConfig = data.emailConfig || {};
+        const config = {
+            recipient: data.to || data.recipient || baseConfig.recipient,
+            sender: data.from || data.sender || baseConfig.sender,
+            subject: data.subject || baseConfig.subject,
+            body: data.text || data.body || data.html || baseConfig.body,
+        };
 
         // Debug logging
         console.log('[WorkflowEngine] executeSendEmail called');
         console.log('[WorkflowEngine] Raw data:', JSON.stringify(data, null, 2));
-        console.log('[WorkflowEngine] emailConfig:', JSON.stringify(config, null, 2));
+        console.log('[WorkflowEngine] Merged config:', JSON.stringify(config, null, 2));
 
         const { sendEmail } = await import('./email');
         let smtpConfig = undefined;
