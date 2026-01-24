@@ -717,109 +717,25 @@ Use when the user asks to run, test, or execute a specific node like 'run the HT
         type: "function",
         function: {
             name: "configure_node",
-            description: `Update the configuration of a specific node. 
-            
-CRITICAL INSTRUCTION: You MUST use the correct nested configuration object for the node type.
-- For HTTP Request nodes: use 'httpRequest' (NOT description)
-- For Script nodes: use 'scriptConfig' (NOT description)
-- For Transform nodes: use 'transformConfig' (NOT description)
+            description: `Update the configuration of a specific node. Pass configuration as a JSON string.
 
-Example usage:
-configure_node({
-  nodeIdentifier: "my-node",
-  config: {
-    httpRequest: { url: "https://api.com", method: "GET" }  // CORRECT
-  }
-})
-
-DO NOT DO THIS:
-configure_node({
-  nodeIdentifier: "my-node",
-  config: {
-    description: "https://api.com" // WRONG! This is just a label.
-  }
-})`,
+Examples:
+- For If/Else: configure_node({ nodeIdentifier: "If / Else", configJson: '{"condition": "true"}' })
+- For AI Generate: configure_node({ nodeIdentifier: "AI Generate", configJson: '{"aiConfig": {"prompt": "Hello world"}}' })
+- For HTTP Request: configure_node({ nodeIdentifier: "HTTP Request", configJson: '{"httpRequest": {"url": "https://api.com", "method": "GET"}}' })`,
             parameters: {
                 type: "object",
                 properties: {
                     nodeIdentifier: {
                         type: "string",
-                        description: "The node's label (e.g., 'Send Email') or its ID (e.g., '7')."
+                        description: "The node's label (e.g., 'Send Email', 'AI Generate') or its ID (e.g., '7')."
                     },
-                    config: {
-                        type: "object",
-                        description: "The configuration object. MUST contain the specific config key for the node type.",
-                        properties: {
-                            emailConfig: {
-                                type: "object",
-                                description: "Required for Email nodes",
-                                properties: {
-                                    recipient: { type: "string" },
-                                    sender: { type: "string" },
-                                    subject: { type: "string" },
-                                    body: { type: "string" }
-                                }
-                            },
-                            httpRequest: {
-                                type: "object",
-                                description: "Required for HTTP nodes",
-                                properties: {
-                                    method: { type: "string", enum: ["GET", "POST", "PUT", "DELETE", "PATCH"] },
-                                    url: { type: "string" },
-                                    headers: { type: "string", description: "JSON string of headers" },
-                                    body: { type: "string", description: "Request body or JSON string" }
-                                }
-                            },
-                            scriptConfig: {
-                                type: "object",
-                                description: "Required for Script nodes",
-                                properties: {
-                                    code: { type: "string" }
-                                }
-                            },
-                            transformConfig: {
-                                type: "object",
-                                description: "Required for Transform nodes",
-                                properties: {
-                                    expression: { type: "string" }
-                                }
-                            },
-                            slackConfig: {
-                                type: "object",
-                                description: "Required for Slack nodes",
-                                properties: {
-                                    webhookUrl: { type: "string" },
-                                    channel: { type: "string" },
-                                    message: { type: "string" }
-                                }
-                            },
-                            aiConfig: {
-                                type: "object",
-                                description: "Required for AI Generate nodes",
-                                properties: {
-                                    prompt: { type: "string" },
-                                    model: { type: "string" },
-                                    thinkingConfig: {
-                                        type: "object",
-                                        properties: {
-                                            thinkingLevel: { type: "string", enum: ["low", "medium", "high"] },
-                                            thinkingBudget: { type: "number" }
-                                        }
-                                    }
-                                }
-                            },
-                            condition: {
-                                type: "string",
-                                description: "For If/Else nodes: JavaScript boolean expression"
-                            },
-                            description: {
-                                type: "string",
-                                description: "OPTIONAL. Human-readable description."
-                            }
-                        }
+                    configJson: {
+                        type: "string",
+                        description: "JSON string containing the configuration object. Must be valid JSON."
                     }
                 },
-                required: ["nodeIdentifier", "config"]
+                required: ["nodeIdentifier", "configJson"]
             }
         }
     },
@@ -918,8 +834,18 @@ export async function executeToolCall(supabase: any, userId: string, toolName: s
                 return await runWorkflow(supabase, userId, args.payload);
             case 'run_node':
                 return await runNode(supabase, userId, args.nodeIdentifier, args.input);
-            case 'configure_node':
-                return await configureNode(supabase, userId, args.nodeIdentifier, args.config);
+            case 'configure_node': {
+                // Parse configJson string if provided (new simplified schema)
+                let config = args.config;
+                if (args.configJson) {
+                    try {
+                        config = JSON.parse(args.configJson);
+                    } catch (e: any) {
+                        return { success: false, error: `Invalid JSON in configJson: ${e.message}` };
+                    }
+                }
+                return await configureNode(supabase, userId, args.nodeIdentifier, config);
+            }
             case 'schedule_message':
                 return await scheduleMessage(supabase, userId, {
                     message: args.message,
