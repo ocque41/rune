@@ -319,20 +319,12 @@ export class WorkflowEngine {
     }
 
     private async executeSendEmail(data: any, input: any) {
-        // Merge top-level overrides with nested emailConfig
-        // Top-level fields (set by agent's configure_node) take priority
-        const baseConfig = data.emailConfig || {};
-        const config = {
-            recipient: data.to || data.recipient || baseConfig.recipient,
-            sender: data.from || data.sender || baseConfig.sender,
-            subject: data.subject || baseConfig.subject,
-            body: data.text || data.body || data.html || baseConfig.body,
-        };
+        const config = data.emailConfig;
 
         // Debug logging
         console.log('[WorkflowEngine] executeSendEmail called');
         console.log('[WorkflowEngine] Raw data:', JSON.stringify(data, null, 2));
-        console.log('[WorkflowEngine] Merged config:', JSON.stringify(config, null, 2));
+        console.log('[WorkflowEngine] emailConfig:', JSON.stringify(config, null, 2));
 
         const { sendEmail } = await import('./email');
         let smtpConfig = undefined;
@@ -376,7 +368,15 @@ export class WorkflowEngine {
             return result;
         } catch (error: any) {
             console.error('[Email] Failed:', error);
-            throw new Error(`Email failed: ${error.message}`);
+
+            let errorMessage = error.message || 'Unknown email error';
+
+            // Critical Hint for AI Agent to stop infinite loops on Resend restrictions
+            if (errorMessage.includes("Invalid `to` field") || errorMessage.includes("Resend free tier")) {
+                errorMessage += " [AGENT HINT: This is a Resend Free Tier restriction. You can ONLY send to the email address registered with the Resend account. Do NOT retry with random emails. Ask the user for their registered email address.]";
+            }
+
+            throw new Error(`Email failed: ${errorMessage}`);
         }
     }
 

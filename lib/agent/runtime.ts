@@ -20,7 +20,7 @@ export class AgentRuntime {
         options: RuntimeOptions = {}
     ): Promise<ReadableStream> {
         const encoder = new TextEncoder();
-        const { maxRounds = 8, autonomousMode = false, sessionId } = options;
+        const { maxRounds = 25, autonomousMode = false, sessionId } = options;
 
         let messages = [...initialMessages];
         let round = 0;

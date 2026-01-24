@@ -835,13 +835,14 @@ export async function executeToolCall(supabase: any, userId: string, toolName: s
             case 'run_node':
                 return await runNode(supabase, userId, args.nodeIdentifier, args.input);
             case 'configure_node': {
-                // Parse configJson string if provided (new simplified schema)
+                // Parse configJson string if provided (new simplified schema for Gemini)
                 let config = args.config;
                 if (args.configJson) {
                     try {
                         config = JSON.parse(args.configJson);
                     } catch (e: any) {
-                        return { success: false, error: `Invalid JSON in configJson: ${e.message}` };
+                        console.error(`[Agent Tools] Failed to parse configJson for node ${args.nodeIdentifier}:`, args.configJson);
+                        return { success: false, error: `Critical: Invalid JSON provided in configJson. You must provide a valid JSON string. Parse error: ${e.message}` };
                     }
                 }
                 return await configureNode(supabase, userId, args.nodeIdentifier, config);
