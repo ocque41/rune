@@ -42,6 +42,11 @@ interface GenerateRequest {
         frequencyPenalty?: number;
         presencePenalty?: number;
         tools?: string[];
+        thinking?: {
+            enabled: boolean;
+            budget?: number;
+            level?: 'include' | 'minimal';
+        };
     };
 }
 
@@ -208,142 +213,61 @@ export async function POST(req: NextRequest) {
         // For V1, let's just use system tools for the runtime test
         const allTools = [...systemTools];
 
-        // Select Provider
-        const AgentRuntimeImport = await import('@/lib/agent/runtime');
-        const { AgentRuntime } = AgentRuntimeImport;
+        // ... (existing OpenAI logic above)
 
-        // Default to Gemini Provider for now since we are enforcing Gemini 3
-        const GeminiProviderImport = await import('@/lib/agent/providers/gemini');
-        const { GeminiProvider } = GeminiProviderImport;
+        if (config.model.startsWith('gemini')) {
+            const { GeminiAgentRuntime } = await import('@/lib/agent/runtimes/gemini-runtime');
+            const apiKey = process.env.GOOGLE_API_KEY;
 
-        // --- Tool Awareness Injection ---
-        // Identify which tools are available in the system vs which are allowed by the user
-        // This allows the agent to know what it COULD do if the user enabled it
-        const disabledTools = TOOLS_DEFINITION.filter(t => !allowedToolNames.includes(t.function.name));
+            if (!apiKey) return NextResponse.json({ error: "Missing GOOGLE_API_KEY" }, { status: 500 });
 
-        if (disabledTools.length > 0) {
-            systemPromptWithContext += `\n\n## Available Tools (Disabled)\nThe following tools are available in the platform but currently disabled by the user's configuration. If you strictly need one of these to fulfill the request, explain to the user that they need to enable explicitly:\n`;
-            disabledTools.forEach(t => {
-                systemPromptWithContext += `- ${t.function.name}: ${t.function.description}\n`;
-            });
-        }
+            const runtime = new GeminiAgentRuntime(supabase, user.id, apiKey);
 
-        const geminiApiKey = process.env.GOOGLE_API_KEY;
-        if (!geminiApiKey) throw new Error("GOOGLE_API_KEY is not set");
+            // Format messages for Runtime: { role, content }
+            const runtimeMessages = messages.map(m => ({
+                role: m.role,
+                content: m.content
+            }));
 
-        const agentProvider = new GeminiProvider(geminiApiKey);
-        const runtime = new AgentRuntime(agentProvider, supabase, user.id);
+            // Convert system tools to definitions
+            const toolsDefinitions = TOOLS_DEFINITION.filter(t => allowedToolNames.includes(t.function.name));
 
-        // Convert messages to AgentMessage format
-        const agentMessages = messages.map(m => ({
-            role: m.role,
-            content: m.content
-        }));
+            // TODO: Add MCP tools if needed
 
-        const runtimeConfig = {
-            model: config.model,
-            temperature: config.temperature,
-            systemPrompt: systemPromptWithContext,
-            maxTokens: config.maxLength || 2000,
-            topP: config.topP,
-            tools: allowedToolNames
-        };
-
-        const stream = await runtime.run(agentMessages, allTools, runtimeConfig, {
-            chatId: activeChatId ?? undefined,
-            workflowId: workflowId || undefined,
-            autonomousMode: autonomousMode,
-            sessionId: sessionId
-        });
-
-        return new NextResponse(stream, {
-            headers: {
-                'Content-Type': 'text/plain; charset=utf-8',
-                'X-Chat-Id': activeChatId || ''
-            }
-        });
-
-        // ... (formatContextToString)
-        // ... (getProvider updated above)
-        // ... (getApiKey updated above)
-        // ... (executeToolCall, executeMcpTool, streamOpenAI, handleOpenAIToolLoop, createTextStream)
-
-        // ... (streamAnthropic)
-
-        async function streamGoogle(apiKey: string, config: any, messages: any[]) {
-            const genAI = new GoogleGenerativeAI(apiKey);
-            const modelFn = genAI.getGenerativeModel({ model: config.model });
-
-            // Transform messages to Gemini format
-            // Gemini expects history + current prompt
-            // standard: [{ role: 'user'|'model', parts: [{ text: '...' }] }]
-
-            // Extract system prompt
-            const systemMessage = messages.find(m => m.role === 'system');
-            const systemInstruction = systemMessage ? systemMessage.content : config.systemPrompt;
-
-            // Filter history (everything except system)
-            const history = messages
-                .filter(m => m.role !== 'system')
-                .map(m => ({
-                    role: m.role === 'assistant' ? 'model' : 'user',
-                    parts: [{ text: m.content }]
-                }));
-
-            // The last message is the "current" prompt for sendMessageStream?
-            // chatSession.sendMessageStream takes the new input.
-            // history should be everything BEFORE the last user message.
-
-            const lastMessage = history.length > 0 ? history[history.length - 1] : null;
-            let chatHistory = history.slice(0, -1);
-            let prompt = "";
-
-            if (lastMessage && lastMessage.role === 'user') {
-                prompt = lastMessage.parts[0].text;
-            } else {
-                // If last message was model (continuation?), or empty
-                // Just use empty prompt? Or take previous.
-                // Usually 'messages' array ends with user input.
-                prompt = "Continue"; // Fallback
-            }
-
-            if (systemInstruction) {
-                modelFn.systemInstruction = { parts: [{ text: systemInstruction }], role: "system" };
-            }
-
-            const chat = modelFn.startChat({
-                history: chatHistory,
-                generationConfig: {
-                    maxOutputTokens: config.maxLength || 1000,
+            const stream = await runtime.run(
+                runtimeMessages,
+                toolsDefinitions,
+                {
+                    model: config.model,
                     temperature: config.temperature,
-                    topP: config.topP || 0.9,
+                    systemPrompt: systemPromptWithContext || config.systemPrompt,
+                    maxTokens: config.maxLength || 2000,
+                    topP: config.topP,
+                    apiKey: apiKey,
+                    tools: allowedToolNames,
+                    thinking: config.thinking || { enabled: false } // Pass thinking config if present in request
+                },
+                {
+                    chatId: activeChatId || undefined,
+                    autonomousMode: autonomousMode,
+                    sessionId: sessionId
                 }
-            });
-
-            const result = await chat.sendMessageStream(prompt);
-
-            const encoder = new TextEncoder();
-            const stream = new ReadableStream({
-                async start(controller) {
-                    try {
-                        for await (const chunk of result.stream) {
-                            const chunkText = chunk.text();
-                            if (chunkText) {
-                                controller.enqueue(encoder.encode(chunkText));
-                            }
-                        }
-                        controller.close();
-                    } catch (e) {
-                        console.error("Google Stream Error", e);
-                        controller.error(e);
-                    }
-                }
-            });
+            );
 
             return new NextResponse(stream, {
-                headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+                headers: {
+                    'Content-Type': 'text/plain; charset=utf-8',
+                    'X-Chat-Id': activeChatId || '',
+                    'X-Session-Status': autonomousMode ? 'active' : 'completed', // Simplified
+                    'X-Session-Id': sessionId || ''
+                }
             });
         }
+
+        // Default / OpenAI Fallback
+        return streamOpenAI(apiKey!, config, messages, supabase, user.id, activeChatId, autonomousMode, sessionId, workflowId || undefined);
+
+        // ... (functions below)
 
         function formatContextToString(ctx: any): string {
             let s = `You are an AI assistant helping with the Rune automation platform.\n\n`;
