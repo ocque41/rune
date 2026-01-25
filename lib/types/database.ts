@@ -43,6 +43,7 @@ export interface Database {
                     last_message_at?: string
                     archived_at?: string | null
                 }
+                Relationships: []
             }
             rune_chat_messages: {
                 Row: {
@@ -78,7 +79,21 @@ export interface Database {
                     usage_metadata?: Json | null
                     created_at?: string
                 }
+                Relationships: []
             }
+        }
+        Views: {
+            [_ in never]: never
+        }
+        Functions: {
+            [_ in never]: never
+        }
+        Enums: {
+            [_ in never]: never
+        }
+        CompositeTypes: {
+            [_ in never]: never
         }
     }
 }
+

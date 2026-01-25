@@ -2,7 +2,11 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@/lib/types/database';
 
 export type Chat = Database['public']['Tables']['rune_chats']['Row'];
+export type ChatInsert = Database['public']['Tables']['rune_chats']['Insert'];
+export type ChatUpdate = Database['public']['Tables']['rune_chats']['Update'];
+
 export type Message = Database['public']['Tables']['rune_chat_messages']['Row'];
+export type MessageInsert = Database['public']['Tables']['rune_chat_messages']['Insert'];
 
 export class AgentDB {
     constructor(private supabase: SupabaseClient<Database>) { }
@@ -32,7 +36,7 @@ export class AgentDB {
     }
 
     async createChat(userId: string, workflowId: string, title: string = 'New Chat'): Promise<Chat> {
-        const payload: any = {
+        const payload: ChatInsert = {
             user_id: userId,
             workflow_id: workflowId,
             title: title,
@@ -50,7 +54,7 @@ export class AgentDB {
     }
 
     async renameChat(chatId: string, title: string): Promise<void> {
-        const payload: any = { title, updated_at: new Date().toISOString() };
+        const payload: ChatUpdate = { title, updated_at: new Date().toISOString() };
         const { error } = await this.supabase
             .from('rune_chats')
             .update(payload)
@@ -60,7 +64,7 @@ export class AgentDB {
     }
 
     async deleteChat(chatId: string): Promise<void> {
-        const payload: any = { archived_at: new Date().toISOString() };
+        const payload: ChatUpdate = { archived_at: new Date().toISOString() };
         const { error } = await this.supabase
             .from('rune_chats')
             .update(payload)
@@ -87,13 +91,15 @@ export class AgentDB {
         chatId: string,
         content: string
     ): Promise<Message> {
-        const chatUpdate: any = { last_message_at: new Date().toISOString() };
+        // Update chat timestamp
+        const chatUpdate: ChatUpdate = { last_message_at: new Date().toISOString() };
         await this.supabase
             .from('rune_chats')
             .update(chatUpdate)
             .eq('id', chatId);
 
-        const msgPayload: any = {
+        // Add message
+        const msgPayload: MessageInsert = {
             chat_id: chatId,
             user_id: userId,
             role: 'user',
@@ -117,19 +123,20 @@ export class AgentDB {
         usageMetadata?: any,
         toolCalls?: any[]
     ): Promise<Message> {
-        const chatUpdate: any = { last_message_at: new Date().toISOString() };
+        // Update chat timestamp
+        const chatUpdate: ChatUpdate = { last_message_at: new Date().toISOString() };
         await this.supabase
             .from('rune_chats')
             .update(chatUpdate)
             .eq('id', chatId);
 
-        const msgPayload: any = {
+        const msgPayload: MessageInsert = {
             chat_id: chatId,
             user_id: userId,
             role: 'assistant',
             content: content,
-            usage_metadata: usageMetadata,
-            tool_calls: toolCalls
+            usage_metadata: usageMetadata || null,
+            tool_calls: toolCalls || null
         };
 
         const { data, error } = await this.supabase
