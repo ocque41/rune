@@ -22,6 +22,8 @@ export function ChatListModal({
 }: ChatListModalProps) {
     const { chats, setChats, setIsLoadingChats, isLoadingChats } = useAgentStore();
     const [searchQuery, setSearchQuery] = useState('');
+    const [editingChatId, setEditingChatId] = useState<string | null>(null);
+    const [editTitle, setEditTitle] = useState('');
 
     useEffect(() => {
         if (isOpen) {
@@ -59,6 +61,35 @@ export function ChatListModal({
             }
         } catch (e) {
             console.error('Failed to delete chat:', e);
+        }
+    };
+
+    const startEditing = (chatId: string, currentTitle: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setEditingChatId(chatId);
+        setEditTitle(currentTitle);
+    };
+
+    const saveRename = async (chatId: string, e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!editTitle.trim()) return;
+
+        // Optimistic update
+        const oldChats = [...chats];
+        setChats(chats.map(c => c.id === chatId ? { ...c, title: editTitle } : c));
+        setEditingChatId(null);
+
+        try {
+            const res = await fetch(`/api/rune/chats/${chatId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: editTitle })
+            });
+
+            if (!res.ok) throw new Error("Failed to update");
+        } catch (e) {
+            console.error('Failed to rename chat:', e);
+            setChats(oldChats); // Rollback
         }
     };
 
@@ -131,30 +162,52 @@ export function ChatListModal({
                             {filteredChats.map((chat) => (
                                 <div
                                     key={chat.id}
-                                    onClick={() => { onChatSelect(chat.id); onClose(); }}
+                                    onClick={() => { if (editingChatId !== chat.id) { onChatSelect(chat.id); onClose(); } }}
                                     className="group flex items-center justify-between p-4 hover:bg-white/5 cursor-pointer transition-colors"
                                 >
-                                    <div className="flex-1 min-w-0">
-                                        <h3 className="text-sm font-medium text-white truncate">
-                                            {chat.title}
-                                        </h3>
-                                        <p className="text-xs text-white/40 mt-1">
-                                            {chat.messageCount} messages · {formatDistanceToNow(new Date(chat.updatedAt), { addSuffix: true })}
-                                        </p>
-                                        {chat.preview && (
-                                            <p className="text-xs text-white/30 mt-1 truncate">
-                                                {chat.preview}
-                                            </p>
+                                    <div className="flex-1 min-w-0 pr-2">
+                                        {editingChatId === chat.id ? (
+                                            <form onSubmit={(e) => saveRename(chat.id, e)} onClick={e => e.stopPropagation()}>
+                                                <input
+                                                    autoFocus
+                                                    type="text"
+                                                    value={editTitle}
+                                                    onChange={e => setEditTitle(e.target.value)}
+                                                    onBlur={() => saveRename(chat.id)}
+                                                    className="w-full bg-black/50 border border-blue-500/50 rounded px-2 py-1 text-sm text-white focus:outline-none"
+                                                />
+                                            </form>
+                                        ) : (
+                                            <>
+                                                <h3 className="text-sm font-medium text-white truncate" onDoubleClick={(e) => startEditing(chat.id, chat.title, e)}>
+                                                    {chat.title}
+                                                </h3>
+                                                <p className="text-xs text-white/40 mt-1">
+                                                    {chat.messageCount || 0} messages · {formatDistanceToNow(new Date(chat.updatedAt), { addSuffix: true })}
+                                                </p>
+                                            </>
                                         )}
                                     </div>
-                                    <button
-                                        onClick={(e) => handleDelete(chat.id, e)}
-                                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400 transition-all"
-                                    >
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                    </button>
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                            onClick={(e) => startEditing(chat.id, chat.title, e)}
+                                            className="p-1.5 rounded hover:bg-white/10 text-white/40 hover:text-white"
+                                            title="Rename"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            onClick={(e) => handleDelete(chat.id, e)}
+                                            className="p-1.5 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400 transition-colors"
+                                            title="Delete"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>

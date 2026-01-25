@@ -9,6 +9,11 @@ export interface ChatMessage {
     content: string;
     toolCalls?: any;
     createdAt?: string;
+    usageMetadata?: {
+        promptTokenCount?: number;
+        candidatesTokenCount?: number;
+        totalTokenCount?: number;
+    };
 }
 
 export interface Chat {
@@ -39,6 +44,7 @@ interface AgentState {
 
     // --- Chat State ---
     currentChatId: string | null;
+    lastActiveChats: Record<string, string>;
     messages: ChatMessage[];
     chats: Chat[];
     isTemporaryChat: boolean;
@@ -99,6 +105,7 @@ export const useAgentStore = create<AgentState>()(
 
             // Initial Chat State
             currentChatId: null,
+            lastActiveChats: {},
             messages: [],
             chats: [],
             isTemporaryChat: false,
@@ -142,13 +149,23 @@ export const useAgentStore = create<AgentState>()(
             })),
 
             // Chat Actions
-            setCurrentChat: (chatId) => set({ currentChatId: chatId }),
+            setCurrentChat: (chatId) => set(state => {
+                const newMap = { ...state.lastActiveChats };
+                const activeWf = state.workspace.activeWorkflowId;
+                if (activeWf && chatId) {
+                    newMap[activeWf] = chatId;
+                }
+                return { currentChatId: chatId, lastActiveChats: newMap };
+            }),
             setMessages: (messages) => set({ messages }),
             addMessage: (message) => set(state => ({ messages: [...state.messages, message] })),
             setChats: (chats) => set({ chats }),
             setIsTemporaryChat: (isTemporary) => set({ isTemporaryChat: isTemporary }),
             setIsLoadingChats: (loading) => set({ isLoadingChats: loading }),
-            clearCurrentChat: () => set({ currentChatId: null, messages: [] }),
+            clearCurrentChat: () => set(state => {
+                // Don't clear the map, just the current view
+                return { currentChatId: null, messages: [] };
+            }),
 
             // Config Actions
             setConfig: (config) => set({ config }),
@@ -160,7 +177,8 @@ export const useAgentStore = create<AgentState>()(
             partialize: (state) => ({
                 config: state.config,
                 currentChatId: state.currentChatId,
-                isTemporaryChat: state.isTemporaryChat
+                isTemporaryChat: state.isTemporaryChat,
+                lastActiveChats: state.lastActiveChats, // Persist the map
             })
         }
     )

@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-
-// GET /api/rune/chats - List user's chats
-// POST /api/rune/chats - Create new chat
+import { AgentDB } from '@/lib/agent-db';
 
 export async function GET(req: NextRequest) {
     const supabase = await createClient();
@@ -12,52 +10,30 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const url = new URL(req.url);
-    const workflowId = url.searchParams.get('workflow_id');
-    const includeTemporary = url.searchParams.get('include_temporary') === 'true';
+    const searchParams = req.nextUrl.searchParams;
+    const workflowId = searchParams.get('workflow_id');
+    const includeTemporary = searchParams.get('include_temporary') === 'true';
 
-    let query = supabase
-        .from('rune_chats')
-        .select(`
-            id,
-            title,
-            workflow_id,
-            is_temporary,
-            created_at,
-            updated_at,
-            rune_chat_messages(id, role, content, created_at)
-        `)
-        .eq('user_id', user.id)
-        .order('updated_at', { ascending: false });
-
-    if (workflowId) {
-        query = query.eq('workflow_id', workflowId);
+    // If no workflow ID, maybe return all? Or error?
+    // For now require workflow id as per requirement "scoped to workflow"
+    if (!workflowId) {
+        return NextResponse.json({ error: 'Missing workflow_id' }, { status: 400 });
     }
 
-    if (!includeTemporary) {
-        query = query.eq('is_temporary', false);
+    const db = new AgentDB(supabase);
+
+    try {
+        const chats = await db.listChats(workflowId);
+
+        // Filter temporary if needed (though DB layer returns all currently)
+        const finalChats = includeTemporary
+            ? chats
+            : chats.filter(c => !c.is_temporary);
+
+        return NextResponse.json({ chats: finalChats });
+    } catch (e: any) {
+        return NextResponse.json({ error: e.message }, { status: 500 });
     }
-
-    const { data, error } = await query.limit(50);
-
-    if (error) {
-        console.error('[Chats API] Error fetching chats:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    // Format chats with preview
-    const chats = data?.map(chat => ({
-        id: chat.id,
-        title: chat.title,
-        workflowId: chat.workflow_id,
-        isTemporary: chat.is_temporary,
-        createdAt: chat.created_at,
-        updatedAt: chat.updated_at,
-        messageCount: chat.rune_chat_messages?.length || 0,
-        preview: chat.rune_chat_messages?.[0]?.content?.slice(0, 100) || null
-    })) || [];
-
-    return NextResponse.json({ chats });
 }
 
 export async function POST(req: NextRequest) {
@@ -70,27 +46,17 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { workflowId, title, isTemporary } = body;
+        const { workflowId, title } = body;
 
-        const { data: chat, error } = await supabase
-            .from('rune_chats')
-            .insert({
-                user_id: user.id,
-                workflow_id: workflowId || null,
-                title: title || 'New Chat',
-                is_temporary: isTemporary || false
-            })
-            .select()
-            .single();
-
-        if (error) {
-            console.error('[Chats API] Error creating chat:', error);
-            return NextResponse.json({ error: error.message }, { status: 500 });
+        if (!workflowId) {
+            return NextResponse.json({ error: 'Missing workflowId' }, { status: 400 });
         }
 
-        return NextResponse.json({ chat });
+        const db = new AgentDB(supabase);
+        const chat = await db.createChat(user.id, workflowId, title);
+
+        return NextResponse.json(chat);
     } catch (e: any) {
-        console.error('[Chats API] Error:', e);
         return NextResponse.json({ error: e.message }, { status: 500 });
     }
 }

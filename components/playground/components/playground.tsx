@@ -95,10 +95,32 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
     const handleFreqPenaltyChange = (vals: number[]) => updateConfig({ frequencyPenalty: vals[0] });
     const handlePresPenaltyChange = (vals: number[]) => updateConfig({ presencePenalty: vals[0] });
 
-    // Load chat when currentChatId changes
+    // Switch chats when workflowId changes
+    useEffect(() => {
+        if (!workflowId) return;
+
+        // Load last active chat for this workflow
+        const useChatId = useAgentStore.getState().lastActiveChats[workflowId] || null;
+
+        // If we are already on this chat, do nothing. 
+        // But if we switched workflow, currentChatId might still be the old one.
+        // We must update currentChatId.
+
+        if (useAgentStore.getState().currentChatId !== useChatId) {
+            // Avoid loop if setting null
+            setCurrentChat(useChatId);
+        }
+    }, [workflowId]);
+
+    // Load messages when currentChatId changes
     useEffect(() => {
         if (currentChatId) {
             loadChat(currentChatId);
+        } else {
+            // Clear messages if no chat
+            setMessages([]);
+            setOutput('');
+            // Optional: If we want to show empty state
         }
     }, [currentChatId]);
 
@@ -758,6 +780,30 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                         <SelectItem value="gemini-3-pro-preview">Gemini 3 Pro (Preview)</SelectItem>
                                     </SelectContent>
                                 </Select>
+
+                                {/* Cost & Usage Stats */}
+                                {messages.length > 0 && (
+                                    <div className="p-3 bg-white/5 border border-white/10 rounded-lg space-y-2">
+                                        <div className="flex items-center justify-between text-[11px] text-white/60">
+                                            <span>Tokens</span>
+                                            <span className="font-mono text-white/80">
+                                                {messages.reduce((acc, m) => acc + (m.usageMetadata?.totalTokenCount || 0), 0).toLocaleString()}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-[11px] text-white/60">
+                                            <span>Est. Cost</span>
+                                            <span className="font-mono text-emerald-400">
+                                                ${(messages.reduce((acc, m) => {
+                                                    const input = m.usageMetadata?.promptTokenCount || 0;
+                                                    const output = m.usageMetadata?.candidatesTokenCount || 0;
+                                                    // Simple calc for display (Pro pricing approx)
+                                                    // $1.25/1M input, $5.00/1M output
+                                                    return acc + (input / 1e6 * 1.25) + (output / 1e6 * 5.00);
+                                                }, 0)).toFixed(4)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <Separator className="bg-border/60" />

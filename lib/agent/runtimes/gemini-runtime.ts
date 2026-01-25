@@ -167,6 +167,26 @@ export class GeminiAgentRuntime {
                         let functionCalls: any[] = [];
                         let capturedThoughtSignature: string | undefined;
 
+                        // Persistence State
+                        let messageRowId: string | null = null;
+                        let lastSaveTime = Date.now();
+                        const SAVE_INTERVAL = 1000; // 1 second
+
+                        // 1. Create Placeholder if we have a chatId
+                        if (options.chatId) {
+                            const { data: msgData, error: msgError } = await this.supabase
+                                .from('rune_chat_messages')
+                                .insert({
+                                    chat_id: options.chatId,
+                                    role: 'assistant',
+                                    content: '' // Start empty
+                                })
+                                .select('id')
+                                .single();
+
+                            if (msgData) messageRowId = msgData.id;
+                        }
+
                         for await (const chunk of streamResult.stream) {
                             const chunkText = chunk.text();
 
@@ -176,35 +196,29 @@ export class GeminiAgentRuntime {
                                 emit(chunkText);
                             }
 
-                            // Inspect raw chunk for function calls and thought signatures
-                            // The Node SDK abstracts this, but we can access `chunk.candidates[0]`
+                            // Periodic Save
+                            if (messageRowId && (Date.now() - lastSaveTime > SAVE_INTERVAL)) {
+                                await this.supabase
+                                    .from('rune_chat_messages')
+                                    .update({ content: fullText })
+                                    .eq('id', messageRowId);
+                                lastSaveTime = Date.now();
+                            }
+
+                            // Inspect raw chunk... (rest of logic)
                             // @ts-ignore
                             const candidate = chunk.candidates?.[0];
                             if (candidate) {
-                                // Extract Function Calls
-                                // SDK accumulates them? We need the final one or incremental?
-                                // Usually function calls arrive in one chunk or accumulated.
-                                // We'll rely on the final response aggregation or check parts per chunk.
-
-                                // Handling Thought Signatures (if accessible in candidate)
-                                // Note: As of Jan 2025, Node SDK might expose .thoughtSignature or similar on candidate?
-                                // If not, check metadata.
+                                // ... (existing logic for thoughtSignature/functions)
                                 // @ts-ignore
                                 if (candidate.thoughtSignature) {
                                     // @ts-ignore
                                     capturedThoughtSignature = candidate.thoughtSignature;
                                 }
-                                // Also check parts for functionCall
                                 if (candidate.content?.parts) {
                                     for (const p of candidate.content.parts) {
                                         if (p.functionCall) {
-                                            // Deduplicate? Stream might yield same call multiple times?
-                                            // The SDK usually yields 'deltas' or full parts?
-                                            // 'text()' aggregates text.
-                                            // We should check if we caught this call yet.
-                                            const existing = functionCalls.find(c => c.name === p.functionCall.name);
-                                            // Simple check, arguments might be partial
-                                            // We'll collect all calls at the END using `resolution` to be safe
+                                            // We just track it, real processing is later
                                         }
                                     }
                                 }
@@ -214,6 +228,7 @@ export class GeminiAgentRuntime {
                         // Stream complete. Get final aggregated response object.
                         const finalResponse = await streamResult.response;
                         const finalContent = finalResponse.candidates?.[0]?.content;
+                        const usageMetadata = finalResponse.usageMetadata;
 
                         // Check for Thought Signature in final response if we missed it
                         // @ts-ignore
@@ -223,7 +238,6 @@ export class GeminiAgentRuntime {
                         }
 
                         // Add Model Turn to History
-                        // We must reconstruct the parts exactly as received
                         const modelMessage: InternalMessage = {
                             role: 'model',
                             parts: finalContent?.parts || [],
@@ -231,12 +245,22 @@ export class GeminiAgentRuntime {
                         };
                         history.push(modelMessage);
 
-                        // Save text to DB if persistent
-                        if (fullText && options.chatId) {
+                        // Final Save
+                        if (messageRowId) {
+                            await this.supabase
+                                .from('rune_chat_messages')
+                                .update({
+                                    content: fullText,
+                                    usage_metadata: usageMetadata
+                                })
+                                .eq('id', messageRowId);
+                        } else if (options.chatId && fullText) {
+                            // Fallback if initial insert failed (unlikely)
                             await this.supabase.from('rune_chat_messages').insert({
                                 chat_id: options.chatId,
                                 role: 'assistant',
-                                content: fullText
+                                content: fullText,
+                                usage_metadata: usageMetadata
                             });
                         }
 
