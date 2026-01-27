@@ -453,12 +453,13 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
     }, [input, isGenerating]);
 
     return (
-        <div className="relative h-full w-full">
-            {/* Main Container */}
-            <div className="flex flex-col h-full w-full overflow-hidden bg-[#000000]">
-                {/* Header (Top Bar) */}
-                {/* Header (Top Bar) */}
-                <TooltipProvider delayDuration={300}>
+        <TooltipProvider delayDuration={300}>
+            <div className="relative h-full w-full">
+                {/* Main Container */}
+                <div className="flex flex-col h-full w-full overflow-hidden bg-[#000000]">
+                    {/* Header (Top Bar) */}
+                    {/* Header (Top Bar) */}
+
                     <div className="h-14 border-b border-white/[0.06] flex items-center justify-between px-4 bg-black">
                         <div className="flex items-center gap-3">
                             <div className="p-1.5 rounded-md bg-white/[0.04] text-white/60">
@@ -675,482 +676,483 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                             </div>
                         </div>
                     </div>
-                </TooltipProvider>
 
-                <div className="flex-1 flex overflow-hidden">
-                    {/* Main Stage (Left/Center) - with gradient */}
-                    <div className="flex-1 flex flex-col relative bg-black p-6 overflow-hidden">
 
-                        {/* Chat Messages Area */}
-                        <div className="flex-1 min-h-0 flex flex-col pb-4 overflow-y-auto w-full custom-scrollbar">
-                            {messages.length === 0 && !isGenerating ? (
-                                <div className="flex-1 flex flex-col items-center justify-center text-white/20 select-none">
-                                    <div className="w-16 h-16 rounded-2xl bg-white/[0.03] flex items-center justify-center mb-4 shadow-inner">
-                                        <PlayCircle className="h-8 w-8 opacity-50" />
+                    <div className="flex-1 flex overflow-hidden">
+                        {/* Main Stage (Left/Center) - with gradient */}
+                        <div className="flex-1 flex flex-col relative bg-black p-6 overflow-hidden">
+
+                            {/* Chat Messages Area */}
+                            <div className="flex-1 min-h-0 flex flex-col pb-4 overflow-y-auto w-full custom-scrollbar">
+                                {messages.length === 0 && !isGenerating ? (
+                                    <div className="flex-1 flex flex-col items-center justify-center text-white/20 select-none">
+                                        <div className="w-16 h-16 rounded-2xl bg-white/[0.03] flex items-center justify-center mb-4 shadow-inner">
+                                            <PlayCircle className="h-8 w-8 opacity-50" />
+                                        </div>
+                                        <h3 className="text-sm font-medium text-white/50 mb-1">Ready to Chat</h3>
+                                        <p className="text-xs text-white/30 font-mono text-center max-w-[200px]">
+                                            Configure your model settings and start a conversation.
+                                        </p>
                                     </div>
-                                    <h3 className="text-sm font-medium text-white/50 mb-1">Ready to Chat</h3>
-                                    <p className="text-xs text-white/30 font-mono text-center max-w-[200px]">
-                                        Configure your model settings and start a conversation.
-                                    </p>
-                                </div>
-                            ) : (
-                                <div ref={chatMessagesRef} className="flex flex-col gap-4 px-6 py-4">
-                                    {messages.map((msg, idx) => (
-                                        <React.Fragment key={idx}>
-                                            <div
-                                                className={cn(
-                                                    "chat-message flex gap-3 max-w-[85%]",
-                                                    msg.role === 'user' ? "self-end flex-row-reverse" : "self-start"
+                                ) : (
+                                    <div ref={chatMessagesRef} className="flex flex-col gap-4 px-6 py-4">
+                                        {messages.map((msg, idx) => (
+                                            <React.Fragment key={idx}>
+                                                <div
+                                                    className={cn(
+                                                        "chat-message flex gap-3 max-w-[85%]",
+                                                        msg.role === 'user' ? "self-end flex-row-reverse" : "self-start"
+                                                    )}
+                                                >
+                                                    {/* Message Bubble */}
+                                                    <div className={cn(
+                                                        "px-4 py-3 rounded-2xl text-sm leading-relaxed select-text",
+                                                        msg.role === 'user'
+                                                            ? "bg-white/5 text-white/90 border border-white/10 rounded-br-md"
+                                                            : "bg-white/[0.08] text-white/90 rounded-bl-md border border-white/[0.06]"
+                                                    )}>
+                                                        <div className="whitespace-pre-wrap font-mono text-[13px]">
+                                                            {msg.content}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Insert Approval Card if this message has pending tool calls */}
+                                                {msg.role === 'assistant' && msg.id && msg.toolCalls && (
+                                                    <div className="flex gap-3 self-start max-w-[85%] pl-3">
+                                                        {/* Check if approval is needed (e.g. status='pending' or just present) */}
+                                                        {(msg as any).approval_status && (
+                                                            <ApprovalCard
+                                                                messageId={msg.id!}
+                                                                toolCalls={msg.toolCalls}
+                                                                status={(msg as any).approval_status}
+                                                                onAction={(decision) => {
+                                                                    // Optimistic update
+                                                                    (msg as any).approval_status = decision;
+                                                                    // Trigger re-run if approved
+                                                                    if (decision === 'approved') {
+                                                                        handleSubmit(msg.id!);
+                                                                    }
+                                                                }}
+                                                            />
+                                                        )}
+                                                    </div>
                                                 )}
-                                            >
-                                                {/* Message Bubble */}
-                                                <div className={cn(
-                                                    "px-4 py-3 rounded-2xl text-sm leading-relaxed select-text",
-                                                    msg.role === 'user'
-                                                        ? "bg-white/5 text-white/90 border border-white/10 rounded-br-md"
-                                                        : "bg-white/[0.08] text-white/90 rounded-bl-md border border-white/[0.06]"
-                                                )}>
+                                            </React.Fragment>
+                                        ))}
+                                        {/* Streaming indicator */}
+                                        {isGenerating && output && (
+                                            <div className="flex gap-3 self-start max-w-[85%]">
+                                                <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-white/[0.08] text-white/90 border border-white/[0.06] select-text">
                                                     <div className="whitespace-pre-wrap font-mono text-[13px]">
-                                                        {msg.content}
+                                                        {output}
+                                                        <span className="inline-block w-1.5 h-3 ml-1 bg-white/60 animate-pulse" />
                                                     </div>
                                                 </div>
                                             </div>
-
-                                            {/* Insert Approval Card if this message has pending tool calls */}
-                                            {msg.role === 'assistant' && msg.id && msg.toolCalls && (
-                                                <div className="flex gap-3 self-start max-w-[85%] pl-3">
-                                                    {/* Check if approval is needed (e.g. status='pending' or just present) */}
-                                                    {(msg as any).approval_status && (
-                                                        <ApprovalCard
-                                                            messageId={msg.id!}
-                                                            toolCalls={msg.toolCalls}
-                                                            status={(msg as any).approval_status}
-                                                            onAction={(decision) => {
-                                                                // Optimistic update
-                                                                (msg as any).approval_status = decision;
-                                                                // Trigger re-run if approved
-                                                                if (decision === 'approved') {
-                                                                    handleSubmit(msg.id!);
-                                                                }
-                                                            }}
-                                                        />
-                                                    )}
-                                                </div>
-                                            )}
-                                        </React.Fragment>
-                                    ))}
-                                    {/* Streaming indicator */}
-                                    {isGenerating && output && (
-                                        <div className="flex gap-3 self-start max-w-[85%]">
-                                            <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-white/[0.08] text-white/90 border border-white/[0.06] select-text">
-                                                <div className="whitespace-pre-wrap font-mono text-[13px]">
-                                                    {output}
-                                                    <span className="inline-block w-1.5 h-3 ml-1 bg-white/60 animate-pulse" />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Floating Input Card */}
-                        <div className="flex-none w-full max-w-5xl mx-auto flex flex-col mb-2">
-                            <div className="relative rounded-xl border border-white/[0.08] bg-[#0A0A0A] shadow-2xl transition-all duration-300 focus-within:border-white/[0.15] flex flex-col overflow-hidden">
-                                <Textarea
-                                    value={input}
-                                    onChange={(e) => setInput(e.target.value)}
-                                    placeholder="Write a tagline for an ice cream shop..."
-                                    className="flex-1 w-full h-[140px] resize-none border-0 p-6 text-base focus-visible:ring-0 bg-transparent placeholder:text-white/20 leading-relaxed font-mono custom-scrollbar text-white/90"
-                                />
-
-                                {/* Action Bar (Bottom) */}
-                                <div className="flex-none p-3 flex items-center justify-between border-t border-white/[0.06] bg-black/20">
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => handleSubmit()}
-                                            disabled={!input.trim() && !isGenerating}
-                                            className="h-7 px-3 text-[10px] uppercase font-semibold tracking-wider text-white/50 hover:text-white/80 hover:bg-white/[0.06] transition-colors disabled:opacity-30"
-                                        >
-                                            {isGenerating ? 'Stop' : 'Submit'}
-                                        </Button>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-white/40 hover:text-white/70 hover:bg-white/[0.06] rounded-full">
-                                            <History className="h-3.5 w-3.5" />
-                                        </Button>
-                                    </div>
-
-                                    <div className="flex items-center gap-4 text-[10px] text-white/30 font-mono">
-                                        <span className={input.length > (config.maxTokens || 2000) * 4 ? "text-red-400" : ""}>
-                                            {input.length} chars
-                                        </span>
-                                        <div className="h-3 w-px bg-white/10" />
-                                        <span className="flex items-center gap-1">
-                                            <span className="text-xs">⌘</span>
-                                            <span>ENTER</span>
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Right Sidebar - Configuration Panel */}
-                    <div className="w-[320px] border-l border-white/[0.06] bg-[#0A0A0A] flex flex-col">
-                        <div className="h-10 flex items-center px-4 border-b border-white/[0.06] bg-black/40">
-                            <Settings2 className="h-3.5 w-3.5 mr-2 text-white/40" />
-                            <span className="text-[11px] font-semibold text-white/60 uppercase tracking-widest">Configuration</span>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-8 custom-scrollbar">
-
-                            {/* Model Selection */}
-                            <div className="space-y-4">
-                                <div className="text-xs font-medium flex items-center justify-between text-white/70">
-                                    <span>Model</span>
-                                    <span className="text-[10px] bg-white/[0.06] text-white/60 border border-white/[0.12] px-1.5 py-0.5 rounded font-mono">v3.0</span>
-                                </div>
-                                <Select value={config.model} onValueChange={(val) => updateConfig({ model: val })}>
-                                    <SelectTrigger className="bg-white/[0.03] border-white/[0.08] h-9 text-xs text-white/80">
-                                        <SelectValue placeholder="Select model" />
-                                    </SelectTrigger>
-                                    <SelectContent className="bg-[#0A0A0A] border-white/[0.08]">
-                                        <SelectItem value="gemini-3-flash-preview">Gemini 3 Flash (Preview)</SelectItem>
-                                        <SelectItem value="gemini-3-pro-preview">Gemini 3 Pro (Preview)</SelectItem>
-                                    </SelectContent>
-                                </Select>
-
-                                {/* Cost & Usage Stats */}
-                                {messages.length > 0 && (
-                                    <div className="p-3 bg-white/5 border border-white/10 rounded-lg space-y-2">
-                                        <div className="flex items-center justify-between text-[11px] text-white/60">
-                                            <span>Tokens</span>
-                                            <span className="font-mono text-white/80">
-                                                {messages.reduce((acc, m) => acc + (m.usageMetadata?.totalTokenCount || 0), 0).toLocaleString()}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center justify-between text-[11px] text-white/60">
-                                            <span>Est. Cost</span>
-                                            <span className="font-mono text-emerald-400">
-                                                ${(messages.reduce((acc, m) => {
-                                                    const input = m.usageMetadata?.promptTokenCount || 0;
-                                                    const output = m.usageMetadata?.candidatesTokenCount || 0;
-                                                    // Simple calc for display (Pro pricing approx)
-                                                    // $1.25/1M input, $5.00/1M output
-                                                    return acc + (input / 1e6 * 1.25) + (output / 1e6 * 5.00);
-                                                }, 0)).toFixed(4)}
-                                            </span>
-                                        </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
 
-                            <Separator className="bg-border/60" />
+                            {/* Floating Input Card */}
+                            <div className="flex-none w-full max-w-5xl mx-auto flex flex-col mb-2">
+                                <div className="relative rounded-xl border border-white/[0.08] bg-[#0A0A0A] shadow-2xl transition-all duration-300 focus-within:border-white/[0.15] flex flex-col overflow-hidden">
+                                    <Textarea
+                                        value={input}
+                                        onChange={(e) => setInput(e.target.value)}
+                                        placeholder="Write a tagline for an ice cream shop..."
+                                        className="flex-1 w-full h-[140px] resize-none border-0 p-6 text-base focus-visible:ring-0 bg-transparent placeholder:text-white/20 leading-relaxed font-mono custom-scrollbar text-white/90"
+                                    />
 
-                            {/* System Instructions */}
-                            <div className="space-y-3">
-                                <Label className="text-xs font-medium text-white/70">System Instructions</Label>
-                                <Textarea
-                                    value={config.systemPrompt}
-                                    onChange={(e) => updateConfig({ systemPrompt: e.target.value })}
-                                    className="h-24 resize-none text-[11px] leading-relaxed bg-white/[0.03] border-white/[0.08] focus-visible:ring-1 focus-visible:ring-white/[0.12] min-h-[100px] text-white/80"
-                                    placeholder="You are a helpful assistant..."
+                                    {/* Action Bar (Bottom) */}
+                                    <div className="flex-none p-3 flex items-center justify-between border-t border-white/[0.06] bg-black/20">
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => handleSubmit()}
+                                                disabled={!input.trim() && !isGenerating}
+                                                className="h-7 px-3 text-[10px] uppercase font-semibold tracking-wider text-white/50 hover:text-white/80 hover:bg-white/[0.06] transition-colors disabled:opacity-30"
+                                            >
+                                                {isGenerating ? 'Stop' : 'Submit'}
+                                            </Button>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-white/40 hover:text-white/70 hover:bg-white/[0.06] rounded-full">
+                                                <History className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </div>
+
+                                        <div className="flex items-center gap-4 text-[10px] text-white/30 font-mono">
+                                            <span className={input.length > (config.maxTokens || 2000) * 4 ? "text-red-400" : ""}>
+                                                {input.length} chars
+                                            </span>
+                                            <div className="h-3 w-px bg-white/10" />
+                                            <span className="flex items-center gap-1">
+                                                <span className="text-xs">⌘</span>
+                                                <span>ENTER</span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Right Sidebar - Configuration Panel */}
+                        <div className="w-[320px] border-l border-white/[0.06] bg-[#0A0A0A] flex flex-col">
+                            <div className="h-10 flex items-center px-4 border-b border-white/[0.06] bg-black/40">
+                                <Settings2 className="h-3.5 w-3.5 mr-2 text-white/40" />
+                                <span className="text-[11px] font-semibold text-white/60 uppercase tracking-widest">Configuration</span>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-8 custom-scrollbar">
+
+                                {/* Model Selection */}
+                                <div className="space-y-4">
+                                    <div className="text-xs font-medium flex items-center justify-between text-white/70">
+                                        <span>Model</span>
+                                        <span className="text-[10px] bg-white/[0.06] text-white/60 border border-white/[0.12] px-1.5 py-0.5 rounded font-mono">v3.0</span>
+                                    </div>
+                                    <Select value={config.model} onValueChange={(val) => updateConfig({ model: val })}>
+                                        <SelectTrigger className="bg-white/[0.03] border-white/[0.08] h-9 text-xs text-white/80">
+                                            <SelectValue placeholder="Select model" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-[#0A0A0A] border-white/[0.08]">
+                                            <SelectItem value="gemini-3-flash-preview">Gemini 3 Flash (Preview)</SelectItem>
+                                            <SelectItem value="gemini-3-pro-preview">Gemini 3 Pro (Preview)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+
+                                    {/* Cost & Usage Stats */}
+                                    {messages.length > 0 && (
+                                        <div className="p-3 bg-white/5 border border-white/10 rounded-lg space-y-2">
+                                            <div className="flex items-center justify-between text-[11px] text-white/60">
+                                                <span>Tokens</span>
+                                                <span className="font-mono text-white/80">
+                                                    {messages.reduce((acc, m) => acc + (m.usageMetadata?.totalTokenCount || 0), 0).toLocaleString()}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between text-[11px] text-white/60">
+                                                <span>Est. Cost</span>
+                                                <span className="font-mono text-emerald-400">
+                                                    ${(messages.reduce((acc, m) => {
+                                                        const input = m.usageMetadata?.promptTokenCount || 0;
+                                                        const output = m.usageMetadata?.candidatesTokenCount || 0;
+                                                        // Simple calc for display (Pro pricing approx)
+                                                        // $1.25/1M input, $5.00/1M output
+                                                        return acc + (input / 1e6 * 1.25) + (output / 1e6 * 5.00);
+                                                    }, 0)).toFixed(4)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <Separator className="bg-border/60" />
+
+                                {/* System Instructions */}
+                                <div className="space-y-3">
+                                    <Label className="text-xs font-medium text-white/70">System Instructions</Label>
+                                    <Textarea
+                                        value={config.systemPrompt}
+                                        onChange={(e) => updateConfig({ systemPrompt: e.target.value })}
+                                        className="h-24 resize-none text-[11px] leading-relaxed bg-white/[0.03] border-white/[0.08] focus-visible:ring-1 focus-visible:ring-white/[0.12] min-h-[100px] text-white/80"
+                                        placeholder="You are a helpful assistant..."
+                                    />
+                                </div>
+
+                                <Separator className="bg-border/60" />
+
+                                {/* Chat Actions - History & New */}
+                                <div className="space-y-2 mb-6">
+                                    <button
+                                        onClick={() => setShowChatModal(true)}
+                                        className="w-full flex items-center gap-2 px-3 py-2 rounded-md bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 text-xs transition-colors border border-white/10"
+                                    >
+                                        <History className="w-4 h-4" />
+                                        <span>Chat History</span>
+                                        {currentChatId && !isTemporaryChat && (
+                                            <span className="ml-auto text-[10px] text-blue-400">saved</span>
+                                        )}
+                                    </button>
+                                    <button
+                                        onClick={handleNewChat}
+                                        className="w-full flex items-center gap-2 px-3 py-2 rounded-md bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 text-xs transition-colors border border-white/10"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        <span>New Chat</span>
+                                    </button>
+                                </div>
+
+                                <Separator className="bg-border/60" />
+
+                                {/* Active Tools (Dynamic) */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-xs font-medium text-white/70">Agent Capabilities</Label>
+                                        {isLoadingTools && <span className="text-[10px] text-white/30 animate-pulse">Loading...</span>}
+                                    </div>
+
+                                    <div className="space-y-4" ref={toolsListRef}>
+                                        {availableTools.length === 0 && !isLoadingTools && (
+                                            <p className="text-[10px] text-white/30 italic px-1">No tools available.</p>
+                                        )}
+
+                                        {/* System Tools Group */}
+                                        {availableTools.some(t => t.type === 'system') && (
+                                            <div className="space-y-1.5">
+                                                <div className="text-[10px] uppercase tracking-wider text-white/30 font-semibold px-1">System</div>
+                                                {availableTools.filter(t => t.type === 'system').map(tool => (
+                                                    <ToolItem
+                                                        key={tool.id}
+                                                        tool={tool}
+                                                        active={config.tools?.includes(tool.id) || false}
+                                                        onToggle={() => {
+                                                            const current = config.tools || [];
+                                                            const next = current.includes(tool.id)
+                                                                ? current.filter(t => t !== tool.id)
+                                                                : [...current, tool.id];
+                                                            updateConfig({ tools: next });
+                                                        }}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* MCP Tools Group */}
+                                        {availableTools.some(t => t.type === 'mcp') && (
+                                            <div className="space-y-1.5">
+                                                <div className="text-[10px] uppercase tracking-wider text-[var(--neon-blue)]/50 font-semibold px-1">MCP Extensions</div>
+                                                {availableTools.filter(t => t.type === 'mcp').map(tool => (
+                                                    <ToolItem
+                                                        key={tool.id}
+                                                        tool={tool}
+                                                        active={config.tools?.includes(tool.id) || false}
+                                                        onToggle={() => {
+                                                            const current = config.tools || [];
+                                                            const next = current.includes(tool.id)
+                                                                ? current.filter(t => t !== tool.id)
+                                                                : [...current, tool.id];
+                                                            updateConfig({ tools: next });
+                                                        }}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <Separator className="bg-border/60" />
+
+                                {/* Toggles & Sliders */}
+                                <div className="space-y-6">
+                                    {/* Stream Response */}
+                                    <div className="flex items-center justify-between space-x-2">
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Label htmlFor="stream-mode" className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">Stream Response</Label>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
+                                                If enabled, the agent's response will be displayed character-by-character as it is generated.
+                                            </TooltipContent>
+                                        </Tooltip>
+                                        <Switch
+                                            id="stream-mode"
+                                            checked={isStreamEnabled}
+                                            onCheckedChange={setIsStreamEnabled}
+                                            className="scale-75 data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-white/10"
+                                        />
+                                    </div>
+
+                                    {/* JSON Mode */}
+                                    <div className="flex items-center justify-between space-x-2">
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Label htmlFor="json-mode" className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">JSON Mode</Label>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
+                                                Forces the model to output valid JSON. Useful for structured data tasks.
+                                            </TooltipContent>
+                                        </Tooltip>
+                                        <Switch
+                                            id="json-mode"
+                                            checked={config.outputMode === 'json'}
+                                            onCheckedChange={(checked) => updateConfig({ outputMode: checked ? 'json' : 'text' })}
+                                            className="scale-75 data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-white/10"
+                                        />
+                                    </div>
+
+                                    {/* Temperature Slider */}
+                                    <div className="space-y-3 pt-2">
+                                        <div className="flex items-center justify-between">
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <div className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">Temperature</div>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
+                                                    Controls randomness. Higher values (e.g., 0.8) make output more random, lower values (e.g., 0.2) more focused and deterministic.
+                                                </TooltipContent>
+                                            </Tooltip>
+                                            <span className="text-[10px] font-mono text-white/50 w-10 text-right bg-white/[0.06] rounded px-1">{config.temperature.toFixed(2)}</span>
+                                        </div>
+                                        <Slider
+                                            value={[config.temperature]}
+                                            onValueChange={handleTempChange}
+                                            max={1}
+                                            step={0.01}
+                                            className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
+                                        />
+                                    </div>
+
+                                    {/* Max Length Slider */}
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <div className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">Max Tokens</div>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
+                                                    The maximum number of tokens to generate. One token is roughly 4 characters.
+                                                </TooltipContent>
+                                            </Tooltip>
+                                            <span className="text-[10px] font-mono text-white/50 w-10 text-right bg-white/[0.06] rounded px-1">{config.maxTokens || 2000}</span>
+                                        </div>
+                                        <Slider
+                                            value={[config.maxTokens || 2000]}
+                                            onValueChange={handleMaxTokensChange}
+                                            max={4000}
+                                            step={1}
+                                            className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
+                                        />
+                                    </div>
+
+                                    {/* Top P Slider */}
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <div className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">Top P</div>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
+                                                    Controls diversity via nucleus sampling. 0.9 means consider the top 90% probability mass.
+                                                </TooltipContent>
+                                            </Tooltip>
+                                            <span className="text-[10px] font-mono text-white/50 w-10 text-right bg-white/[0.06] rounded px-1">{(config.topP || 0.9).toFixed(2)}</span>
+                                        </div>
+                                        <Slider
+                                            value={[config.topP || 0.9]}
+                                            onValueChange={handleTopPChange}
+                                            max={1}
+                                            step={0.01}
+                                            className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
+                                        />
+                                    </div>
+                                </div>
+
+                                <Separator className="bg-border/60" />
+
+                                {/* Advanced Section */}
+                                <div className="space-y-4">
+                                    <div className="text-[10px] font-semibold text-white/40 uppercase tracking-widest mb-1 flex items-center gap-2">
+                                        Advanced Settings
+                                    </div>
+                                    <div className="space-y-5 pl-1">
+                                        {/* Frequency Penalty */}
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <div className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">Frequency Penalty</div>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
+                                                        Penalizes new tokens based on their existing frequency in the text so far. Reduces repetition.
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                                <span className="text-[10px] font-mono text-white/50 w-10 text-right bg-white/[0.06] rounded px-1">{(config.frequencyPenalty || 0).toFixed(2)}</span>
+                                            </div>
+                                            <Slider
+                                                value={[config.frequencyPenalty || 0]}
+                                                onValueChange={handleFreqPenaltyChange}
+                                                max={2}
+                                                step={0.01}
+                                                className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
+                                            />
+                                        </div>
+
+                                        {/* Presence Penalty */}
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <div className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">Presence Penalty</div>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
+                                                        Penalizes new tokens based on whether they appear in the text so far. Encourages talking about new topics.
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                                <span className="text-[10px] font-mono text-white/50 w-10 text-right bg-white/[0.06] rounded px-1">{(config.presencePenalty || 0).toFixed(2)}</span>
+                                            </div>
+                                            <Slider
+                                                value={[config.presencePenalty || 0]}
+                                                onValueChange={handlePresPenaltyChange}
+                                                max={2}
+                                                step={0.01}
+                                                className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div >
+
+
+                {/* Save Preset Dialog */}
+                < Dialog open={showSavePreset} onOpenChange={setShowSavePreset} >
+                    <DialogContent className="sm:max-w-[425px] bg-[#0A0A0A] border-white/10 text-white">
+                        <DialogHeader>
+                            <DialogTitle className="text-sm font-semibold">Save Agent Preset</DialogTitle>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="name" className="text-white/70 text-xs">Preset Name</Label>
+                                <Input
+                                    id="name"
+                                    value={newPresetName}
+                                    onChange={(e) => setNewPresetName(e.target.value)}
+                                    className="col-span-3 bg-white/5 border-white/10 text-white text-xs h-8"
+                                    placeholder="e.g., Coding Assistant (Strict)"
+                                    autoFocus
                                 />
                             </div>
-
-                            <Separator className="bg-border/60" />
-
-                            {/* Chat Actions - History & New */}
-                            <div className="space-y-2 mb-6">
-                                <button
-                                    onClick={() => setShowChatModal(true)}
-                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-md bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 text-xs transition-colors border border-white/10"
-                                >
-                                    <History className="w-4 h-4" />
-                                    <span>Chat History</span>
-                                    {currentChatId && !isTemporaryChat && (
-                                        <span className="ml-auto text-[10px] text-blue-400">saved</span>
-                                    )}
-                                </button>
-                                <button
-                                    onClick={handleNewChat}
-                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-md bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 text-xs transition-colors border border-white/10"
-                                >
-                                    <Plus className="w-4 h-4" />
-                                    <span>New Chat</span>
-                                </button>
-                            </div>
-
-                            <Separator className="bg-border/60" />
-
-                            {/* Active Tools (Dynamic) */}
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <Label className="text-xs font-medium text-white/70">Agent Capabilities</Label>
-                                    {isLoadingTools && <span className="text-[10px] text-white/30 animate-pulse">Loading...</span>}
-                                </div>
-
-                                <div className="space-y-4" ref={toolsListRef}>
-                                    {availableTools.length === 0 && !isLoadingTools && (
-                                        <p className="text-[10px] text-white/30 italic px-1">No tools available.</p>
-                                    )}
-
-                                    {/* System Tools Group */}
-                                    {availableTools.some(t => t.type === 'system') && (
-                                        <div className="space-y-1.5">
-                                            <div className="text-[10px] uppercase tracking-wider text-white/30 font-semibold px-1">System</div>
-                                            {availableTools.filter(t => t.type === 'system').map(tool => (
-                                                <ToolItem
-                                                    key={tool.id}
-                                                    tool={tool}
-                                                    active={config.tools?.includes(tool.id) || false}
-                                                    onToggle={() => {
-                                                        const current = config.tools || [];
-                                                        const next = current.includes(tool.id)
-                                                            ? current.filter(t => t !== tool.id)
-                                                            : [...current, tool.id];
-                                                        updateConfig({ tools: next });
-                                                    }}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {/* MCP Tools Group */}
-                                    {availableTools.some(t => t.type === 'mcp') && (
-                                        <div className="space-y-1.5">
-                                            <div className="text-[10px] uppercase tracking-wider text-[var(--neon-blue)]/50 font-semibold px-1">MCP Extensions</div>
-                                            {availableTools.filter(t => t.type === 'mcp').map(tool => (
-                                                <ToolItem
-                                                    key={tool.id}
-                                                    tool={tool}
-                                                    active={config.tools?.includes(tool.id) || false}
-                                                    onToggle={() => {
-                                                        const current = config.tools || [];
-                                                        const next = current.includes(tool.id)
-                                                            ? current.filter(t => t !== tool.id)
-                                                            : [...current, tool.id];
-                                                        updateConfig({ tools: next });
-                                                    }}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <Separator className="bg-border/60" />
-
-                            {/* Toggles & Sliders */}
-                            <div className="space-y-6">
-                                {/* Stream Response */}
-                                <div className="flex items-center justify-between space-x-2">
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Label htmlFor="stream-mode" className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">Stream Response</Label>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
-                                            If enabled, the agent's response will be displayed character-by-character as it is generated.
-                                        </TooltipContent>
-                                    </Tooltip>
-                                    <Switch
-                                        id="stream-mode"
-                                        checked={isStreamEnabled}
-                                        onCheckedChange={setIsStreamEnabled}
-                                        className="scale-75 data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-white/10"
-                                    />
-                                </div>
-
-                                {/* JSON Mode */}
-                                <div className="flex items-center justify-between space-x-2">
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Label htmlFor="json-mode" className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">JSON Mode</Label>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
-                                            Forces the model to output valid JSON. Useful for structured data tasks.
-                                        </TooltipContent>
-                                    </Tooltip>
-                                    <Switch
-                                        id="json-mode"
-                                        checked={config.outputMode === 'json'}
-                                        onCheckedChange={(checked) => updateConfig({ outputMode: checked ? 'json' : 'text' })}
-                                        className="scale-75 data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-white/10"
-                                    />
-                                </div>
-
-                                {/* Temperature Slider */}
-                                <div className="space-y-3 pt-2">
-                                    <div className="flex items-center justify-between">
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <div className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">Temperature</div>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
-                                                Controls randomness. Higher values (e.g., 0.8) make output more random, lower values (e.g., 0.2) more focused and deterministic.
-                                            </TooltipContent>
-                                        </Tooltip>
-                                        <span className="text-[10px] font-mono text-white/50 w-10 text-right bg-white/[0.06] rounded px-1">{config.temperature.toFixed(2)}</span>
-                                    </div>
-                                    <Slider
-                                        value={[config.temperature]}
-                                        onValueChange={handleTempChange}
-                                        max={1}
-                                        step={0.01}
-                                        className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
-                                    />
-                                </div>
-
-                                {/* Max Length Slider */}
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <div className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">Max Tokens</div>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
-                                                The maximum number of tokens to generate. One token is roughly 4 characters.
-                                            </TooltipContent>
-                                        </Tooltip>
-                                        <span className="text-[10px] font-mono text-white/50 w-10 text-right bg-white/[0.06] rounded px-1">{config.maxTokens || 2000}</span>
-                                    </div>
-                                    <Slider
-                                        value={[config.maxTokens || 2000]}
-                                        onValueChange={handleMaxTokensChange}
-                                        max={4000}
-                                        step={1}
-                                        className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
-                                    />
-                                </div>
-
-                                {/* Top P Slider */}
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <div className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">Top P</div>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
-                                                Controls diversity via nucleus sampling. 0.9 means consider the top 90% probability mass.
-                                            </TooltipContent>
-                                        </Tooltip>
-                                        <span className="text-[10px] font-mono text-white/50 w-10 text-right bg-white/[0.06] rounded px-1">{(config.topP || 0.9).toFixed(2)}</span>
-                                    </div>
-                                    <Slider
-                                        value={[config.topP || 0.9]}
-                                        onValueChange={handleTopPChange}
-                                        max={1}
-                                        step={0.01}
-                                        className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
-                                    />
-                                </div>
-                            </div>
-
-                            <Separator className="bg-border/60" />
-
-                            {/* Advanced Section */}
-                            <div className="space-y-4">
-                                <div className="text-[10px] font-semibold text-white/40 uppercase tracking-widest mb-1 flex items-center gap-2">
-                                    Advanced Settings
-                                </div>
-                                <div className="space-y-5 pl-1">
-                                    {/* Frequency Penalty */}
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <div className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">Frequency Penalty</div>
-                                                </TooltipTrigger>
-                                                <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
-                                                    Penalizes new tokens based on their existing frequency in the text so far. Reduces repetition.
-                                                </TooltipContent>
-                                            </Tooltip>
-                                            <span className="text-[10px] font-mono text-white/50 w-10 text-right bg-white/[0.06] rounded px-1">{(config.frequencyPenalty || 0).toFixed(2)}</span>
-                                        </div>
-                                        <Slider
-                                            value={[config.frequencyPenalty || 0]}
-                                            onValueChange={handleFreqPenaltyChange}
-                                            max={2}
-                                            step={0.01}
-                                            className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
-                                        />
-                                    </div>
-
-                                    {/* Presence Penalty */}
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <div className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">Presence Penalty</div>
-                                                </TooltipTrigger>
-                                                <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
-                                                    Penalizes new tokens based on whether they appear in the text so far. Encourages talking about new topics.
-                                                </TooltipContent>
-                                            </Tooltip>
-                                            <span className="text-[10px] font-mono text-white/50 w-10 text-right bg-white/[0.06] rounded px-1">{(config.presencePenalty || 0).toFixed(2)}</span>
-                                        </div>
-                                        <Slider
-                                            value={[config.presencePenalty || 0]}
-                                            onValueChange={handlePresPenaltyChange}
-                                            max={2}
-                                            step={0.01}
-                                            className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
                         </div>
-                    </div>
-                </div>
+                        <DialogFooter>
+                            <Button variant="ghost" size="sm" onClick={() => setShowSavePreset(false)} className="text-xs h-8">
+                                Cancel
+                            </Button>
+                            <Button
+                                size="sm"
+                                onClick={handleSavePreset}
+                                disabled={!newPresetName.trim() || isSavingPreset}
+                                className="bg-white text-black hover:bg-white/90 text-xs h-8"
+                            >
+                                {isSavingPreset ? 'Saving...' : 'Save Preset'}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog >
+
+                {/* Chat List Modal */}
+                < ChatListModal
+                    isOpen={showChatModal}
+                    onClose={() => setShowChatModal(false)
+                    }
+                    workflowId={workflowId}
+                    onChatSelect={handleChatSelect}
+                    onNewChat={handleNewChat}
+                />
             </div >
-
-
-            {/* Save Preset Dialog */}
-            < Dialog open={showSavePreset} onOpenChange={setShowSavePreset} >
-                <DialogContent className="sm:max-w-[425px] bg-[#0A0A0A] border-white/10 text-white">
-                    <DialogHeader>
-                        <DialogTitle className="text-sm font-semibold">Save Agent Preset</DialogTitle>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                        <div className="grid gap-2">
-                            <Label htmlFor="name" className="text-white/70 text-xs">Preset Name</Label>
-                            <Input
-                                id="name"
-                                value={newPresetName}
-                                onChange={(e) => setNewPresetName(e.target.value)}
-                                className="col-span-3 bg-white/5 border-white/10 text-white text-xs h-8"
-                                placeholder="e.g., Coding Assistant (Strict)"
-                                autoFocus
-                            />
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button variant="ghost" size="sm" onClick={() => setShowSavePreset(false)} className="text-xs h-8">
-                            Cancel
-                        </Button>
-                        <Button
-                            size="sm"
-                            onClick={handleSavePreset}
-                            disabled={!newPresetName.trim() || isSavingPreset}
-                            className="bg-white text-black hover:bg-white/90 text-xs h-8"
-                        >
-                            {isSavingPreset ? 'Saving...' : 'Save Preset'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog >
-
-            {/* Chat List Modal */}
-            < ChatListModal
-                isOpen={showChatModal}
-                onClose={() => setShowChatModal(false)
-                }
-                workflowId={workflowId}
-                onChatSelect={handleChatSelect}
-                onNewChat={handleNewChat}
-            />
-        </div >
+        </TooltipProvider>
     )
 }
 
