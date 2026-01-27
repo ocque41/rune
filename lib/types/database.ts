@@ -14,6 +14,82 @@ export type Database = {
     }
     public: {
         Tables: {
+            rune_chats: {
+                Row: {
+                    id: string
+                    user_id: string
+                    workflow_id: string | null
+                    title: string | null
+                    is_temporary: boolean | null
+                    created_at: string | null
+                    updated_at: string | null
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    workflow_id?: string | null
+                    title?: string | null
+                    is_temporary?: boolean | null
+                    created_at?: string | null
+                    updated_at?: string | null
+                }
+                Update: {
+                    id?: string
+                    user_id?: string
+                    workflow_id?: string | null
+                    title?: string | null
+                    is_temporary?: boolean | null
+                    created_at?: string | null
+                    updated_at?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "rune_chats_workflow_id_fkey"
+                        columns: ["workflow_id"]
+                        isOneToOne: false
+                        referencedRelation: "rune_workflows"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+            rune_chat_messages: {
+                Row: {
+                    id: string
+                    chat_id: string
+                    role: "user" | "assistant" | "system" | "tool"
+                    content: string | null
+                    tool_calls: Json | null
+                    tool_call_id: string | null
+                    created_at: string | null
+                }
+                Insert: {
+                    id?: string
+                    chat_id: string
+                    role: "user" | "assistant" | "system" | "tool"
+                    content?: string | null
+                    tool_calls?: Json | null
+                    tool_call_id?: string | null
+                    created_at?: string | null
+                }
+                Update: {
+                    id?: string
+                    chat_id?: string
+                    role?: "user" | "assistant" | "system" | "tool"
+                    content?: string | null
+                    tool_calls?: Json | null
+                    tool_call_id?: string | null
+                    created_at?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "rune_chat_messages_chat_id_fkey"
+                        columns: ["chat_id"]
+                        isOneToOne: false
+                        referencedRelation: "rune_chats"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
             rune_webhook_endpoints: {
                 Row: {
                     id: string
@@ -81,7 +157,7 @@ export type Database = {
             rune_agent_events: {
                 Row: {
                     created_at: string
-                    deduplication_key: string | null
+                    dedupe_key: string | null
                     event_type: string
                     id: string
                     payload: Json
@@ -94,7 +170,7 @@ export type Database = {
                 }
                 Insert: {
                     created_at?: string
-                    deduplication_key?: string | null
+                    dedupe_key?: string | null
                     event_type?: string
                     id?: string
                     payload?: Json
@@ -107,7 +183,7 @@ export type Database = {
                 }
                 Update: {
                     created_at?: string
-                    deduplication_key?: string | null
+                    dedupe_key?: string | null
                     event_type?: string
                     id?: string
                     payload?: Json
@@ -291,12 +367,12 @@ export type Database = {
 export type Tables<
     PublicTableNameOrOptions extends
     | keyof (Database["public"]["Tables"] & Database["public"]["Views"])
-    | { schema: keyof Database },
-    TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
+    | { schema: "public" },
+    TableName extends PublicTableNameOrOptions extends { schema: "public" }
     ? keyof (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
         Database[PublicTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
+> = PublicTableNameOrOptions extends { schema: "public" }
     ? (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
         Database[PublicTableNameOrOptions["schema"]]["Views"])[TableName] extends {
             Row: infer R
@@ -343,3 +419,5 @@ export interface BudgetUsage {
     tokens_last_day: number;
     jobs_running: number;
 }
+
+export type AgentEventInsert = Database['public']['Tables']['rune_agent_events']['Insert'];

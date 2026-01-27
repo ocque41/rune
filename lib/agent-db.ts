@@ -39,8 +39,7 @@ export class AgentDB {
         const payload: ChatInsert = {
             user_id: userId,
             workflow_id: workflowId,
-            title: title,
-            last_message_at: new Date().toISOString()
+            title: title
         };
 
         const { data, error } = await this.supabase
@@ -66,11 +65,9 @@ export class AgentDB {
     }
 
     async deleteChat(chatId: string): Promise<void> {
-        const payload: ChatUpdate = { archived_at: new Date().toISOString() };
         const { error } = await this.supabase
             .from('rune_chats')
-            // @ts-ignore
-            .update(payload)
+            .delete()
             .eq('id', chatId);
 
         if (error) throw error;
@@ -95,7 +92,7 @@ export class AgentDB {
         content: string
     ): Promise<Message> {
         // Update chat timestamp
-        const chatUpdate: ChatUpdate = { last_message_at: new Date().toISOString() };
+        const chatUpdate: ChatUpdate = { updated_at: new Date().toISOString() };
         await this.supabase
             .from('rune_chats')
             // @ts-ignore
@@ -105,7 +102,6 @@ export class AgentDB {
         // Add message
         const msgPayload: MessageInsert = {
             chat_id: chatId,
-            user_id: userId,
             role: 'user',
             content: content
         };
@@ -129,7 +125,7 @@ export class AgentDB {
         toolCalls?: any[]
     ): Promise<Message> {
         // Update chat timestamp
-        const chatUpdate: ChatUpdate = { last_message_at: new Date().toISOString() };
+        const chatUpdate: ChatUpdate = { updated_at: new Date().toISOString() };
         await this.supabase
             .from('rune_chats')
             // @ts-ignore
@@ -138,10 +134,8 @@ export class AgentDB {
 
         const msgPayload: MessageInsert = {
             chat_id: chatId,
-            user_id: userId,
             role: 'assistant',
             content: content,
-            usage_metadata: usageMetadata || null,
             tool_calls: toolCalls || null
         };
 
