@@ -75,6 +75,10 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
     const [showChatModal, setShowChatModal] = useState(false);
     const [autonomousMode, setAutonomousMode] = useState(false);
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+    const [sessionId, setSessionId] = useState<string | null>(null);
+    const [isStreamEnabled, setIsStreamEnabled] = useState(true);
+
+    // Auto-scroll ref
     const [availableTools, setAvailableTools] = useState<AgentToolDef[]>([]);
     const [isLoadingTools, setIsLoadingTools] = useState(false);
     const toolsListRef = useRef<HTMLDivElement>(null);
@@ -360,7 +364,14 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                 if (done) break;
                 const text = decoder.decode(value, { stream: true });
                 fullResponse += text;
-                setOutput(prev => prev + text);
+
+                if (isStreamEnabled) {
+                    setOutput(prev => prev + text);
+                }
+            }
+
+            if (!isStreamEnabled) {
+                setOutput(fullResponse);
             }
 
             // Check if we need to auto-continue
@@ -933,24 +944,53 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
 
                             {/* Toggles & Sliders */}
                             <div className="space-y-6">
+                                {/* Stream Response */}
                                 <div className="flex items-center justify-between space-x-2">
-                                    <Label htmlFor="stream-mode" className="text-xs font-medium text-white/70">Stream Response</Label>
-                                    <Switch id="stream-mode" checked={true} className="scale-75 data-[state=checked]:bg-white/90" />
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Label htmlFor="stream-mode" className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">Stream Response</Label>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
+                                            If enabled, the agent's response will be displayed character-by-character as it is generated.
+                                        </TooltipContent>
+                                    </Tooltip>
+                                    <Switch
+                                        id="stream-mode"
+                                        checked={isStreamEnabled}
+                                        onCheckedChange={setIsStreamEnabled}
+                                        className="scale-75 data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-white/10"
+                                    />
                                 </div>
+
+                                {/* JSON Mode */}
                                 <div className="flex items-center justify-between space-x-2">
-                                    <Label htmlFor="json-mode" className="text-xs font-medium text-white/70">JSON Mode</Label>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Label htmlFor="json-mode" className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">JSON Mode</Label>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
+                                            Forces the model to output valid JSON. Useful for structured data tasks.
+                                        </TooltipContent>
+                                    </Tooltip>
                                     <Switch
                                         id="json-mode"
                                         checked={config.outputMode === 'json'}
                                         onCheckedChange={(checked) => updateConfig({ outputMode: checked ? 'json' : 'text' })}
-                                        className="scale-75 data-[state=checked]:bg-white/90"
+                                        className="scale-75 data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-white/10"
                                     />
                                 </div>
 
                                 {/* Temperature Slider */}
-                                <div className="space-y-3">
+                                <div className="space-y-3 pt-2">
                                     <div className="flex items-center justify-between">
-                                        <div className="text-xs font-medium text-white/70">Temperature</div>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <div className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">Temperature</div>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
+                                                Controls randomness. Higher values (e.g., 0.8) make output more random, lower values (e.g., 0.2) more focused and deterministic.
+                                            </TooltipContent>
+                                        </Tooltip>
                                         <span className="text-[10px] font-mono text-white/50 w-10 text-right bg-white/[0.06] rounded px-1">{config.temperature.toFixed(2)}</span>
                                     </div>
                                     <Slider
@@ -958,14 +998,21 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                         onValueChange={handleTempChange}
                                         max={1}
                                         step={0.01}
-                                        className="py-1"
+                                        className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
                                     />
                                 </div>
 
                                 {/* Max Length Slider */}
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <div className="text-xs font-medium text-white/70">Max Tokens</div>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <div className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">Max Tokens</div>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
+                                                The maximum number of tokens to generate. One token is roughly 4 characters.
+                                            </TooltipContent>
+                                        </Tooltip>
                                         <span className="text-[10px] font-mono text-white/50 w-10 text-right bg-white/[0.06] rounded px-1">{config.maxTokens || 2000}</span>
                                     </div>
                                     <Slider
@@ -973,14 +1020,21 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                         onValueChange={handleMaxTokensChange}
                                         max={4000}
                                         step={1}
-                                        className="py-1"
+                                        className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
                                     />
                                 </div>
 
                                 {/* Top P Slider */}
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <div className="text-xs font-medium text-white/70">Top P</div>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <div className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">Top P</div>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
+                                                Controls diversity via nucleus sampling. 0.9 means consider the top 90% probability mass.
+                                            </TooltipContent>
+                                        </Tooltip>
                                         <span className="text-[10px] font-mono text-white/50 w-10 text-right bg-white/[0.06] rounded px-1">{(config.topP || 0.9).toFixed(2)}</span>
                                     </div>
                                     <Slider
@@ -988,7 +1042,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                         onValueChange={handleTopPChange}
                                         max={1}
                                         step={0.01}
-                                        className="py-1"
+                                        className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
                                     />
                                 </div>
                             </div>
@@ -996,13 +1050,22 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                             <Separator className="bg-border/60" />
 
                             {/* Advanced Section */}
-                            <div className="space-y-2">
-                                <div className="text-[10px] font-semibold text-white/40 uppercase tracking-widest mb-3">Advanced</div>
-                                <div className="space-y-5">
+                            <div className="space-y-4">
+                                <div className="text-[10px] font-semibold text-white/40 uppercase tracking-widest mb-1 flex items-center gap-2">
+                                    Advanced Settings
+                                </div>
+                                <div className="space-y-5 pl-1">
                                     {/* Frequency Penalty */}
                                     <div className="space-y-3">
                                         <div className="flex items-center justify-between">
-                                            <div className="text-xs font-medium text-white/70">Frequency Penalty</div>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <div className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">Frequency Penalty</div>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
+                                                    Penalizes new tokens based on their existing frequency in the text so far. Reduces repetition.
+                                                </TooltipContent>
+                                            </Tooltip>
                                             <span className="text-[10px] font-mono text-white/50 w-10 text-right bg-white/[0.06] rounded px-1">{(config.frequencyPenalty || 0).toFixed(2)}</span>
                                         </div>
                                         <Slider
@@ -1010,14 +1073,21 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                             onValueChange={handleFreqPenaltyChange}
                                             max={2}
                                             step={0.01}
-                                            className="py-1"
+                                            className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
                                         />
                                     </div>
 
                                     {/* Presence Penalty */}
                                     <div className="space-y-3">
                                         <div className="flex items-center justify-between">
-                                            <div className="text-xs font-medium text-white/70">Presence Penalty</div>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <div className="text-xs font-medium text-white/70 cursor-help border-b border-dotted border-white/20">Presence Penalty</div>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="left" className="bg-[#1A1A1A] border-white/10 text-xs text-white max-w-[200px]">
+                                                    Penalizes new tokens based on whether they appear in the text so far. Encourages talking about new topics.
+                                                </TooltipContent>
+                                            </Tooltip>
                                             <span className="text-[10px] font-mono text-white/50 w-10 text-right bg-white/[0.06] rounded px-1">{(config.presencePenalty || 0).toFixed(2)}</span>
                                         </div>
                                         <Slider
@@ -1025,7 +1095,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                             onValueChange={handlePresPenaltyChange}
                                             max={2}
                                             step={0.01}
-                                            className="py-1"
+                                            className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
                                         />
                                     </div>
                                 </div>
