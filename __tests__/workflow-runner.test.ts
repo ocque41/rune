@@ -8,11 +8,15 @@ vi.mock('@/lib/run-store', () => ({
     updateRunStatus: vi.fn(),
     updateStepExecution: vi.fn(),
     setRunWaiting: vi.fn(),
+    appendLog: vi.fn(),
 }));
 
 // Mock fetch for HTTP steps
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
+
+// Mock Supabase client
+const mockSupabase = {} as any;
 
 describe('WorkflowEngine', () => {
     beforeEach(() => {
@@ -35,7 +39,7 @@ describe('WorkflowEngine', () => {
             { id: 'e1', source: 'start', target: 'step1' }
         ];
 
-        const engine = new WorkflowEngine('wf-1', 'Test Workflow', nodes, edges);
+        const engine = new WorkflowEngine(mockSupabase, 'wf-1', 'Test Workflow', nodes, edges, 'test-user-id');
         const result = await engine.run({ initial: 'data' });
 
         expect(result.status).toBe('completed');
@@ -55,7 +59,7 @@ describe('WorkflowEngine', () => {
             { id: 'e3', source: 'if1', target: 'falseNode', sourceHandle: 'false' }
         ];
 
-        const engine = new WorkflowEngine('wf-if', 'Condition Workflow', nodes, edges);
+        const engine = new WorkflowEngine(mockSupabase, 'wf-if', 'Condition Workflow', nodes, edges, 'test-user-id');
         const result = await engine.run({ value: 10 }); // 10 > 5 is true
 
         expect(result.status).toBe('completed');
@@ -83,7 +87,7 @@ describe('WorkflowEngine', () => {
             { id: 'e2', source: 'loop1', target: 'loop1' } // Infinite loop
         ];
 
-        const engine = new WorkflowEngine('wf-loop', 'Loop Workflow', nodes, edges);
+        const engine = new WorkflowEngine(mockSupabase, 'wf-loop', 'Loop Workflow', nodes, edges, 'test-user-id');
 
         // Mock console.log to avoid noise
         const spyLog = vi.spyOn(console, 'log').mockImplementation(() => { });

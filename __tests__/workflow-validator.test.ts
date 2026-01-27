@@ -11,7 +11,7 @@ describe('Workflow Validator', () => {
 
         const result = validateGraph(nodes, edges);
         expect(result.valid).toBe(false);
-        expect(result.errors[0].code).toBe('NO_START_NODE');
+        expect(result.errors[0].code).toBe('NO_TRIGGER_NODE');
     });
 
     it('should validate a correct simple graph', () => {

@@ -125,34 +125,47 @@ export async function getRun(supabase: SupabaseClient, id: string): Promise<Work
 /**
  * List all runs
  */
-export async function listRuns(supabase: SupabaseClient): Promise<WorkflowRun[]> {
-    const { data: runs, error } = await supabase
-        .from('rune_workflow_runs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100);
+import { withTrace } from '@/lib/trace';
 
-    if (error) {
-        console.error('Error listing runs from Supabase:', error);
-        return [];
-    }
+// ...
 
-    return (runs || []).map(run => ({
-        id: run.id,
-        workflowId: run.workflow_id,
-        workflowVersionId: run.workflow_version_id,
-        workflowName: run.workflow_name,
-        status: run.status as WorkflowRun['status'],
-        startTime: run.start_time,
-        endTime: run.end_time,
-        duration: run.duration,
-        args: run.args as any[],
-        result: run.result,
-        error: run.error,
-        logs: [], // Omit logs in list
-        steps: [], // Omit steps in list
-        waitingFor: run.waiting_for as unknown as WaitingFor | undefined
-    }));
+export async function listRuns(
+    supabase: SupabaseClient,
+    options?: { limit?: number; offset?: number }
+): Promise<WorkflowRun[]> {
+    const limit = options?.limit ?? 50;
+    const offset = options?.offset ?? 0;
+
+    return withTrace('db.runs.list', async () => {
+        const { data: runs, error } = await supabase
+            .from('rune_workflow_runs')
+            .select('id, workflow_id, workflow_version_id, workflow_name, status, start_time, end_time, duration, args, result, error, waiting_for, created_at')
+            .order('created_at', { ascending: false })
+            .range(offset, offset + limit - 1);
+
+        if (error) {
+            console.error('Error listing runs from Supabase:', error);
+            return [];
+        }
+
+        return (runs || []).map(run => ({
+            id: run.id,
+
+            workflowId: run.workflow_id,
+            workflowVersionId: run.workflow_version_id,
+            workflowName: run.workflow_name,
+            status: run.status as WorkflowRun['status'],
+            startTime: run.start_time,
+            endTime: run.end_time,
+            duration: run.duration,
+            args: run.args as any[],
+            result: run.result,
+            error: run.error,
+            logs: [], // Omit logs in list
+            steps: [], // Omit steps in list
+            waitingFor: run.waiting_for as unknown as WaitingFor | undefined
+        }));
+    });
 }
 
 /**

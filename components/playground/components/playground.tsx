@@ -502,7 +502,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                                     >
                                                         <div className="flex items-center justify-between w-full">
                                                             <div className="flex items-center gap-2 overflow-hidden">
-                                                                {selectedPresetId === p.id && <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" />}
+                                                                {selectedPresetId === p.id && <Check className="h-3 w-3 text-amber-500 flex-shrink-0" />}
                                                                 <span className={cn("truncate", selectedPresetId === p.id && "text-white")}>{p.name}</span>
                                                             </div>
                                                             <button
@@ -573,17 +573,17 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-white/5 border border-white/10 ml-1">
-                                        <Zap className={cn("w-3.5 h-3.5", autonomousMode ? "text-emerald-400" : "text-white/40")} />
-                                        <span className={cn("text-xs hidden sm:inline", autonomousMode ? "text-emerald-400" : "text-white/50")}>
+                                        <Zap className={cn("w-3.5 h-3.5", autonomousMode ? "text-amber-500" : "text-white/40")} />
+                                        <span className={cn("text-xs hidden sm:inline", autonomousMode ? "text-amber-500" : "text-white/50")}>
                                             Auto
                                         </span>
                                         <Switch
                                             checked={autonomousMode}
                                             onCheckedChange={setAutonomousMode}
-                                            className="scale-75 -mr-1 data-[state=unchecked]:bg-white/10 data-[state=unchecked]:border-white/20 data-[state=checked]:bg-emerald-500 border border-transparent transition-all"
+                                            className="scale-75 -mr-1 data-[state=unchecked]:bg-white/10 data-[state=unchecked]:border-white/20 data-[state=checked]:bg-amber-500 border border-transparent transition-all"
                                         />
                                         {activeSessionId && (
-                                            <span className="ml-1 text-xs text-emerald-400 animate-pulse">●</span>
+                                            <span className="ml-1 text-xs text-amber-500 animate-pulse">●</span>
                                         )}
                                     </div>
                                 </TooltipTrigger>
@@ -833,7 +833,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                             </div>
                                             <div className="flex items-center justify-between text-[11px] text-white/60">
                                                 <span>Est. Cost</span>
-                                                <span className="font-mono text-emerald-400">
+                                                <span className="font-mono text-amber-500">
                                                     ${(messages.reduce((acc, m) => {
                                                         const input = m.usageMetadata?.promptTokenCount || 0;
                                                         const output = m.usageMetadata?.candidatesTokenCount || 0;
@@ -959,7 +959,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                             id="stream-mode"
                                             checked={isStreamEnabled}
                                             onCheckedChange={setIsStreamEnabled}
-                                            className="scale-75 data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-white/10"
+                                            className="scale-75 data-[state=checked]:bg-amber-500 data-[state=unchecked]:bg-white/10"
                                         />
                                     </div>
 
@@ -977,7 +977,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                             id="json-mode"
                                             checked={config.outputMode === 'json'}
                                             onCheckedChange={(checked) => updateConfig({ outputMode: checked ? 'json' : 'text' })}
-                                            className="scale-75 data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-white/10"
+                                            className="scale-75 data-[state=checked]:bg-amber-500 data-[state=unchecked]:bg-white/10"
                                         />
                                     </div>
 
@@ -999,7 +999,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                             onValueChange={handleTempChange}
                                             max={1}
                                             step={0.01}
-                                            className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
+                                            className="py-1 [&>.relative>.bg-primary]:bg-amber-500 [&>.relative>.bg-secondary]:bg-white/20"
                                         />
                                     </div>
 
@@ -1021,7 +1021,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                             onValueChange={handleMaxTokensChange}
                                             max={4000}
                                             step={1}
-                                            className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
+                                            className="py-1 [&>.relative>.bg-primary]:bg-amber-500 [&>.relative>.bg-secondary]:bg-white/20"
                                         />
                                     </div>
 
@@ -1043,7 +1043,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                             onValueChange={handleTopPChange}
                                             max={1}
                                             step={0.01}
-                                            className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
+                                            className="py-1 [&>.relative>.bg-primary]:bg-amber-500 [&>.relative>.bg-secondary]:bg-white/20"
                                         />
                                     </div>
                                 </div>
@@ -1074,7 +1074,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                                 onValueChange={handleFreqPenaltyChange}
                                                 max={2}
                                                 step={0.01}
-                                                className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
+                                                className="py-1 [&>.relative>.bg-primary]:bg-amber-500 [&>.relative>.bg-secondary]:bg-white/20"
                                             />
                                         </div>
 
@@ -1096,7 +1096,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                                 onValueChange={handlePresPenaltyChange}
                                                 max={2}
                                                 step={0.01}
-                                                className="py-1 [&>.relative>.bg-primary]:bg-white/90 [&>.relative>.bg-secondary]:bg-white/20"
+                                                className="py-1 [&>.relative>.bg-primary]:bg-amber-500 [&>.relative>.bg-secondary]:bg-white/20"
                                             />
                                         </div>
                                     </div>

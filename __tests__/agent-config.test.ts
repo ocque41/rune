@@ -26,20 +26,19 @@ describe('Agent Configuration Integration', () => {
     });
 
     it('should load effective, hierarchical configuration', async () => {
-        // Mock DB responses with proper chaining
-        const mockQueryBuilder = {
-            select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
-            in: vi.fn().mockReturnThis(),
-            order: vi.fn().mockResolvedValue({
-                data: [
-                    { config: { model: 'gemini-pro', temperature: 0.9 }, scope_type: 'workflow' },
-                    { config: { model: 'gpt-4', maxTokens: 4000 }, scope_type: 'user_default' }
-                ],
-                error: null
+        // Mock DB responses - the actual code uses .select('*').eq('user_id', ...)
+        // and returns an array of configs to filter client-side
+        mockSupabase.from.mockReturnValue({
+            select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockResolvedValue({
+                    data: [
+                        { config: { model: 'gemini-pro', temperature: 0.9 }, scope_type: 'workflow', workflow_id: 'test-workflow-id' },
+                        { config: { model: 'gpt-4', maxTokens: 4000 }, scope_type: 'user_default' }
+                    ],
+                    error: null
+                })
             })
-        };
-        mockSupabase.from.mockReturnValue(mockQueryBuilder);
+        });
 
         const config = await getEffectiveAgentConfig('test-workflow-id');
 

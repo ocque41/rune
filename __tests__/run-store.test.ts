@@ -80,8 +80,8 @@ describe('Run Store', () => {
             const runId = 'run-1';
             const mockRun = createMockRun(runId);
 
-            // Mock getRun response
-            mockSingle.mockResolvedValueOnce({ data: mockRun, error: null });
+            // Reset the insert mock for this test
+            mockInsert.mockResolvedValueOnce({ error: null });
 
             const newStep = {
                 stepId: 'step-1',
@@ -90,16 +90,11 @@ describe('Run Store', () => {
                 startTime: new Date().toISOString()
             };
 
-            await updateStepExecution(runId, newStep);
+            await updateStepExecution(mockSupabase as any, runId, newStep, 'test-user-id');
 
-            // Verify fetched
-            expect(mockFrom).toHaveBeenCalledWith('rune_workflow_runs');
-
-            // Verify upsert called with new step
-            expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({
-                id: runId,
-                steps: [newStep]
-            }));
+            // Verify insert called on steps table
+            expect(mockFrom).toHaveBeenCalledWith('rune_run_steps');
+            expect(mockInsert).toHaveBeenCalled();
         });
 
         it('should update existing step instead of adding duplicate', async () => {
@@ -110,10 +105,9 @@ describe('Run Store', () => {
                 status: 'running' as const,
                 startTime: new Date().toISOString()
             };
-            const mockRun = createMockRun(runId);
-            mockRun.steps = [existingStep];
 
-            mockSingle.mockResolvedValueOnce({ data: mockRun, error: null });
+            // Reset the insert mock for this test
+            mockInsert.mockResolvedValueOnce({ error: null });
 
             const updatedStep = {
                 ...existingStep,
@@ -121,20 +115,19 @@ describe('Run Store', () => {
                 endTime: new Date().toISOString()
             };
 
-            await updateStepExecution(runId, updatedStep);
+            await updateStepExecution(mockSupabase as any, runId, updatedStep, 'test-user-id');
 
-            expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({
-                id: runId,
-                steps: [updatedStep]
-            }));
+            expect(mockFrom).toHaveBeenCalledWith('rune_run_steps');
+            expect(mockInsert).toHaveBeenCalled();
         });
     });
 
     describe('WaitingFor state management', () => {
         it('should setRunWaiting update run status and waitingFor', async () => {
             const runId = 'run-1';
-            const mockRun = createMockRun(runId);
-            mockSingle.mockResolvedValueOnce({ data: mockRun, error: null });
+
+            // Mock update chain
+            mockUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
 
             const waitingFor = {
                 type: 'event' as const,
@@ -142,30 +135,28 @@ describe('Run Store', () => {
                 since: new Date().toISOString()
             };
 
-            await setRunWaiting(runId, waitingFor);
+            await setRunWaiting(mockSupabase as any, runId, waitingFor);
 
-            expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({
-                id: runId,
+            expect(mockFrom).toHaveBeenCalledWith('rune_workflow_runs');
+            expect(mockUpdate).toHaveBeenCalledWith({
                 status: 'waiting',
                 waiting_for: waitingFor
-            }));
+            });
         });
 
         it('should resumeRun clear waiting state', async () => {
             const runId = 'run-1';
-            const mockRun = createMockRun(runId);
-            mockRun.status = 'waiting';
-            mockRun.waiting_for = { type: 'event', identifier: 'test' };
 
-            mockSingle.mockResolvedValueOnce({ data: mockRun, error: null });
+            // Mock update chain
+            mockUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
 
-            await resumeRun(runId);
+            await resumeRun(mockSupabase as any, runId);
 
-            expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({
-                id: runId,
+            expect(mockFrom).toHaveBeenCalledWith('rune_workflow_runs');
+            expect(mockUpdate).toHaveBeenCalledWith({
                 status: 'running',
-                waiting_for: undefined
-            }));
+                waiting_for: null
+            });
         });
 
         it('should getWaitingRuns filter by type', async () => {
@@ -178,7 +169,7 @@ describe('Run Store', () => {
                 single: mockSingle,
             });
 
-            const results = await getWaitingRuns('event', 'test-event');
+            const results = await getWaitingRuns(mockSupabase as any, 'event', 'test-event');
             expect(results).toHaveLength(1);
             expect(results[0].id).toBe('run-1');
         });

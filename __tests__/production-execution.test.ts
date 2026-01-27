@@ -9,7 +9,11 @@ vi.mock('@/lib/run-store', () => ({
     updateRunStatus: vi.fn(),
     updateStepExecution: vi.fn(),
     setRunWaiting: vi.fn(),
+    appendLog: vi.fn(),
 }));
+
+// Mock Supabase client
+const mockSupabase = {} as any;
 
 describe('Production Workflow Execution', () => {
     // Define a production workflow object
@@ -35,10 +39,12 @@ describe('Production Workflow Execution', () => {
 
     it('should execute with the initial production ID', async () => {
         const engine = new WorkflowEngine(
+            mockSupabase,
             productionWorkflow.id,
             productionWorkflow.meta.name,
             productionWorkflow.nodes,
-            productionWorkflow.edges
+            productionWorkflow.edges,
+            'test-user-id'
         );
 
         const result = await engine.run({ initial: 'data' });
@@ -53,10 +59,12 @@ describe('Production Workflow Execution', () => {
         clonedWorkflow.id = 'prod-wf-v2-hotfix';
 
         const engine = new WorkflowEngine(
+            mockSupabase,
             clonedWorkflow.id,
             clonedWorkflow.meta.name,
             clonedWorkflow.nodes,
-            clonedWorkflow.edges
+            clonedWorkflow.edges,
+            'test-user-id'
         );
 
         const result = await engine.run({ initial: 'data' });
@@ -69,8 +77,8 @@ describe('Production Workflow Execution', () => {
         const wfA = { ...productionWorkflow, id: 'workflow-A' };
         const wfB = { ...productionWorkflow, id: 'workflow-B' };
 
-        const engineA = new WorkflowEngine(wfA.id, wfA.meta.name, wfA.nodes, wfA.edges);
-        const engineB = new WorkflowEngine(wfB.id, wfB.meta.name, wfB.nodes, wfB.edges);
+        const engineA = new WorkflowEngine(mockSupabase, wfA.id, wfA.meta.name, wfA.nodes, wfA.edges, 'test-user-id');
+        const engineB = new WorkflowEngine(mockSupabase, wfB.id, wfB.meta.name, wfB.nodes, wfB.edges, 'test-user-id');
 
         const runA = await engineA.run();
         const runB = await engineB.run();

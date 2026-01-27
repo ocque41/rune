@@ -76,8 +76,8 @@ describe('WorkflowEngine AI Node', () => {
 
         await engine.run({ name: 'World' });
 
-        // Check if @google/generative-ai was called
-        expect(mockGetGenerativeModel).toHaveBeenCalledWith({ model: 'gemini-pro' });
+        // Check if @google/generative-ai was called with enforced model
+        expect(mockGetGenerativeModel).toHaveBeenCalledWith({ model: 'gemini-2.0-flash' });
 
         // Check if prompt was interpolated
         expect(mockGenerateContent).toHaveBeenCalledWith(expect.stringContaining('User data: {"name":"World"'));
