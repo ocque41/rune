@@ -6,6 +6,8 @@ import React from 'react';
 import "./globals.css";
 import { TransitionCurtain } from "@/components/TransitionCurtain";
 import { AuthProvider } from "@/components/providers/auth-provider";
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,6 +42,8 @@ export default function RootLayout({
           {children}
           <Toaster position="top-center" richColors />
         </AuthProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
