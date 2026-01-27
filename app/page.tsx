@@ -16,13 +16,19 @@ const WorkflowList = dynamic(() => import("@/components/workflow-list").then(mod
   ssr: false,
   loading: () => <div className="flex items-center justify-center h-full opacity-50">Loading Workflows...</div>
 });
+
+const AutonomyDashboard = dynamic(() => import("@/components/autonomy/autonomy-dashboard").then(mod => mod.AutonomyDashboard), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center h-full opacity-50">Loading Autonomy...</div>
+});
+
 import Link from "next/link";
-import { BookOpen, Layout, Activity, FolderGit2 } from "lucide-react"; // Add Folder icon
+import { BookOpen, Layout, Activity, FolderGit2, Bot } from "lucide-react"; // Add Bot icon
 import { useState } from "react";
 import { toast } from 'sonner';
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'editor' | 'runs' | 'workflows'>('editor'); // Add 'workflows'
+  const [activeTab, setActiveTab] = useState<'editor' | 'runs' | 'workflows' | 'autonomy'>('editor'); // Add 'autonomy'
   const [selectedRunId, setSelectedRunId] = useState<string | undefined>();
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | undefined>();
 
@@ -84,6 +90,19 @@ export default function Home() {
               <Activity size={14} />
               Runs
             </button>
+            <button
+              onClick={() => setActiveTab('autonomy')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'autonomy'
+                ? 'border border-white/20'
+                : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-60 hover:opacity-100'
+                }`}
+              style={{
+                color: activeTab === 'autonomy' ? 'var(--foreground-title)' : 'var(--foreground-subtitle)'
+              }}
+            >
+              <Bot size={14} />
+              Autonomy
+            </button>
           </div>
         </div>
 
@@ -114,6 +133,8 @@ export default function Home() {
             setActiveTab('editor');
             toast.success(`Loading workflow...`);
           }} />
+        ) : activeTab === 'autonomy' ? (
+          <AutonomyDashboard />
         ) : (
           <div className="flex h-full">
             <div className="w-80 h-full">

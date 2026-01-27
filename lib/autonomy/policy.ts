@@ -1,6 +1,8 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Database, AutonomyPolicyConfig, BudgetUsage } from '@/lib/types/database';
 
+export type AutonomyConfig = AutonomyPolicyConfig;
+
 export const SYSTEM_DEFAULT_POLICY: AutonomyPolicyConfig = {
     mode: 'OFF',
     maxActionsPerHour: 10,
@@ -42,13 +44,16 @@ export async function getEffectivePolicy(
     }
 
     // Check for workflow specific override
-    const workflowPolicy = workflowId ? policies.find(p => p.workflow_id === workflowId) : undefined;
+    // Check for workflow specific override
+    const policiesAny = policies as any[];
+    const workflowPolicy = workflowId ? policiesAny.find((p: any) => p.workflow_id === workflowId) : undefined;
     if (workflowPolicy) {
         return { config: workflowPolicy.policy as unknown as AutonomyPolicyConfig, source: 'workflow' };
     }
 
     // Check for user default
-    const userPolicy = policies.find(p => p.workflow_id === null);
+    // Check for user default
+    const userPolicy = policiesAny.find((p: any) => p.workflow_id === null);
     if (userPolicy) {
         return { config: userPolicy.policy as unknown as AutonomyPolicyConfig, source: 'user' };
     }
