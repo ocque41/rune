@@ -16,14 +16,16 @@ import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { History, MoreHorizontal, Code2, Save, Settings2, PlayCircle, Copy, Check, MessageSquare, Plus, Clock, Zap, Trash2, Download, Plug, Loader2, Globe, Terminal } from "lucide-react"
-import { useState, useEffect, useCallback, useRef } from "react"
+import React, { useState, useEffect, useCallback, useRef } from "react"
 import { useAgentStore, ChatMessage, LLMConfig } from "../store"
 import { cn } from "@/lib/utils"
 // @ts-ignore
 import { toast } from "sonner"
 import { getAvailableTools, AgentToolDef } from "@/app/actions/tools"
 import { getAgentPresets, saveAgentPreset, deleteAgentPreset, AgentPreset } from "@/app/actions/presets"
+import { getEffectiveAgentConfig } from "@/app/actions/agent-config"
 import { animate, stagger } from "animejs"
+import { ApprovalCard } from "@/components/chat/approval-card"
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -90,7 +92,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
 
     // Slider handlers
     const handleTempChange = (vals: number[]) => updateConfig({ temperature: vals[0] });
-    const handleMaxLengthChange = (vals: number[]) => updateConfig({ maxLength: vals[0] });
+    const handleMaxTokensChange = (vals: number[]) => updateConfig({ maxTokens: vals[0] });
     const handleTopPChange = (vals: number[]) => updateConfig({ topP: vals[0] });
     const handleFreqPenaltyChange = (vals: number[]) => updateConfig({ frequencyPenalty: vals[0] });
     const handlePresPenaltyChange = (vals: number[]) => updateConfig({ presencePenalty: vals[0] });
@@ -144,12 +146,16 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
         const loadInitialData = async () => {
             setIsLoadingTools(true);
             try {
-                const [{ tools }, loadedPresets] = await Promise.all([
+                const [{ tools }, loadedPresets, effectiveConfig] = await Promise.all([
                     getAvailableTools(),
-                    getAgentPresets()
+                    getAgentPresets(),
+                    getEffectiveAgentConfig(workflowId || undefined)
                 ]);
                 setAvailableTools(tools);
                 setPresets(loadedPresets);
+                if (effectiveConfig) {
+                    updateConfig(effectiveConfig);
+                }
             } catch (e) {
                 console.error("Failed to load initial data", e);
             } finally {
@@ -679,25 +685,48 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                             ) : (
                                 <div ref={chatMessagesRef} className="flex flex-col gap-4 px-6 py-4">
                                     {messages.map((msg, idx) => (
-                                        <div
-                                            key={idx}
-                                            className={cn(
-                                                "chat-message flex gap-3 max-w-[85%]",
-                                                msg.role === 'user' ? "self-end flex-row-reverse" : "self-start"
-                                            )}
-                                        >
-                                            {/* Message Bubble */}
-                                            <div className={cn(
-                                                "px-4 py-3 rounded-2xl text-sm leading-relaxed select-text",
-                                                msg.role === 'user'
-                                                    ? "bg-white/5 text-white/90 border border-white/10 rounded-br-md"
-                                                    : "bg-white/[0.08] text-white/90 rounded-bl-md border border-white/[0.06]"
-                                            )}>
-                                                <div className="whitespace-pre-wrap font-mono text-[13px]">
-                                                    {msg.content}
+                                        <React.Fragment key={idx}>
+                                            <div
+                                                className={cn(
+                                                    "chat-message flex gap-3 max-w-[85%]",
+                                                    msg.role === 'user' ? "self-end flex-row-reverse" : "self-start"
+                                                )}
+                                            >
+                                                {/* Message Bubble */}
+                                                <div className={cn(
+                                                    "px-4 py-3 rounded-2xl text-sm leading-relaxed select-text",
+                                                    msg.role === 'user'
+                                                        ? "bg-white/5 text-white/90 border border-white/10 rounded-br-md"
+                                                        : "bg-white/[0.08] text-white/90 rounded-bl-md border border-white/[0.06]"
+                                                )}>
+                                                    <div className="whitespace-pre-wrap font-mono text-[13px]">
+                                                        {msg.content}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
+
+                                            {/* Insert Approval Card if this message has pending tool calls */}
+                                            {msg.role === 'assistant' && msg.id && msg.toolCalls && (
+                                                <div className="flex gap-3 self-start max-w-[85%] pl-3">
+                                                    {/* Check if approval is needed (e.g. status='pending' or just present) */}
+                                                    {(msg as any).approval_status && (
+                                                        <ApprovalCard
+                                                            messageId={msg.id!}
+                                                            toolCalls={msg.toolCalls}
+                                                            status={(msg as any).approval_status}
+                                                            onAction={(decision) => {
+                                                                // Optimistic update
+                                                                (msg as any).approval_status = decision;
+                                                                // Trigger re-run if approved
+                                                                if (decision === 'approved') {
+                                                                    handleSubmit(msg.id!);
+                                                                }
+                                                            }}
+                                                        />
+                                                    )}
+                                                </div>
+                                            )}
+                                        </React.Fragment>
                                     ))}
                                     {/* Streaming indicator */}
                                     {isGenerating && output && (
@@ -742,7 +771,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                     </div>
 
                                     <div className="flex items-center gap-4 text-[10px] text-white/30 font-mono">
-                                        <span className={input.length > (config.maxLength || 256) * 4 ? "text-red-400" : ""}>
+                                        <span className={input.length > (config.maxTokens || 2000) * 4 ? "text-red-400" : ""}>
                                             {input.length} chars
                                         </span>
                                         <div className="h-3 w-px bg-white/10" />
@@ -912,8 +941,8 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                     <Label htmlFor="json-mode" className="text-xs font-medium text-white/70">JSON Mode</Label>
                                     <Switch
                                         id="json-mode"
-                                        checked={config.responseFormat === 'json'}
-                                        onCheckedChange={(checked) => updateConfig({ responseFormat: checked ? 'json' : 'text' })}
+                                        checked={config.outputMode === 'json'}
+                                        onCheckedChange={(checked) => updateConfig({ outputMode: checked ? 'json' : 'text' })}
                                         className="scale-75 data-[state=checked]:bg-white/90"
                                     />
                                 </div>
@@ -936,12 +965,12 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                 {/* Max Length Slider */}
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <div className="text-xs font-medium text-white/70">Max Length</div>
-                                        <span className="text-[10px] font-mono text-white/50 w-10 text-right bg-white/[0.06] rounded px-1">{config.maxLength || 256}</span>
+                                        <div className="text-xs font-medium text-white/70">Max Tokens</div>
+                                        <span className="text-[10px] font-mono text-white/50 w-10 text-right bg-white/[0.06] rounded px-1">{config.maxTokens || 2000}</span>
                                     </div>
                                     <Slider
-                                        value={[config.maxLength || 256]}
-                                        onValueChange={handleMaxLengthChange}
+                                        value={[config.maxTokens || 2000]}
+                                        onValueChange={handleMaxTokensChange}
                                         max={4000}
                                         step={1}
                                         className="py-1"
@@ -1004,11 +1033,11 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                         </div>
                     </div>
                 </div>
-            </div>
+            </div >
 
 
             {/* Save Preset Dialog */}
-            <Dialog open={showSavePreset} onOpenChange={setShowSavePreset}>
+            < Dialog open={showSavePreset} onOpenChange={setShowSavePreset} >
                 <DialogContent className="sm:max-w-[425px] bg-[#0A0A0A] border-white/10 text-white">
                     <DialogHeader>
                         <DialogTitle className="text-sm font-semibold">Save Agent Preset</DialogTitle>
@@ -1040,17 +1069,18 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                         </Button>
                     </DialogFooter>
                 </DialogContent>
-            </Dialog>
+            </Dialog >
 
             {/* Chat List Modal */}
-            <ChatListModal
+            < ChatListModal
                 isOpen={showChatModal}
-                onClose={() => setShowChatModal(false)}
+                onClose={() => setShowChatModal(false)
+                }
                 workflowId={workflowId}
                 onChatSelect={handleChatSelect}
                 onNewChat={handleNewChat}
             />
-        </div>
+        </div >
     )
 }
 

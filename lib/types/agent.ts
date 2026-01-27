@@ -1,14 +1,7 @@
-export interface LLMConfig {
-    model: string;
-    temperature: number;
-    systemPrompt: string;
-    topP?: number;
-    maxLength?: number;
-    responseFormat?: 'text' | 'json';
-    frequencyPenalty?: number;
-    presencePenalty?: number;
-    tools?: string[];
-}
+
+import { AgentConfig } from '@/lib/agent/config-schema';
+
+export type LLMConfig = AgentConfig;
 
 export interface Message {
     role: 'system' | 'user' | 'assistant';

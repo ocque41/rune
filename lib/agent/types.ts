@@ -1,13 +1,10 @@
-import { SupabaseClient } from '@supabase/supabase-js';
 
-export interface AgentConfig {
-    model: string;
-    temperature: number;
-    systemPrompt: string;
-    maxTokens?: number;
-    tools?: string[]; // IDs of allowed tools
-    topP?: number;
-}
+import { SupabaseClient } from '@supabase/supabase-js';
+import { AgentConfig as InternalAgentConfig, AgentConfigSchema } from './config-schema';
+
+export const AgentConfigValidation = AgentConfigSchema;
+export type AgentConfig = InternalAgentConfig;
+export { AgentConfigSchema };
 
 export interface AgentMessage {
     role: 'system' | 'user' | 'assistant' | 'tool';
@@ -15,6 +12,8 @@ export interface AgentMessage {
     toolCalls?: ToolCall[];
     toolResult?: ToolResult;
     id?: string;
+    thoughtSignature?: string; // Add this for Gemini 3
+    approval_status?: 'pending' | 'approved' | 'rejected';
 }
 
 export interface ToolCall {
@@ -55,3 +54,4 @@ export interface RuntimeOptions {
     workflowId?: string;
     chatId?: string;
 }
+

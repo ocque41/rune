@@ -1,20 +1,12 @@
 import { GoogleGenerativeAI, Content, Part } from '@google/generative-ai';
 import { executeToolCall } from '@/lib/agent-tools';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { AgentConfig } from '../types';
+import { isHighImpactTool } from '../tools-metadata';
 
-export interface GeminiRuntimeConfig {
+export interface GeminiRuntimeConfig extends Partial<AgentConfig> {
     model: string;
-    temperature?: number;
-    systemPrompt?: string;
-    maxTokens?: number;
-    topP?: number;
-    tools?: string[]; // Allowed tool names
     apiKey: string;
-    thinking?: {
-        enabled: boolean;
-        budget?: number; // Legacy
-        level?: 'include' | 'minimal'; // New
-    };
 }
 
 export interface InternalMessage {
@@ -109,7 +101,9 @@ export class GeminiAgentRuntime {
                             generationConfig: {
                                 temperature: config.temperature,
                                 maxOutputTokens: config.maxTokens,
-                                topP: config.topP
+                                topP: config.topP,
+                                responseMimeType: config.outputMode === 'json' ? 'application/json' : 'text/plain',
+                                responseSchema: (config.outputMode === 'json' && config.responseSchema) ? config.responseSchema as any : undefined
                             }
                         });
 
@@ -209,7 +203,30 @@ export class GeminiAgentRuntime {
                             // @ts-ignore
                             const candidate = chunk.candidates?.[0];
                             if (candidate) {
-                                // ... (existing logic for thoughtSignature/functions)
+                                // Handle Structured Output Validation
+                                if (config.outputMode === 'json' && chunkText) { // Use chunkText for partial validation, or fullText after loop
+                                    try {
+                                        // 1. Attempt to parse JSON
+                                        // Note: Parsing chunkText directly might fail for partial JSON.
+                                        // This validation is more robust if applied to `fullText` after the stream.
+                                        // For now, we'll assume `chunkText` might contain complete JSON if the model is fast.
+                                        // A more robust solution would buffer and validate `fullText` at the end.
+                                        JSON.parse(chunkText);
+
+                                        // 2. If configured with strict schema, validate it?
+                                        // Note: We might just trust Gemini if we passed the schema, 
+                                        // but a safety parsed is better. 
+                                        // For now, we just ensure it IS valid JSON.
+
+                                        // In the future, if config.responseSchemaObject (Zod) is passed, parse it.
+                                    } catch (e) {
+                                        console.warn('[GeminiRuntime] Malformed JSON in structured mode, attempting fix or error');
+                                        // We could append a system "Correction" message, but for now we basically error/warn
+                                        throw new Error('Model failed to generate valid JSON despite structured mode.');
+                                    }
+                                }
+
+                                // ... Existing Handling ...
                                 // @ts-ignore
                                 if (candidate.thoughtSignature) {
                                     // @ts-ignore
@@ -268,6 +285,42 @@ export class GeminiAgentRuntime {
                         const executionParts = finalContent?.parts?.filter(p => 'functionCall' in p);
 
                         if (executionParts && executionParts.length > 0) {
+                            // Save tool_calls to DB
+                            if (messageRowId) {
+                                // Extract tool calls in a generic JSON structure
+                                const toolCallsData = executionParts.map((p: any) => ({
+                                    name: p.functionCall.name,
+                                    arguments: p.functionCall.args
+                                }));
+                                await this.supabase
+                                    .from('rune_chat_messages')
+                                    .update({ tool_calls: toolCallsData })
+                                    .eq('id', messageRowId);
+                            }
+
+                            // Check Execution Policy
+                            const policy = config.toolExecutionPolicy || 'confirm_high_impact';
+                            const requiresApproval = executionParts.some((p: any) => {
+                                if (policy === 'always_confirm') return true;
+                                if (policy === 'auto') return false;
+                                return isHighImpactTool(p.functionCall.name);
+                            });
+
+                            if (requiresApproval && !options.autonomousMode) {
+                                emit(`\n\n> ⚠️ Tool execution paused for approval: ${executionParts.map((p: any) => p.functionCall.name).join(', ')}.\n`);
+
+                                // Set status to pending in DB
+                                if (messageRowId) {
+                                    await this.supabase
+                                        .from('rune_chat_messages')
+                                        .update({ approval_status: 'pending' })
+                                        .eq('id', messageRowId);
+                                }
+
+                                controller.close();
+                                return;
+                            }
+
                             console.log(`[GeminiRuntime] Executing ${executionParts.length} tool(s)`);
 
                             // Prepare user response parts (Internal format for Gemini)

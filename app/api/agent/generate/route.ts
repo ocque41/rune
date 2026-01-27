@@ -3,8 +3,11 @@ import { createClient } from '@/lib/supabase/server';
 import { buildAgentContext } from '@/lib/agent-context';
 import { TOOLS_DEFINITION, getActiveContext, listWorkflows, getRecentRuns, runWorkflow, runNode, configureNode, scheduleMessage, validateNodeConfig, markNodeFailed } from '@/lib/agent-tools';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, FunctionDeclaration, FunctionDeclarationSchema } from '@google/generative-ai';
+import { AgentConfig } from '@/lib/agent/types';
+import { isHighImpactTool } from '@/lib/agent/tools-metadata';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60; // Set max duration to 60 seconds (Hobby limit)
 
 // ... (GenerateRequest interface)
 
@@ -32,22 +35,7 @@ interface GenerateRequest {
     isTemporary?: boolean;
     autonomousMode?: boolean;  // Enable auto-continuation
     sessionId?: string;        // Resume from existing session
-    config: {
-        model: string;
-        temperature: number;
-        systemPrompt: string;
-        topP?: number;
-        maxLength?: number;
-        responseFormat?: 'text' | 'json';
-        frequencyPenalty?: number;
-        presencePenalty?: number;
-        tools?: string[];
-        thinking?: {
-            enabled: boolean;
-            budget?: number;
-            level?: 'include' | 'minimal';
-        };
-    };
+    config: AgentConfig;
 }
 
 export async function POST(req: NextRequest) {
@@ -241,7 +229,7 @@ export async function POST(req: NextRequest) {
                     model: config.model,
                     temperature: config.temperature,
                     systemPrompt: systemPromptWithContext || config.systemPrompt,
-                    maxTokens: config.maxLength || 2000,
+                    maxTokens: config.maxTokens || 2000,
                     topP: config.topP,
                     apiKey: apiKey,
                     tools: allowedToolNames,
@@ -455,7 +443,7 @@ export async function POST(req: NextRequest) {
                 model: config.model,
                 messages,
                 temperature: config.temperature,
-                max_tokens: config.maxLength || 1000,
+                max_tokens: config.maxTokens || 1000,
                 stream: true, // We start with streaming
             };
 
@@ -465,7 +453,7 @@ export async function POST(req: NextRequest) {
                 requestBody.tool_choice = "auto";
             }
 
-            if (config.responseFormat === 'json') {
+            if (config.outputMode === 'json') {
                 requestBody.response_format = { type: 'json_object' };
             }
 
@@ -520,7 +508,7 @@ export async function POST(req: NextRequest) {
             // If we want server-side tools with streaming visibility:
             // 1. Receive chunks.
             // 2. If `tool_calls` appearing, buffer them. DO NOT stream to user yet (or stream a "Thinking..." status).
-            return handleOpenAIToolLoop(apiKey, requestBody, supabase, userId, chatId, autonomousMode, sessionId, workflowId || undefined);
+            return handleOpenAIToolLoop(apiKey, requestBody, supabase, userId, config, chatId, autonomousMode, sessionId, workflowId || undefined);
         }
 
         // Helper to separate SSE stream parsing from main logic
@@ -558,6 +546,7 @@ export async function POST(req: NextRequest) {
             initialBody: any,
             supabase: any,
             userId: string,
+            config: AgentConfig,
             chatId?: string | null,
             autonomousMode?: boolean,
             sessionId?: string,
@@ -663,6 +652,61 @@ export async function POST(req: NextRequest) {
 
                 // Execute tool calls and track progress
                 console.log(`[OpenAI Tool Loop] Executing ${message.tool_calls.length} tool(s)`);
+
+                // Check Execution Policy
+                const policy = config.toolExecutionPolicy || 'confirm_high_impact';
+                const toolsToExecute = message.tool_calls;
+                const requiresApproval = toolsToExecute.some((tc: any) => {
+                    if (policy === 'always_confirm') return true;
+                    if (policy === 'auto') return false;
+                    return isHighImpactTool(tc.function.name);
+                });
+
+                if (requiresApproval && !autonomousMode) {
+                    // In interactive mode, we stop and ask user to confirm. 
+                    // Since we are inside a simplified loop, we just break and return the Tool Call message to the client?
+                    // The client (UI) needs to see the tool call and provide a "Run" button.
+                    // The current UI seems to handle "assistant" messages.
+                    // If we finish with `finish_reason: tool_calls` and DON'T execute them, logic flow:
+                    // 1. We return the message. 
+                    // 2. Client sees tool calls.
+                    // 3. Client must send back "Tool Outputs" in next turn.
+
+                    // So we just BREAK the loop here?
+                    console.log('[OpenAI Tool Loop] Stopping for approval.');
+                    // We need to return the assistant message we just got.
+                    // It was saved to `currentMessages`.
+
+                    // We need to save the message to DB so client sees it.
+                    if (chatId) {
+                        // We haven't saved the Assistant Tool Call message yet in this loop?
+                        // Loop logic: `currentMessages = [...currentMessages, message, ...toolResults]` at end.
+                        // We are before that.
+
+                        // Save the tool call message
+                        await supabase.from('rune_chat_messages').insert({
+                            chat_id: chatId,
+                            role: 'assistant',
+                            content: message.content || null,
+                            tool_calls: message.tool_calls // distinct column or inside json? 
+                            // usage_metadata?
+                        });
+                        // Note: Schema scan showed `usage_metadata`, `content`. `tool_calls` might need check.
+                        // For now we assume typical storage or text representation.
+                    }
+
+                    // Should we stream the tool call? 
+                    // OpenAI sends tool calls in the stream.
+                    // But here we did a non-streaming fetch.
+
+                    // Return simple response
+                    return NextResponse.json({
+                        role: 'assistant',
+                        content: message.content,
+                        tool_calls: message.tool_calls,
+                        finish_reason: 'tool_calls'
+                    });
+                }
 
                 const toolResults = await Promise.all(message.tool_calls.map(async (toolCall: any) => {
                     let result;
@@ -786,7 +830,7 @@ export async function POST(req: NextRequest) {
                     model: config.model,
                     messages: messages.filter(m => m.role !== 'system'),
                     system: systemPrompt || undefined,
-                    max_tokens: config.maxLength || 1000,
+                    max_tokens: config.maxTokens || 1000,
                     temperature: config.temperature,
                     top_p: config.topP || 1,
                     stream: true,

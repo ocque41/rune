@@ -3,11 +3,13 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
+import { AgentConfig } from '@/lib/agent/types';
+
 export interface AgentPreset {
     id: string;
     name: string;
     description?: string;
-    config: any; // LLMConfig
+    config: AgentConfig;
     is_favorite?: boolean;
     user_id: string;
     updated_at: string;
@@ -25,7 +27,15 @@ export async function getAgentPresets() {
         .eq('user_id', user.id)
         .order('updated_at', { ascending: false });
 
-    return (data || []) as AgentPreset[];
+    return (data || []).map((p: any) => ({
+        ...p,
+        config: {
+            ...p.config,
+            maxTokens: p.config.maxTokens ?? p.config.maxLength ?? 2000,
+            outputMode: p.config.outputMode ?? (p.config.responseFormat === 'json' ? 'json' : 'text'),
+            systemPrompt: p.config.systemPrompt ?? p.config.systemInstruction ?? ''
+        }
+    })) as AgentPreset[];
 }
 
 export async function saveAgentPreset(name: string, config: any, description?: string) {

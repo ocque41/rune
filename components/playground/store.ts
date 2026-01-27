@@ -75,15 +75,20 @@ interface AgentState {
 }
 
 const defaultConfig: LLMConfig = {
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-2.0-flash-thinking-exp-1219', // Defaulting to known working model or keep existing if preferred
+    provider: 'google',
     temperature: 0.7,
     systemPrompt: '',
     topP: 0.9,
-    maxLength: 256,
-    responseFormat: 'text',
+    maxTokens: 2000,
+    outputMode: 'text',
     frequencyPenalty: 0,
     presencePenalty: 0,
-    tools: []
+    tools: [],
+    toolExecutionPolicy: 'confirm_high_impact',
+    maxToolCalls: 10,
+    maxSteps: 20,
+    persistHistory: true
 };
 
 export const useAgentStore = create<AgentState>()(

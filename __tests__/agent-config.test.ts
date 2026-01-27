@@ -1,0 +1,60 @@
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { getEffectiveAgentConfig, saveAgentConfig } from '../app/actions/agent-config';
+import { AgentConfig } from '../lib/agent/types';
+import { isHighImpactTool } from '../lib/agent/tools-metadata';
+import { createClient } from '@/lib/supabase/server';
+
+// Mock Supabase
+vi.mock('@/lib/supabase/server', () => ({
+    createClient: vi.fn()
+}));
+
+describe('Agent Configuration Integration', () => {
+    let mockSupabase: any;
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mockSupabase = {
+            auth: {
+                getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'test-user-id' } } })
+            },
+            from: vi.fn(),
+            rpc: vi.fn()
+        };
+        (createClient as any).mockResolvedValue(mockSupabase);
+    });
+
+    it('should load effective, hierarchical configuration', async () => {
+        // Mock DB responses with proper chaining
+        const mockQueryBuilder = {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            in: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({
+                data: [
+                    { config: { model: 'gemini-pro', temperature: 0.9 }, scope_type: 'workflow' },
+                    { config: { model: 'gpt-4', maxTokens: 4000 }, scope_type: 'user_default' }
+                ],
+                error: null
+            })
+        };
+        mockSupabase.from.mockReturnValue(mockQueryBuilder);
+
+        const config = await getEffectiveAgentConfig('test-workflow-id');
+
+        // Workflow config (gemini-pro) should override User Default (gpt-4)
+        expect(config?.model).toBe('gemini-pro');
+        // Workflow config didn't specify maxTokens, so it should inherit or use default
+        // (Note: getEffectiveAgentConfig merges heavily)
+    });
+
+    it('should correctly identify High Impact tools', () => {
+        expect(isHighImpactTool('run_workflow')).toBe(true);
+        expect(isHighImpactTool('configure_node')).toBe(true);
+        expect(isHighImpactTool('list_workflows')).toBe(false);
+    });
+
+    // Note: Testing actual Vercel/Gemini API behavior requires E2E or heavier mocks.
+    // Here we verify the logic that *drives* those APIs.
+});

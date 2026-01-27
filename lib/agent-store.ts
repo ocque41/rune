@@ -24,7 +24,16 @@ export const agentStore = {
             systemPrompt: data.system_prompt,
             topP: data.top_p,
             // Restore tools from metadata if available, or fetch bindings (TODO)
-            tools: data.config_metadata?.tools || []
+            tools: data.config_metadata?.tools || [],
+            // Defaults for new fields
+            provider: 'google',
+            outputMode: 'text',
+            toolExecutionPolicy: 'confirm_high_impact',
+            maxToolCalls: 5,
+            maxTokens: 2000,
+            responseSchema: undefined,
+            maxSteps: 20,
+            persistHistory: true
         };
     },
 
