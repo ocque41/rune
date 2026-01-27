@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { Node, Edge } from '@xyflow/react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { saveRun, updateRunStatus, updateStepExecution, setRunWaiting, WorkflowRun, StepExecution, appendLog } from './run-store';
+import { ingestAutonomyEvent } from '@/lib/autonomy/events';
 
 type ExecutionContext = {
     runId: string;
@@ -125,6 +126,22 @@ export class WorkflowEngine {
             // Completion
             await updateRunStatus(this.supabase, this.context.runId, 'completed', this.context.inputs);
 
+            // Trigger Autonomy Event
+            try {
+                await ingestAutonomyEvent(this.userId, {
+                    source_type: 'system',
+                    dedupe_key: `run-completed-${this.context.runId}`,
+                    workflow_id: this.workflowId,
+                    payload: {
+                        event: 'run.completed',
+                        run_id: this.context.runId,
+                        status: 'completed'
+                    }
+                });
+            } catch (e) {
+                console.warn('[Autonomy] Failed to emit completion event', e);
+            }
+
             // Re-fetch to get final object? Or construct from known state.
             // For now, return what we have (updated locally)
             return {
@@ -137,6 +154,23 @@ export class WorkflowEngine {
         } catch (error: any) {
             console.error('Workflow execution failed:', error);
             await updateRunStatus(this.supabase, this.context.runId, 'failed', undefined, error.message);
+
+            // Trigger Autonomy Event
+            try {
+                await ingestAutonomyEvent(this.userId, {
+                    source_type: 'system',
+                    dedupe_key: `run-failed-${this.context.runId}`,
+                    workflow_id: this.workflowId,
+                    payload: {
+                        event: 'run.failed',
+                        run_id: this.context.runId,
+                        status: 'failed',
+                        error: error.message
+                    }
+                });
+            } catch (e) {
+                console.warn('[Autonomy] Failed to emit failure event', e);
+            }
             throw error;
         }
     }

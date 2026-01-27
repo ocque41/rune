@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { WorkflowEngine } from '@/lib/workflow-engine';
 import CronParser from 'cron-parser';
+import { processPendingEvents } from '@/lib/autonomy/service';
 
 export const dynamic = 'force-dynamic'; // Prevent caching
 
@@ -10,6 +11,9 @@ export const dynamic = 'force-dynamic'; // Prevent caching
 export async function GET() {
     try {
         const supabase = createAdminClient();
+
+        // Process Autonomy Events Queue
+        await processPendingEvents(supabase);
 
         // 1. Fetch all workflows (active)
         // Ideally we'd have an 'active' flag or 'schedule' column.
