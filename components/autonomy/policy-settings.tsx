@@ -67,15 +67,15 @@ export const PolicySettings = () => {
     return (
         <div className="p-6 max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-white/10 pb-6">
+            <div className="flex items-center justify-between border-b border-border pb-6">
                 <div>
-                    <h2 className="text-2xl font-bold text-white mb-2">Autonomy Policy</h2>
-                    <p className="text-white/50">Configure how the autonomous agent behaves and its safety limits.</p>
+                    <h2 className="text-2xl font-bold text-foreground mb-2">Autonomy Policy</h2>
+                    <p className="text-muted-foreground">Configure how the autonomous agent behaves and its safety limits.</p>
                 </div>
                 <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="flex items-center gap-2 px-4 py-2 bg-[var(--neon-green)] text-black rounded-md hover:opacity-90 transition-all font-medium disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:opacity-90 transition-all font-medium disabled:opacity-50"
                 >
                     {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                     Save Changes
@@ -106,21 +106,21 @@ export const PolicySettings = () => {
                     title="Fully Autonomous"
                     description="The agent executes actions automatically within the defined security budgets."
                     icon={Zap}
-                    color="text-[var(--neon-green)]"
+                    color="text-primary"
                 />
             </div>
 
             {/* Budgets */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-4">
-                    <h3 className="text-lg font-medium text-white border-b border-white/10 pb-2">Action Limits</h3>
+                    <h3 className="text-lg font-medium text-foreground border-b border-border pb-2">Action Limits</h3>
 
                     <InputGroup label="Max Actions Per Hour">
                         <input
                             type="number"
                             value={config.maxActionsPerHour}
                             onChange={(e) => setConfig({ ...config, maxActionsPerHour: parseInt(e.target.value) })}
-                            className="w-full bg-white/5 border border-white/10 rounded-md px-3 py-2 text-white focus:outline-none focus:border-[var(--neon-green)]"
+                            className="w-full bg-muted/50 border border-border rounded-md px-3 py-2 text-foreground focus:outline-none focus:border-primary"
                         />
                     </InputGroup>
 
@@ -129,7 +129,7 @@ export const PolicySettings = () => {
                             type="number"
                             value={config.maxActionsPerDay}
                             onChange={(e) => setConfig({ ...config, maxActionsPerDay: parseInt(e.target.value) })}
-                            className="w-full bg-white/5 border border-white/10 rounded-md px-3 py-2 text-white focus:outline-none focus:border-[var(--neon-green)]"
+                            className="w-full bg-muted/50 border border-border rounded-md px-3 py-2 text-foreground focus:outline-none focus:border-primary"
                         />
                     </InputGroup>
 
@@ -138,13 +138,13 @@ export const PolicySettings = () => {
                             type="number"
                             value={config.maxParallelJobs}
                             onChange={(e) => setConfig({ ...config, maxParallelJobs: parseInt(e.target.value) })}
-                            className="w-full bg-white/5 border border-white/10 rounded-md px-3 py-2 text-white focus:outline-none focus:border-[var(--neon-green)]"
+                            className="w-full bg-muted/50 border border-border rounded-md px-3 py-2 text-foreground focus:outline-none focus:border-primary"
                         />
                     </InputGroup>
                 </div>
 
                 <div className="space-y-4">
-                    <h3 className="text-lg font-medium text-white border-b border-white/10 pb-2">Trigger Sources</h3>
+                    <h3 className="text-lg font-medium text-foreground border-b border-border pb-2">Trigger Sources</h3>
 
                     <div className="space-y-2">
                         <Checkbox
@@ -171,25 +171,25 @@ export const PolicySettings = () => {
 
 // Helper Components
 
-const ModeCard = ({ active, onClick, title, description, icon: Icon, color = 'text-white' }: { active: boolean; onClick: () => void; title: string; description: string; icon: any; color?: string }) => (
+const ModeCard = ({ active, onClick, title, description, icon: Icon, color = 'text-foreground' }: { active: boolean; onClick: () => void; title: string; description: string; icon: any; color?: string }) => (
     <div
         onClick={onClick}
         className={`p-4 rounded-lg border cursor-pointer transition-all ${active
-            ? 'bg-white/10 border-[var(--neon-green)]/50 shadow-[0_0_15px_rgba(34,255,100,0.1)]'
-            : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20'
+            ? 'bg-muted/50 border-primary shadow-[0_0_15px_rgba(255,255,255,0.05)]'
+            : 'bg-card border-border hover:bg-muted/20 hover:border-foreground/20'
             }`}
     >
         <div className="flex items-center gap-2 mb-2">
             <Icon className={color} size={20} />
-            <h3 className={`font-bold ${active ? 'text-white' : 'text-white/70'}`}>{title}</h3>
+            <h3 className={`font-bold ${active ? 'text-foreground' : 'text-muted-foreground'}`}>{title}</h3>
         </div>
-        <p className="text-sm text-white/50">{description}</p>
+        <p className="text-sm text-muted-foreground">{description}</p>
     </div>
 );
 
 const InputGroup = ({ label, children }: { label: string; children: React.ReactNode }) => (
     <div className="space-y-1">
-        <label className="text-xs text-white/50 uppercase tracking-wider font-medium">{label}</label>
+        <label className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{label}</label>
         {children}
     </div>
 );
@@ -197,11 +197,11 @@ const InputGroup = ({ label, children }: { label: string; children: React.ReactN
 const Checkbox = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) => (
     <div
         onClick={() => onChange(!checked)}
-        className="flex items-center gap-3 p-3 bg-white/5 rounded-md cursor-pointer hover:bg-white/10 transition-colors"
+        className="flex items-center gap-3 p-3 bg-card rounded-md cursor-pointer hover:bg-muted/50 transition-colors border border-border"
     >
-        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${checked ? 'bg-[var(--neon-green)] border-transparent' : 'border-white/20'}`}>
-            {checked && <div className="w-2.5 h-2.5 bg-black rounded-sm" />}
+        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${checked ? 'bg-primary border-transparent' : 'border-muted-foreground'}`}>
+            {checked && <div className="w-2.5 h-2.5 bg-primary-foreground rounded-sm" />}
         </div>
-        <span className="text-sm text-white">{label}</span>
+        <span className="text-sm text-foreground">{label}</span>
     </div>
 );

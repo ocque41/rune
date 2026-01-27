@@ -63,33 +63,41 @@ export function ApprovalCard({ messageId, toolCalls, status = 'pending', onActio
     }
 
     return (
-        <Card className="w-full max-w-md border-amber-200 bg-amber-50/30 my-2">
-            <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center justify-between text-amber-900">
-                    <span>Approval Required</span>
-                    <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-100">
-                        Paused
+        <Card className="w-full max-w-md border-border bg-card my-2 animate-in fade-in zoom-in-95 duration-200">
+            <CardHeader className="pb-2 border-b border-border mb-2">
+                <CardTitle className="text-sm font-medium flex items-center justify-between text-foreground">
+                    <span className="flex items-center gap-2">
+                        <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+                        </span>
+                        Approval Required
+                    </span>
+                    <Badge variant="outline" className="text-yellow-500 border-yellow-500/30 bg-yellow-500/10 font-mono text-xs uppercase tracking-wider">
+                        HitL Paused
                     </Badge>
                 </CardTitle>
             </CardHeader>
-            <CardContent className="pb-2 text-sm text-slate-600">
-                <p className="mb-2">The agent wants to execute the following tools:</p>
-                <ul className="space-y-2">
+            <CardContent className="pb-2 text-sm text-foreground/80 space-y-3">
+                <p className="text-muted-foreground text-xs uppercase tracking-wider font-medium">Proposed Tool Execution</p>
+                <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
                     {toolCalls.map((call, i) => (
-                        <li key={i} className="bg-white p-2 rounded border text-xs font-mono">
-                            <div className="font-semibold text-slate-800">{call.name}</div>
-                            <div className="text-slate-500 truncate">{JSON.stringify(call.arguments)}</div>
-                        </li>
+                        <div key={i} className="bg-muted/50 p-2.5 rounded-md border border-border group hover:border-foreground/20 transition-colors">
+                            <div className="font-mono text-xs text-primary mb-1">{call.name}</div>
+                            <div className="text-[10px] text-muted-foreground font-mono bg-background/50 p-1.5 rounded border border-border overflow-x-auto whitespace-pre-wrap">
+                                {JSON.stringify(call.arguments, null, 2)}
+                            </div>
+                        </div>
                     ))}
-                </ul>
+                </div>
             </CardContent>
-            <CardFooter className="flex justify-end gap-2 pt-2">
+            <CardFooter className="flex justify-end gap-2 pt-2 border-t border-border mt-2">
                 <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => handleAction('rejected')}
                     disabled={isLoading}
-                    className="text-slate-500 hover:text-slate-700"
+                    className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                 >
                     Reject
                 </Button>
@@ -97,9 +105,9 @@ export function ApprovalCard({ messageId, toolCalls, status = 'pending', onActio
                     size="sm"
                     onClick={() => handleAction('approved')}
                     disabled={isLoading}
-                    className="bg-amber-600 hover:bg-amber-700 text-white"
+                    className="bg-primary text-primary-foreground hover:opacity-90 transition-opacity font-medium"
                 >
-                    {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                    {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
                     Approve & Run
                 </Button>
             </CardFooter>

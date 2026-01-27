@@ -30,8 +30,7 @@ export async function executeJob(jobId: string, supabaseClient?: SupabaseClient<
     // Mark as running if not already
     if (job.status === 'pending') {
         // @ts-ignore
-        await supabase
-            .from('rune_agent_jobs')
+        (supabase.from('rune_agent_jobs') as any)
             .update({ status: 'running', started_at: new Date().toISOString() })
             .eq('id', jobId);
     }
@@ -57,10 +56,26 @@ export async function executeJob(jobId: string, supabaseClient?: SupabaseClient<
 
         if (stepsExecutedThisRun >= MAX_STEPS_PER_BATCH) {
             allCompleted = false;
-            break; // Yield for next run
+            // Yield for next run: Release lease so it can be picked up immediately
+            await updateJobStatus(supabase, jobId, 'running', { leased_until: null });
+            break;
         }
 
-        // 3. Check Budget
+        // 3. Check Policy (Allowlist/Blocklist)
+        if (policy.toolAllowlist && policy.toolAllowlist.length > 0) {
+            if (!policy.toolAllowlist.includes(step.tool)) {
+                console.warn(`[Execution] Tool usage denied by allowlist: ${step.tool}`);
+                await updateJobStatus(supabase, jobId, 'failed', { error: `Tool denied by policy: ${step.tool}` });
+                return;
+            }
+        }
+        if (policy.toolBlocklist && policy.toolBlocklist.includes(step.tool)) {
+            console.warn(`[Execution] Tool usage denied by blocklist: ${step.tool}`);
+            await updateJobStatus(supabase, jobId, 'failed', { error: `Tool blocked by policy: ${step.tool}` });
+            return;
+        }
+
+        // 4. Check Budget
         const estimatedCost = 0; // Tools don't have explicit cost yet
         const budget = await checkBudget(supabase, job.user_id, policy, estimatedCost);
 
@@ -82,7 +97,7 @@ export async function executeJob(jobId: string, supabaseClient?: SupabaseClient<
 
             // Update Job Plan in DB (Persistence)
             // @ts-ignore
-            await supabase.from('rune_agent_jobs').update({ plan: plan }).eq('id', jobId);
+            await (supabase.from('rune_agent_jobs') as any).update({ plan: plan }).eq('id', jobId);
 
             stepsExecutedThisRun++;
 

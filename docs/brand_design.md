@@ -15,17 +15,17 @@ The color palette represents a clean, modern, and high-contrast aesthetic.
 - Use `#F0EEE9` for the primary body text to ensure readability against the dark background.
 
 ## Typography
-The typography system uses **Drafting Mono** for a technical, precise feel.
+The typography system uses /Users/miguel/Documents/cumulus/rune/public/AnonymousPro-Regular.ttf for a technical, precise feel.
 
 ### Font Variables
 These variables are mapped in `globals.css` and available via CSS variables.
 
 | Variable | Usage | Style |
 | :--- | :--- | :--- |
-| `--font-h1` | Main Headlines | Drafting Mono Bold |
-| `--font-h2` | Section Titles | Drafting Mono SemiBold |
-| `--font-h3` | Subsections | Drafting Mono Medium |
-| `--font-body` | Body Text | Drafting Mono Regular |
+| `--font-h1` | Main Headlines | AnonymousPro Bold |
+| `--font-h2` | Section Titles | AnonymousPro SemiBold |
+| `--font-h3` | Subsections | AnonymousPro Medium |
+| `--font-body` | Body Text | AnonymousPro Regular |
 
 ### Hierarchy
 - **H1**: Large, bold, used for page titles.

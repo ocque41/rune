@@ -85,7 +85,7 @@ export async function updateAutonomyPolicy(config: AutonomyConfig, workflowId?: 
     revalidatePath('/autonomy'); // Revalidate if we have a page there
 }
 
-export async function approveJob(jobId: string) {
+export async function approveJob(jobId: string, decision: 'approved' | 'rejected' = 'approved') {
     const supabase = await createClient();
 
     // 1. Verify Job is waiting
@@ -99,32 +99,26 @@ export async function approveJob(jobId: string) {
     if (job.status !== 'waiting_approval') throw new Error('Job is not waiting for approval');
 
     // 2. Update Status
+    const newStatus = decision === 'approved' ? 'pending' : 'cancelled';
+
     const { error: updateError } = await supabase
         .from('rune_agent_jobs')
         .update({
-            status: 'pending',
+            status: newStatus,
             approval_responded_at: new Date().toISOString(),
-            approval_response: { decision: 'approved', by: 'user' }
+            approval_response: { decision, by: 'user' }
         } as any)
         .eq('id', jobId);
 
     if (updateError) throw new Error(updateError.message);
 
-    // 3. Trigger Execution Immediately
-    // We execute in background but await the kickoff? No, await full execution might timeout server action.
-    // Ideally we fire and forget or use a background worker.
-    // For V1, we await because steps are usually fast or we just do one batch.
-    // But `executeJob` runs until completion or budget pause.
-    // We should probably NOT await the full execution if it's long.
-    // However, for immediate user feedback, we might want to see it start.
-
-    // Fire and forget (ish) - we don't await the result, just the start?
-    // Node doesn't support fire-and-forget well in Server Actions without Next.js 15 `after`.
-    // We will await it. If it times out, the robust recovery loop (cron) picks it up.
-    try {
-        await executeJob(jobId, supabase);
-    } catch (e) {
-        console.error('Immediate execution trigger failed:', e);
+    // 3. Trigger Execution Immediately (if approved)
+    if (decision === 'approved') {
+        try {
+            await executeJob(jobId, supabase);
+        } catch (e) {
+            console.error('Immediate execution trigger failed:', e);
+        }
     }
 
     revalidatePath('/');

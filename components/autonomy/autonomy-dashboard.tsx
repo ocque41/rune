@@ -64,9 +64,9 @@ export const AutonomyDashboard = () => {
     };
 
     return (
-        <div className="flex h-full w-full bg-[#0A0A0A]">
+        <div className="flex h-full w-full bg-background text-foreground">
             {/* Sidebar Navigation */}
-            <div className="w-[60px] border-r border-white/10 flex flex-col items-center py-4 gap-4 bg-[#111]">
+            <div className="w-[60px] border-r border-border flex flex-col items-center py-4 gap-4 bg-card">
                 <NavButton
                     active={view === 'jobs'}
                     onClick={() => setView('jobs')}
@@ -85,7 +85,7 @@ export const AutonomyDashboard = () => {
             <div className="flex-1 flex overflow-hidden">
                 {view === 'jobs' ? (
                     <>
-                        <div className="w-80 h-full border-r border-white/10">
+                        <div className="w-80 h-full border-r border-border">
                             <JobList
                                 jobs={jobs}
                                 selectedJobId={selectedJobId}
@@ -93,12 +93,12 @@ export const AutonomyDashboard = () => {
                                 onRefresh={() => loadJobs(false)}
                             />
                         </div>
-                        <div className="flex-1 h-full bg-[#0A0A0A]">
+                        <div className="flex-1 h-full bg-background">
                             <JobDetails job={selectedJob} />
                         </div>
                     </>
                 ) : (
-                    <div className="flex-1 h-full overflow-y-auto">
+                    <div className="flex-1 h-full overflow-y-auto bg-background">
                         <PolicySettings />
                     </div>
                 )}
@@ -113,14 +113,14 @@ const NavButton = ({ active, onClick, icon: Icon, label }: any) => (
         className={cn(
             "p-3 rounded-xl transition-all group relative",
             active
-                ? "bg-[var(--neon-green)]/10 text-[var(--neon-green)]"
-                : "text-white/40 hover:text-white hover:bg-white/5"
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
         )}
         title={label}
     >
         <Icon size={20} />
         {active && (
-            <div className="absolute left-[-2px] top-3 bottom-3 w-[2px] bg-[var(--neon-green)] rounded-r-full" />
+            <div className="absolute left-[-2px] top-3 bottom-3 w-[2px] bg-primary rounded-r-full" />
         )}
     </button>
 );

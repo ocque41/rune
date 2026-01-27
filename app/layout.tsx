@@ -1,6 +1,6 @@
 import "@/lib/react-shim";
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { anonymousPro } from "./fonts";
 import { Toaster } from 'sonner';
 import React from 'react';
 import "./globals.css";
@@ -8,17 +8,6 @@ import { TransitionCurtain } from "@/components/TransitionCurtain";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 
 export const metadata: Metadata = {
   title: "Cumulus Automation",
@@ -35,12 +24,24 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${anonymousPro.variable} antialiased`}
       >
         <AuthProvider>
           <TransitionCurtain />
           {children}
-          <Toaster position="top-center" richColors />
+          <Toaster
+            position="top-center"
+            richColors
+            toastOptions={{
+              style: {
+                background: 'hsl(var(--background))',
+                color: 'hsl(var(--foreground))',
+                border: '1px solid hsl(var(--border))',
+                fontFamily: 'var(--font-anonymous-pro)',
+              },
+              className: 'group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg',
+            }}
+          />
         </AuthProvider>
         <Analytics />
         <SpeedInsights />

@@ -4,6 +4,8 @@ import { WorkflowEngine } from '@/lib/workflow-engine';
 import CronParser from 'cron-parser';
 import { processPendingEvents } from '@/lib/autonomy/service';
 
+import { executeJob } from '@/lib/autonomy/execution';
+
 export const dynamic = 'force-dynamic'; // Prevent caching
 
 // GET /api/cron
@@ -12,12 +14,30 @@ export async function GET() {
     try {
         const supabase = createAdminClient();
 
-        // Process Autonomy Events Queue
+        // 1. Ingest Events
         await processPendingEvents(supabase);
 
-        // 1. Fetch all workflows (active)
-        // Ideally we'd have an 'active' flag or 'schedule' column.
-        // For now, fetch generic list. Limit to 50 for safety.
+        // 2. Worker Loop: Lease & Execute Autonomy Jobs
+        // We run a "worker" here for the duration of the request (max 10s usually).
+        // Lease up to 5 jobs for 5 minutes (300s)
+        const { data: leasedJobs, error: leaseError } = await supabase
+            .rpc('lease_jobs', {
+                worker_name: 'cron-worker-vercel',
+                limit_count: 5,
+                lease_seconds: 300
+            });
+
+        if (leaseError) {
+            console.error('[Cron] Lease failed:', leaseError);
+        } else if (leasedJobs && leasedJobs.length > 0) {
+            console.log(`[Cron] Leased ${leasedJobs.length} jobs. Executing...`);
+            // Execute in parallel or sequence? Sequence is safer for memory/CPU here.
+            for (const job of leasedJobs) {
+                await executeJob(job.id, supabase);
+            }
+        }
+
+        // 3. Schedule Checks (Existing Logic)
         const { data: workflows, error } = await supabase
             .from('rune_workflows')
             .select('id, name')

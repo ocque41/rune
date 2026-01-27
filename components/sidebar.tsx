@@ -49,18 +49,14 @@ export const Sidebar = ({ hasStartNode, workflowId, onAgentClick }: { hasStartNo
     ];
     return (
         <aside
-            className="h-full w-56 border-r flex flex-col z-20 transition-all duration-300"
-            style={{
-                backgroundColor: '#131313',
-                borderColor: 'rgba(255, 255, 255, 0.1)'
-            }}
+            className="h-full w-56 border-r flex flex-col z-20 transition-all duration-300 bg-background border-border"
         >
             {/* Tab Switcher - Modified for Agent Trigger */}
-            <div className="flex p-2 gap-1 border-b border-white/5">
+            <div className="flex p-2 gap-1 border-b border-border">
                 <div
 
                     className={cn(
-                        "flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-xs font-medium transition-all bg-white/10 text-white shadow-sm"
+                        "flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-xs font-medium transition-all bg-secondary text-primary shadow-sm"
                     )}
                 >
                     <Layers size={14} />
@@ -70,7 +66,7 @@ export const Sidebar = ({ hasStartNode, workflowId, onAgentClick }: { hasStartNo
                     onClick={onAgentClick}
                     className={cn(
                         "flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-xs font-medium transition-all",
-                        "text-white/40 hover:text-[var(--neon-green)] hover:bg-[#0A0A0A]/50 border border-transparent hover:border-[var(--neon-green)]/20"
+                        "text-muted-foreground hover:text-foreground hover:bg-muted border border-transparent hover:border-border"
                     )}
                 >
                     <Bot size={14} />

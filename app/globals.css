@@ -1,364 +1,127 @@
 @import "tailwindcss";
-
-@font-face {
-  font-family: "Drafting Mono";
-  src: url("/DraftingMono-Regular.ttf") format("truetype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Drafting Mono";
-  src: url("/DraftingMono-Italic.ttf") format("truetype");
-  font-weight: 400;
-  font-style: italic;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Drafting Mono";
-  src: url("/DraftingMono-Medium.ttf") format("truetype");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Drafting Mono";
-  src: url("/DraftingMono-SemiBold.ttf") format("truetype");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Drafting Mono";
-  src: url("/DraftingMono-Bold.ttf") format("truetype");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Anonymous Pro";
-  src: url("/AnonymousPro-Regular.ttf") format("truetype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Anonymous Pro";
-  src: url("/AnonymousPro-Italic.ttf") format("truetype");
-  font-weight: 400;
-  font-style: italic;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Anonymous Pro";
-  src: url("/AnonymousPro-Bold.ttf") format("truetype");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Anonymous Pro";
-  src: url("/AnonymousPro-BoldItalic.ttf") format("truetype");
-  font-weight: 700;
-  font-style: italic;
-  font-display: swap;
-}
-
 @import "../components/playground/styles/theme.css";
 
+@theme {
+  --font-display: var(--font-anonymous);
+  --font-body: var(--font-anonymous);
+  --font-mono: var(--font-anonymous);
+
+  /* Map Tailwind colors to CSS variables */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
 :root {
-  color-scheme: dark;
-  --bg: var(--rune-bg);
-  --fg: var(--rune-fg);
-  --title: var(--rune-title);
-  --subtitle: var(--rune-subtitle);
-  --text: var(--rune-text);
-  --muted: var(--rune-muted);
+  /* Brand Spec: Monochrome, High Contrast */
+  --brand-bg: #141414;
+  --brand-fg: #F0EEE9;
 
-  --neon-green: var(--rune-neon-green);
-  --hot-pink: var(--rune-hot-pink);
-  --electric-blue: var(--rune-electric-blue);
-  --warning-yellow: var(--rune-warning-yellow);
-  --pure-black: var(--rune-pure-black);
-  --pure-white: var(--rune-pure-white);
+  /* Shadcn / Tailwind Tokens */
+  --background: #141414;
+  --foreground: #F0EEE9;
 
-  --border-thick: var(--rune-border-thick);
-  --border-thin: var(--rune-border-thin);
-  --shadow-hard: var(--rune-shadow-hard);
-  --shadow-hard-sm: var(--rune-shadow-hard-sm);
+  --card: #141414;
+  --card-foreground: #F0EEE9;
+
+  --popover: #141414;
+  --popover-foreground: #F0EEE9;
+
+  --primary: #F0EEE9;
+  --primary-foreground: #141414;
+
+  --secondary: #1F1F1F;
+  --secondary-foreground: #F0EEE9;
+
+  --muted: #2A2A2A;
+  --muted-foreground: #A0A0A0;
+
+  --accent: #2A2A2A;
+  --accent-foreground: #F0EEE9;
+
+  --destructive: #990000;
+  --destructive-foreground: #F0EEE9;
+
+  --border: #333333;
+  --input: #333333;
+  --ring: #F0EEE9;
+
+  --radius: 0.5rem;
+
+  /* Legacy Rune Variables Mapping (Ensures consistent brand even on old components) */
+  --rune-bg: var(--background);
+  --rune-fg: var(--foreground);
+  --rune-title: var(--foreground);
+  --rune-subtitle: var(--muted-foreground);
+  --rune-text: var(--foreground);
+  --rune-muted: var(--muted-foreground);
+
+  /* Override Legacy Neons to be safer/monochrome if needed, or keep for graphs */
+  /* We leave them for now, but UI using standard utility classes will use the new theme automatically */
 }
 
+/* Force dark mode */
 [data-theme="light"] {
-  /* We are forcing a dark aesthetics for this specific artistic direction, 
-     but keeping the block for structure if we ever pivot. */
+  --background: #141414;
+  --foreground: #F0EEE9;
 }
-
-/* Hide React Flow Attribution */
-.react-flow__attribution {
-  display: none !important;
-}
-
-
 
 html,
 body {
-  background: transparent;
-  color: var(--text);
-  font-family: "Anonymous Pro", monospace;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-anonymous), monospace;
   font-weight: 400;
-  letter-spacing: -0.03em;
   letter-spacing: -0.03em;
   min-height: 100%;
   overflow-x: hidden;
 }
 
-h1 {
-  font-family: "Drafting Mono", monospace;
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-anonymous), monospace;
+  font-weight: 700;
 }
 
-::selection {
-  background: var(--title);
-  color: var(--bg);
-}
-
+/* Links */
 a {
   color: inherit;
   text-decoration: none;
 }
 
-a:hover:not(.no-underline):not(.card-link),
-a:focus-visible:not(.no-underline):not(.card-link) {
+a:hover:not(.no-underline):not(.card-link) {
   text-decoration: underline;
   text-decoration-thickness: 0.5px;
 }
 
-.card-link {
-  text-decoration: none;
-}
-
-.card-link:hover,
-.card-link:focus-visible {
-  text-decoration: none;
-}
-
-button a,
-a[class*="inline-flex"] {
-  color: inherit !important;
-}
-
-.display {
-  font-size: clamp(3.2rem, 5vw + 1rem, 7rem);
-  line-height: 0.9;
-  letter-spacing: -0.1em;
-  font-weight: 700;
-  color: var(--title);
-}
-
-.lead {
-  font-size: clamp(1.2rem, 0.8vw + 1rem, 1.5rem);
-  letter-spacing: -0.06em;
-  font-weight: 600;
-  color: var(--subtitle);
-}
-
-.small {
-  font-size: 0.875rem;
-}
-
-.body {
-  font-size: 1.125rem;
-  letter-spacing: -0.03em;
-  font-weight: 400;
-  color: var(--text);
-}
-
-.container {
-  width: 100%;
-  max-width: 1200px;
-  margin-inline: auto;
-  padding-inline: 1rem;
-}
-
-@keyframes ambientGradient {
-  0% {
-    background-position: 0% 50%;
-  }
-
-  25% {
-    background-position: 50% 100%;
-  }
-
-  50% {
-    background-position: 100% 50%;
-  }
-
-  75% {
-    background-position: 50% 0%;
-  }
-
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-@keyframes ambientGradientReverse {
-  0% {
-    background-position: 100% 50%;
-  }
-
-  25% {
-    background-position: 50% 0%;
-  }
-
-  50% {
-    background-position: 0% 50%;
-  }
-
-  75% {
-    background-position: 50% 100%;
-  }
-
-  100% {
-    background-position: 100% 50%;
-  }
-}
-
-@keyframes ambientGradientTilt {
-  0% {
-    background-position: 30% 0%;
-  }
-
-  20% {
-    background-position: 70% 40%;
-  }
-
-  50% {
-    background-position: 100% 80%;
-  }
-
-  80% {
-    background-position: 40% 100%;
-  }
-
-  100% {
-    background-position: 0% 60%;
-  }
-}
-
-@keyframes ambientGradientWave {
-  0% {
-    background-position: 50% 100%;
-  }
-
-  30% {
-    background-position: 70% 30%;
-  }
-
-  60% {
-    background-position: 30% 0%;
-  }
-
-  85% {
-    background-position: 0% 70%;
-  }
-
-  100% {
-    background-position: 50% 100%;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-/* Glass-morphic card styles */
+/* Utilities */
 .glass-card {
   background: rgba(20, 20, 20, 0.8);
   backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 1rem;
-  transition: all 0.3s ease;
+  border: 1px solid var(--border);
 }
 
-.glass-card:hover {
-  border-color: rgba(255, 255, 255, 0.15);
-  background: rgba(20, 20, 20, 0.9);
-}
-
-.glass-card-highlight {
-  background: rgba(25, 25, 25, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 1rem;
-  transition: all 0.3s ease;
-}
-
-.glass-card-highlight:hover {
-  border-color: rgba(255, 255, 255, 0.25);
-  background: rgba(30, 30, 30, 0.9);
-}
-
-.glass-badge {
-  background: rgba(20, 20, 20, 0.9);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 9999px;
-}
-
-.glass-button {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0.5rem;
-  transition: all 0.2s ease;
-}
-
-.glass-button:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.glass-button-primary {
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 0.5rem;
-  color: var(--fg);
-  transition: all 0.2s ease;
-}
-
-.glass-button-primary:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.3);
-}
-
-/* Hide scrollbar utility */
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
+::selection {
+  background: var(--primary);
+  color: var(--primary-foreground);
 }

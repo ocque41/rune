@@ -6,276 +6,281 @@ export type Json =
     | { [key: string]: Json | undefined }
     | Json[]
 
-export interface Database {
+export type Database = {
+    // Allows to automatically instantiate createClient with right options
+    // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+    __InternalSupabase: {
+        PostgrestVersion: "13.0.5"
+    }
     public: {
         Tables: {
-            rune_chats: {
+            rune_webhook_endpoints: {
                 Row: {
                     id: string
-                    user_id: string
-                    workflow_id: string | null
-                    title: string
-                    is_temporary: boolean
                     created_at: string
                     updated_at: string
-                    last_message_at: string
-                    archived_at: string | null
+                    user_id: string
+                    workflow_id: string | null
+                    name: string
+                    secret_hash: string
+                    description: string | null
+                    is_active: boolean
                 }
                 Insert: {
                     id?: string
-                    user_id?: string
-                    workflow_id?: string | null
-                    title?: string
-                    is_temporary?: boolean
                     created_at?: string
                     updated_at?: string
-                    last_message_at?: string
-                    archived_at?: string | null
+                    user_id: string
+                    workflow_id?: string | null
+                    name: string
+                    secret_hash: string
+                    description?: string | null
+                    is_active?: boolean
                 }
                 Update: {
                     id?: string
-                    user_id?: string
-                    workflow_id?: string | null
-                    title?: string
-                    is_temporary?: boolean
                     created_at?: string
                     updated_at?: string
-                    last_message_at?: string
-                    archived_at?: string | null
+                    user_id?: string
+                    workflow_id?: string | null
+                    name?: string
+                    secret_hash?: string
+                    description?: string | null
+                    is_active?: boolean
                 }
-                Relationships: []
             }
-            rune_chat_messages: {
+            rune_approval_tokens: {
                 Row: {
                     id: string
-                    chat_id: string
-                    user_id: string
-                    role: string
-                    content: string | null
-                    tool_calls: Json | null
-                    tool_results: Json | null
-                    usage_metadata: Json | null
+                    job_id: string
+                    token_hash: string
+                    action: string
                     created_at: string
+                    expires_at: string
+                    used_at: string | null
                 }
                 Insert: {
                     id?: string
-                    chat_id: string
-                    user_id?: string // Handled by RLS/Trigger or explicit
-                    role: string
-                    content?: string | null
-                    tool_calls?: Json | null
-                    tool_results?: Json | null
-                    usage_metadata?: Json | null
+                    job_id: string
+                    token_hash: string
+                    action: string
                     created_at?: string
+                    expires_at?: string
+                    used_at?: string | null
                 }
                 Update: {
                     id?: string
-                    chat_id?: string
-                    user_id?: string
-                    role?: string
-                    content?: string | null
-                    tool_calls?: Json | null
-                    tool_results?: Json | null
-                    usage_metadata?: Json | null
+                    job_id?: string
+                    token_hash?: string
+                    action?: string
                     created_at?: string
+                    expires_at?: string
+                    used_at?: string | null
                 }
-                Relationships: []
             }
             rune_agent_events: {
                 Row: {
-                    id: string
                     created_at: string
-                    user_id: string
-                    workflow_id: string | null
-                    source_type: 'webhook' | 'schedule' | 'system'
+                    deduplication_key: string | null
+                    event_type: string
+                    id: string
                     payload: Json
-                    dedupe_key: string
-                    status: 'pending' | 'processing' | 'processed' | 'failed' | 'skipped'
                     processed_at: string | null
-                    error: string | null
-                }
-                Insert: {
-                    id?: string
-                    created_at?: string
-                    user_id?: string
-                    workflow_id?: string | null
-                    source_type: 'webhook' | 'schedule' | 'system'
-                    payload?: Json
-                    dedupe_key: string
-                    status?: 'pending' | 'processing' | 'processed' | 'failed' | 'skipped'
-                    processed_at?: string | null
-                    error?: string | null
-                }
-                Update: {
-                    id?: string
-                    created_at?: string
-                    user_id?: string
-                    workflow_id?: string | null
-                    source_type?: 'webhook' | 'schedule' | 'system'
-                    payload?: Json
-                    dedupe_key?: string
-                    status?: 'pending' | 'processing' | 'processed' | 'failed' | 'skipped'
-                    processed_at?: string | null
-                    error?: string | null
-                }
-                Relationships: []
-            }
-            rune_autonomy_policies: {
-                Row: {
-                    id: string
-                    created_at: string
-                    updated_at: string
+                    processing_metadata: Json | null
+                    source_type: string
+                    status: string
                     user_id: string
                     workflow_id: string | null
-                    policy: Json
                 }
                 Insert: {
-                    id?: string
                     created_at?: string
-                    updated_at?: string
-                    user_id?: string
+                    deduplication_key?: string | null
+                    event_type?: string
+                    id?: string
+                    payload?: Json
+                    processed_at?: string | null
+                    processing_metadata?: Json | null
+                    source_type: string
+                    status?: string
+                    user_id: string
                     workflow_id?: string | null
-                    policy?: Json
                 }
                 Update: {
-                    id?: string
                     created_at?: string
-                    updated_at?: string
+                    deduplication_key?: string | null
+                    event_type?: string
+                    id?: string
+                    payload?: Json
+                    processed_at?: string | null
+                    processing_metadata?: Json | null
+                    source_type?: string
+                    status?: string
                     user_id?: string
                     workflow_id?: string | null
-                    policy?: Json
                 }
                 Relationships: []
             }
             rune_agent_jobs: {
                 Row: {
-                    id: string
+                    context: Json | null
                     created_at: string
+                    event_id: string | null
+                    id: string
+                    plan: Json | null
+                    priority: string
+                    result: Json | null
+                    status: string
+                    title: string
                     updated_at: string
                     user_id: string
-                    workflow_id: string
-                    event_id: string | null
-                    status: 'pending' | 'running' | 'waiting_approval' | 'completed' | 'failed' | 'cancelled' | 'budget_exceeded'
-                    triage_result: Json | null
-                    plan: Json | null
-                    actions_taken: Json[] | null
-                    tokens_used: number
-                    error: string | null
-                    completed_at: string | null
-                    actions_count: number
-                    approval_hook_token: string | null
-                    approval_requested_at: string | null
+                    workflow_id: string | null
                     approval_responded_at: string | null
                     approval_response: Json | null
+                    leased_until: string | null
+                    worker_id: string | null
                 }
                 Insert: {
-                    id?: string
+                    context?: Json | null
                     created_at?: string
-                    updated_at?: string
-                    user_id?: string
-                    workflow_id: string
                     event_id?: string | null
-                    status?: 'pending' | 'running' | 'waiting_approval' | 'completed' | 'failed' | 'cancelled' | 'budget_exceeded'
-                    triage_result?: Json | null
+                    id?: string
                     plan?: Json | null
-                    actions_taken?: Json[] | null
-                    tokens_used?: number
-                    error?: string | null
-                    completed_at?: string | null
-                    actions_count?: number
-                    approval_hook_token?: string | null
-                    approval_requested_at?: string | null
+                    priority?: string
+                    result?: Json | null
+                    status?: string
+                    title: string
+                    updated_at?: string
+                    user_id: string
+                    workflow_id?: string | null
                     approval_responded_at?: string | null
                     approval_response?: Json | null
+                    leased_until?: string | null
+                    worker_id?: string | null
                 }
                 Update: {
-                    id?: string
+                    context?: Json | null
                     created_at?: string
+                    event_id?: string | null
+                    id?: string
+                    plan?: Json | null
+                    priority?: string
+                    result?: Json | null
+                    status?: string
+                    title?: string
                     updated_at?: string
                     user_id?: string
-                    workflow_id?: string
-                    event_id?: string | null
-                    status?: 'pending' | 'running' | 'waiting_approval' | 'completed' | 'failed' | 'cancelled' | 'budget_exceeded'
-                    triage_result?: Json | null
-                    plan?: Json | null
-                    actions_taken?: Json[] | null
-                    tokens_used?: number
-                    error?: string | null
-                    completed_at?: string | null
-                    actions_count?: number
-                    approval_hook_token?: string | null
-                    approval_requested_at?: string | null
+                    workflow_id?: string | null
                     approval_responded_at?: string | null
                     approval_response?: Json | null
+                    leased_until?: string | null
+                    worker_id?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "rune_agent_jobs_event_id_fkey"
+                        columns: ["event_id"]
+                        isOneToOne: false
+                        referencedRelation: "rune_agent_events"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+            rune_autonomy_policies: {
+                Row: {
+                    created_at: string
+                    id: string
+                    policy: Json
+                    updated_at: string
+                    user_id: string
+                    workflow_id: string | null
+                    tool_allowlist: string[] | null
+                    tool_blocklist: string[] | null
+                    domain_allowlist: string[] | null
+                }
+                Insert: {
+                    created_at?: string
+                    id?: string
+                    policy: Json
+                    updated_at?: string
+                    user_id: string
+                    workflow_id?: string | null
+                    tool_allowlist?: string[] | null
+                    tool_blocklist?: string[] | null
+                    domain_allowlist?: string[] | null
+                }
+                Update: {
+                    created_at?: string
+                    id?: string
+                    policy?: Json
+                    updated_at?: string
+                    user_id?: string
+                    workflow_id?: string | null
+                    tool_allowlist?: string[] | null
+                    tool_blocklist?: string[] | null
+                    domain_allowlist?: string[] | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "rune_autonomy_policies_workflow_id_fkey"
+                        columns: ["workflow_id"]
+                        isOneToOne: false
+                        referencedRelation: "rune_workflows"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+            rune_autonomy_budget_usage: {
+                Row: {
+                    actions_last_day: number | null
+                    actions_last_hour: number | null
+                    jobs_running: number | null
+                    tokens_last_day: number | null
+                    tokens_last_hour: number | null
+                    user_id: string | null
+                }
+                Insert: {
+                    actions_last_day?: number | null
+                    actions_last_hour?: number | null
+                    jobs_running?: number | null
+                    tokens_last_day?: number | null
+                    tokens_last_hour?: number | null
+                    user_id?: string | null
+                }
+                Update: {
+                    actions_last_day?: number | null
+                    actions_last_hour?: number | null
+                    jobs_running?: number | null
+                    tokens_last_day?: number | null
+                    tokens_last_hour?: number | null
+                    user_id?: string | null
                 }
                 Relationships: []
             }
-            rune_agent_decisions: {
+            rune_workflows: {
                 Row: {
-                    id: string
-                    created_at: string
-                    job_id: string
+                    id: string,
+                    webhook_secret: string | null,
                     user_id: string
-                    decision_type: 'triage' | 'plan' | 'tool_call' | 'approval_request' | 'approval_response' | 'budget_check' | 'policy_check'
-                    input_summary: Json
-                    output_summary: Json
-                    model_used: string | null
-                    tokens_in: number | null
-                    tokens_out: number | null
-                    duration_ms: number | null
-                    success: boolean
-                    error: string | null
+                    // ... truncated for brevity, we focus on autonomy fields
                 }
                 Insert: {
-                    id?: string
-                    created_at?: string
-                    job_id: string
-                    user_id?: string
-                    decision_type: 'triage' | 'plan' | 'tool_call' | 'approval_request' | 'approval_response' | 'budget_check' | 'policy_check'
-                    input_summary?: Json
-                    output_summary?: Json
-                    model_used?: string | null
-                    tokens_in?: number | null
-                    tokens_out?: number | null
-                    duration_ms?: number | null
-                    success?: boolean
-                    error?: string | null
+                    id?: string,
+                    webhook_secret?: string | null,
+                    user_id: string
                 }
                 Update: {
-                    id?: string
-                    created_at?: string
-                    job_id?: string
-                    user_id?: string
-                    decision_type?: 'triage' | 'plan' | 'tool_call' | 'approval_request' | 'approval_response' | 'budget_check' | 'policy_check'
-                    input_summary?: Json
-                    output_summary?: Json
-                    model_used?: string | null
-                    tokens_in?: number | null
-                    tokens_out?: number | null
-                    duration_ms?: number | null
-                    success?: boolean
-                    error?: string | null
+                    webhook_secret?: string | null
                 }
-                Relationships: []
             }
         }
         Views: {
-            rune_autonomy_budget_usage: {
-                Row: {
-                    user_id: string
-                    actions_last_hour: number
-                    tokens_last_hour: number
-                    actions_last_day: number
-                    tokens_last_day: number
-                    jobs_running: number
-                }
-            }
+            [_ in never]: never
         }
         Functions: {
             [_ in never]: never
         }
         Enums: {
-            [_ in never]: never
+            agent_config_scope: "global" | "workflow" | "node" | "user_default"
         }
         CompositeTypes: {
             [_ in never]: never
@@ -283,25 +288,32 @@ export interface Database {
     }
 }
 
-// Autonomy-specific type exports for convenience
-export type AgentEvent = Database['public']['Tables']['rune_agent_events']['Row'];
-export type AgentEventInsert = Database['public']['Tables']['rune_agent_events']['Insert'];
-export type AgentEventUpdate = Database['public']['Tables']['rune_agent_events']['Update'];
+export type Tables<
+    PublicTableNameOrOptions extends
+    | keyof (Database["public"]["Tables"] & Database["public"]["Views"])
+    | { schema: keyof Database },
+    TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
+    ? keyof (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
+        Database[PublicTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = PublicTableNameOrOptions extends { schema: keyof Database }
+    ? (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
+        Database[PublicTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+            Row: infer R
+        }
+    ? R
+    : never
+    : PublicTableNameOrOptions extends keyof (Database["public"]["Tables"] &
+        Database["public"]["Views"])
+    ? (Database["public"]["Tables"] &
+        Database["public"]["Views"])[PublicTableNameOrOptions] extends {
+            Row: infer R
+        }
+    ? R
+    : never
+    : never
 
-export type AutonomyPolicy = Database['public']['Tables']['rune_autonomy_policies']['Row'];
-export type AutonomyPolicyInsert = Database['public']['Tables']['rune_autonomy_policies']['Insert'];
-export type AutonomyPolicyUpdate = Database['public']['Tables']['rune_autonomy_policies']['Update'];
-
-export type AgentJob = Database['public']['Tables']['rune_agent_jobs']['Row'];
-export type AgentJobInsert = Database['public']['Tables']['rune_agent_jobs']['Insert'];
-export type AgentJobUpdate = Database['public']['Tables']['rune_agent_jobs']['Update'];
-
-export type AgentDecision = Database['public']['Tables']['rune_agent_decisions']['Row'];
-export type AgentDecisionInsert = Database['public']['Tables']['rune_agent_decisions']['Insert'];
-
-export type BudgetUsage = Database['public']['Views']['rune_autonomy_budget_usage']['Row'];
-
-// Strongly-typed policy configuration
+// Manual types for Policy Logic
 export interface AutonomyPolicyConfig {
     mode: 'OFF' | 'CONFIRM' | 'AUTONOMOUS';
     maxActionsPerHour: number;
@@ -311,14 +323,23 @@ export interface AutonomyPolicyConfig {
     maxParallelJobs: number;
     toolAllowlist: string[];
     toolBlocklist: string[];
+    domainAllowlist?: string[]; // New
     triggersEnabled: {
         webhook: boolean;
         schedule: boolean;
         runCompletion: boolean;
         manualOnly: boolean;
     };
-    cronSchedule?: string;
     notifyOnSuccess: boolean;
     notifyOnFailure: boolean;
     notifyOnApprovalNeeded: boolean;
+}
+
+export interface BudgetUsage {
+    user_id: string;
+    actions_last_hour: number;
+    actions_last_day: number;
+    tokens_last_hour: number;
+    tokens_last_day: number;
+    jobs_running: number;
 }
