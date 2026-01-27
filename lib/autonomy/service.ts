@@ -25,7 +25,8 @@ export async function processPendingEvents(supabase: SupabaseClient<Database>) {
     if (events && events.length > 0) {
         console.log(`[Autonomy] Processing ${events.length} pending events`);
         // Process sequentially to manage rate limits
-        for (const e of events) {
+        const eventsAny = events as any[];
+        for (const e of eventsAny) {
             await processEvent(e.id, supabase);
         }
     }
