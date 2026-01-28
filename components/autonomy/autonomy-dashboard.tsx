@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { JobList } from './job-list';
 import { JobDetails } from './job-details';
+import { JobListSkeleton } from './job-list-skeleton';
+import { JobDetailsSkeleton } from './job-details-skeleton';
 import { PolicySettings } from './policy-settings';
 import { getAutonomyJobs, getAutonomyJob } from '@/app/actions/autonomy';
 import { toast } from 'sonner';
@@ -15,6 +17,7 @@ export const AutonomyDashboard = () => {
     const [jobs, setJobs] = useState<any[]>([]);
     const [selectedJob, setSelectedJob] = useState<any>(null);
     const [refreshing, setRefreshing] = useState(false);
+    const [initialLoading, setInitialLoading] = useState(true);
 
     // Initial load & Polling
     useEffect(() => {
@@ -51,6 +54,7 @@ export const AutonomyDashboard = () => {
             if (!silent) toast.error('Failed to load jobs');
         } finally {
             if (!silent) setRefreshing(false);
+            setInitialLoading(false);
         }
     };
 
@@ -86,15 +90,19 @@ export const AutonomyDashboard = () => {
                 {view === 'jobs' ? (
                     <>
                         <div className="w-80 h-full border-r border-border">
-                            <JobList
-                                jobs={jobs}
-                                selectedJobId={selectedJobId}
-                                onSelect={setSelectedJobId}
-                                onRefresh={() => loadJobs(false)}
-                            />
+                            {initialLoading ? (
+                                <JobListSkeleton />
+                            ) : (
+                                <JobList
+                                    jobs={jobs}
+                                    selectedJobId={selectedJobId}
+                                    onSelect={setSelectedJobId}
+                                    onRefresh={() => loadJobs(false)}
+                                />
+                            )}
                         </div>
                         <div className="flex-1 h-full bg-background">
-                            <JobDetails job={selectedJob} />
+                            {initialLoading ? <JobDetailsSkeleton /> : <JobDetails job={selectedJob} />}
                         </div>
                     </>
                 ) : (

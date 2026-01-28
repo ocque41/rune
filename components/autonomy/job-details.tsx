@@ -3,10 +3,12 @@
 import React, { useState } from 'react';
 import { approveJob, rejectJob } from '@/app/actions/autonomy';
 import { toast } from 'sonner';
+import { useEnterAnimation } from '@/hooks/use-enter-animation';
 import { CheckCircle, XCircle, Clock, Play, AlertCircle, Terminal, Cpu, UserCheck, ShieldAlert } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 export const JobDetails = ({ job }: { job: any }) => {
+    const scope = useEnterAnimation({ selector: '.step-item', stagger: 50, delay: 100 });
     const [actionLoading, setActionLoading] = useState(false);
 
     if (!job) {
@@ -95,7 +97,7 @@ export const JobDetails = ({ job }: { job: any }) => {
                 <div>
                     <h3 className="text-sm font-medium text-muted-foreground/60 uppercase tracking-wider mb-4 pl-1">Execution Plan</h3>
 
-                    <div className="space-y-4">
+                    <div ref={scope} className="space-y-4">
                         {planSteps.length === 0 && (
                             <div className="p-4 border border-dashed border-border rounded-lg text-muted-foreground text-center text-sm">
                                 No steps generated
@@ -103,7 +105,7 @@ export const JobDetails = ({ job }: { job: any }) => {
                         )}
 
                         {planSteps.map((step: any, index: number) => (
-                            <div key={index} className="relative pl-8 group">
+                            <div key={index} className="step-item opacity-0 relative pl-8 group">
                                 {/* Timeline Line */}
                                 {index !== planSteps.length - 1 && (
                                     <div className="absolute left-[11px] top-7 bottom-[-20px] w-px bg-border group-hover:bg-foreground/20 transition-colors" />

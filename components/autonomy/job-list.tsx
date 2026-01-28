@@ -4,6 +4,7 @@ import React from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Bot, Clock, AlertTriangle, CheckCircle, XCircle, Search, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useEnterAnimation } from '@/hooks/use-enter-animation';
 
 export const JobList = ({
     jobs,
@@ -16,8 +17,10 @@ export const JobList = ({
     onSelect: (id: string) => void,
     onRefresh: () => void
 }) => {
+    const scope = useEnterAnimation({ selector: '.job-item', stagger: 30 });
+
     return (
-        <div className="flex flex-col h-full bg-background border-r border-border">
+        <div ref={scope} className="flex flex-col h-full bg-background border-r border-border">
             {/* Header */}
             <div className="p-4 border-b border-border flex items-center justify-between">
                 <div className="flex items-center gap-2 text-foreground font-semibold">
@@ -39,7 +42,7 @@ export const JobList = ({
                         key={job.id}
                         onClick={() => onSelect(job.id)}
                         className={cn(
-                            "group p-3 rounded-lg cursor-pointer transition-all border border-transparent",
+                            "job-item opacity-0 group p-3 rounded-lg cursor-pointer transition-all border border-transparent",
                             selectedJobId === job.id
                                 ? "bg-muted border-border"
                                 : "hover:bg-muted/50 hover:border-border/50"
