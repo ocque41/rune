@@ -118,6 +118,21 @@ export async function GET() {
             }
         }
 
+
+        // 4. Daily Rollup (Yesterday & Today)
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+            await supabase.rpc('rollup_daily_usage', { target_day: yesterday });
+            await supabase.rpc('rollup_daily_usage', { target_day: today });
+
+            console.log('[Cron] Usage rollup completed');
+        } catch (e) {
+            console.error('[Cron] Usage rollup failed:', e);
+            errors.push({ type: 'rollup', error: e });
+        }
+
         return NextResponse.json({
             success: true,
             message: 'Cron check completed',

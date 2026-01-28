@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
-import { calculateEstimatedCost } from './pricing';
+import { createAdminClient } from '@/lib/supabase/server';
+import { estimateCost } from '@/lib/billing/gemini-pricing';
 
 export interface UsageEventPayload {
     userId: string;
@@ -13,6 +13,7 @@ export interface UsageEventPayload {
     jobId?: string;
     stepId?: string;
     requestId?: string;
+    runId?: string;
 
     // Metrics
     inputTokens?: number;
@@ -23,80 +24,71 @@ export interface UsageEventPayload {
 
     // Tools
     toolName?: string;
-    toolCallsCount?: number;
     isHighImpactTool?: boolean;
-    approvalStatus?: 'pending' | 'approved' | 'rejected';
+    approvalStatus?: 'pending' | 'approved' | 'rejected' | 'none';
+    durationMs?: number;
+    argsRedacted?: any;
 
     status: 'success' | 'error' | 'blocked';
     metadata?: Record<string, any>;
+    errorCode?: string;
 }
 
 export async function logUsageEvent(payload: UsageEventPayload) {
     try {
-        const supabase = await createClient();
+        const supabase = createAdminClient();
 
-        // Calculate cost if tokens are present
-        let estimatedCost = 0;
-        if (payload.inputTokens || payload.outputTokens) {
-            estimatedCost = calculateEstimatedCost({
+        // 1. Log LLM Call if tokens are present
+        if (payload.inputTokens !== undefined || payload.outputTokens !== undefined) {
+            const usage = {
+                prompt_tokens: payload.inputTokens || 0,
+                output_tokens: payload.outputTokens || 0,
+                cached_tokens: payload.cachedTokens,
+            };
+
+            const estimatedCost = estimateCost(payload.model, usage);
+
+            // Construct metadata including source and other fields
+            const requestMetadata = {
+                ...payload.metadata,
+                source: payload.source,
+                step_id: payload.stepId,
+                request_id: payload.requestId
+            };
+
+            await supabase.from('rune_llm_calls').insert({
+                user_id: payload.userId,
+                workflow_id: payload.workflowId ? payload.workflowId : null, // handle empty string if any
+                chat_id: payload.chatId,
+                job_id: payload.jobId,
                 model: payload.model,
-                inputTokens: payload.inputTokens || 0,
-                outputTokens: payload.outputTokens || 0,
-                cachedTokens: payload.cachedTokens
+                provider: payload.provider || 'gemini',
+                prompt_tokens: usage.prompt_tokens,
+                output_tokens: usage.output_tokens,
+                total_tokens: payload.totalTokens || (usage.prompt_tokens + usage.output_tokens),
+                cached_tokens: usage.cached_tokens || 0,
+                estimated_cost_usd: estimatedCost,
+                latency_ms: payload.latencyMs,
+                status: payload.status,
+                error_code: payload.errorCode,
+                request_metadata: requestMetadata
             });
         }
 
-        // Insert async (fire and forget pattern safe for this context)
-        // We use the service role to ensure we can write audit logs regardless of current RLS context
-        // BUT 'createClient' usually uses user auth. 
-        // If we are in a server action with a user, it works via RLS 'userId = auth.uid()'.
-        // If we are in a background worker, we might need a service role client.
-        // For now, we assume this runs in context of the user triggering the action.
-
-        // Note: The RLS policy we created checks `auth.uid() = user_id`.
-        // So we MUST ensure payload.userId matches the current session.
-
-        /* 
-           DESIGN DECISION: 
-           If we are running in a background job (Cron), we won't have a user session.
-           We should probably use a Service Role client if available, OR relying on the fact 
-           that `createClient` from `@/lib/supabase/server` might handle this dynamic.
-           
-           However, `lib/supabase/server.ts` usually creates a cookie-based client.
-           
-           For Autonomy loops (which might run as system), we need a way to bypass RLS.
-           We will catch errors here to prevent crashing the main thread.
-        */
-
-        const { error } = await supabase.from('rune_agent_usage_events').insert({
-            user_id: payload.userId,
-            source: payload.source,
-            workflow_id: payload.workflowId,
-            chat_id: payload.chatId,
-            job_id: payload.jobId,
-            step_id: payload.stepId,
-            request_id: payload.requestId,
-
-            provider: payload.provider || 'gemini',
-            model: payload.model,
-            input_tokens: payload.inputTokens || 0,
-            output_tokens: payload.outputTokens || 0,
-            total_tokens: payload.totalTokens || 0,
-            cached_tokens: payload.cachedTokens || 0,
-            latency_ms: payload.latencyMs,
-
-            tool_name: payload.toolName,
-            tool_calls_count: payload.toolCallsCount || 0,
-            is_high_impact_tool: payload.isHighImpactTool || false,
-            approval_status: payload.approvalStatus,
-
-            estimated_cost_usd: estimatedCost,
-            status: payload.status,
-            metadata: payload.metadata || {}
-        });
-
-        if (error) {
-            console.error("Failed to log usage event:", error);
+        // 2. Log Tool Invocation if toolName is present
+        if (payload.toolName) {
+            await supabase.from('rune_tool_invocations').insert({
+                user_id: payload.userId,
+                workflow_id: payload.workflowId,
+                job_id: payload.jobId,
+                run_id: payload.runId,
+                tool_name: payload.toolName,
+                high_impact: payload.isHighImpactTool || false,
+                approval_status: payload.approvalStatus || 'none',
+                duration_ms: payload.durationMs,
+                status: payload.status,
+                args_redacted: payload.argsRedacted || {}
+            });
         }
 
     } catch (err) {
