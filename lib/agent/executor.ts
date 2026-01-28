@@ -93,7 +93,7 @@ export async function executeTool(supabase: any, userId: string, toolName: strin
             workflowId: context?.workflowId,
 
             toolName,
-            toolCallsCount: 1,
+
             isHighImpactTool: isHighImpactTool(toolName),
             status,
             latencyMs: latency,
