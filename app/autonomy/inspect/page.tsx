@@ -4,10 +4,9 @@ import React, { useEffect, useState } from 'react';
 import { OverviewCards } from '@/components/inspect/overview-cards';
 import { DrilldownLists } from '@/components/inspect/drilldown-lists';
 import { InspectUsageSummary, InspectCallRow, InspectToolRow, InspectJobRow } from '@/lib/inspect/types';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 export default function InspectPage() {
-    const { toast } = useToast();
     const [loading, setLoading] = useState(true);
 
     // Data States
@@ -58,10 +57,8 @@ export default function InspectPage() {
 
             } catch (error) {
                 console.error("Inspect Load Error", error);
-                toast({
-                    title: "Error loading data",
-                    description: "Could not fetch usage metrics.",
-                    variant: "destructive"
+                toast.error("Error loading data", {
+                    description: "Could not fetch usage metrics."
                 });
             } finally {
                 setLoading(false);
@@ -69,7 +66,7 @@ export default function InspectPage() {
         }
 
         fetchData();
-    }, [toast]);
+    }, []);
 
     return (
         <div className="container mx-auto p-6 space-y-8 animate-in fade-in duration-500">
