@@ -690,8 +690,7 @@ const FlowBuilderContent = ({
         toast.success(`Template "${template.name}" loaded`);
     }, [setNodes, setEdges]);
 
-    const [exportUrl, setExportUrl] = useState<string | null>(null);
-    const [exportFilename, setExportFilename] = useState<string | null>(null);
+
 
     // Export workflow - show modal with manual download link
     const onExport = useCallback(() => {
