@@ -6,13 +6,14 @@ import { JobDetails } from './job-details';
 import { JobListSkeleton } from './job-list-skeleton';
 import { JobDetailsSkeleton } from './job-details-skeleton';
 import { PolicySettings } from './policy-settings';
+import { InspectTab } from './inspect-tab';
 import { getAutonomyJobs, getAutonomyJob } from '@/app/actions/autonomy';
 import { toast } from 'sonner';
-import { Settings, LayoutGrid } from 'lucide-react';
+import { Settings, LayoutGrid, Activity } from 'lucide-react'; // Added Activity icon
 import { cn } from '@/lib/utils';
 
 export const AutonomyDashboard = () => {
-    const [view, setView] = useState<'jobs' | 'settings'>('jobs');
+    const [view, setView] = useState<'jobs' | 'settings' | 'inspect'>('jobs');
     const [selectedJobId, setSelectedJobId] = useState<string | undefined>();
     const [jobs, setJobs] = useState<any[]>([]);
     const [selectedJob, setSelectedJob] = useState<any>(null);
@@ -78,6 +79,12 @@ export const AutonomyDashboard = () => {
                     label="Jobs"
                 />
                 <NavButton
+                    active={view === 'inspect'}
+                    onClick={() => setView('inspect')}
+                    icon={Activity}
+                    label="Inspect"
+                />
+                <NavButton
                     active={view === 'settings'}
                     onClick={() => setView('settings')}
                     icon={Settings}
@@ -87,7 +94,7 @@ export const AutonomyDashboard = () => {
 
             {/* Main Content */}
             <div className="flex-1 flex overflow-hidden">
-                {view === 'jobs' ? (
+                {view === 'jobs' && (
                     <>
                         <div className="w-80 h-full border-r border-border">
                             {initialLoading ? (
@@ -105,7 +112,15 @@ export const AutonomyDashboard = () => {
                             {initialLoading ? <JobDetailsSkeleton /> : <JobDetails job={selectedJob} />}
                         </div>
                     </>
-                ) : (
+                )}
+
+                {view === 'inspect' && (
+                    <div className="flex-1 h-full overflow-y-auto bg-background">
+                        <InspectTab />
+                    </div>
+                )}
+
+                {view === 'settings' && (
                     <div className="flex-1 h-full overflow-y-auto bg-background">
                         <PolicySettings />
                     </div>
