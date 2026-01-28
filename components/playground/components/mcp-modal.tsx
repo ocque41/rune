@@ -18,7 +18,7 @@ import { Plug, Server, Database, FileText, Plus, Trash2, Command, Terminal, Glob
 import { useState, useEffect, useRef } from "react"
 import { getMcpServers, addMcpServer, deleteMcpServer, toggleMcpServerConnection, McpServer } from "@/app/actions/mcp"
 import { toast } from "sonner"
-import { animate, stagger } from 'animejs'
+import anime from 'animejs'
 import { cn } from "@/lib/utils"
 
 export function McpModal() {
@@ -43,10 +43,11 @@ export function McpModal() {
     useEffect(() => {
         if (activeTab === 'list' && listRef.current && servers.length > 0) {
             // @ts-ignore
-            animate(listRef.current.children, {
+            anime({
+                targets: listRef.current.children,
                 opacity: [0, 1],
                 translateY: [20, 0],
-                delay: stagger(100),
+                delay: anime.stagger(100),
                 easing: 'easeOutExpo',
                 duration: 600
             })

@@ -24,7 +24,7 @@ import { toast } from "sonner"
 import { getAvailableTools, AgentToolDef } from "@/app/actions/tools"
 import { getAgentPresets, saveAgentPreset, deleteAgentPreset, AgentPreset } from "@/app/actions/presets"
 import { getEffectiveAgentConfig } from "@/app/actions/agent-config"
-import { animate, stagger } from "animejs"
+import anime from "animejs"
 import { ApprovalCard } from "@/components/chat/approval-card"
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
@@ -270,10 +270,11 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
             const items = toolsListRef.current.querySelectorAll('.tool-item');
             if (items.length) {
                 // @ts-ignore
-                animate(items, {
+                anime({
+                    targets: items,
                     opacity: [0, 1],
                     translateX: [-10, 0],
-                    delay: stagger(30),
+                    delay: anime.stagger(30),
                     easing: 'easeOutQuad',
                     duration: 300
                 });
@@ -288,7 +289,8 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
             if (bubbles.length) {
                 // Animate only the last bubble for new messages
                 const lastBubble = bubbles[bubbles.length - 1];
-                animate(lastBubble, {
+                anime({
+                    targets: lastBubble,
                     opacity: [0, 1],
                     translateY: [15, 0],
                     easing: 'easeOutQuad',

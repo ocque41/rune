@@ -46,7 +46,7 @@ import { useAgentStore } from './playground/store';
 import { RuneDrawer } from '@/components/ui/drawer';
 import { AutoPilotContainer } from '@/components/playground/auto-pilot-container';
 import { Bot, Activity, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
-import { animate, stagger } from 'animejs';
+import anime from 'animejs';
 import ErrorHandlerNode from './nodes/error-handler-node';
 
 const nodeTypes = {
@@ -136,6 +136,8 @@ const FlowBuilderContent = ({
     // Workflow external modification detection (for agent changes)
     const [hasExternalChanges, setHasExternalChanges] = useState(false);
     const lastKnownUpdatedAt = useRef<string | null>(null);
+    const [exportUrl, setExportUrl] = useState<string | null>(null);
+    const [exportFilename, setExportFilename] = useState<string | null>(null);
 
     const fetchUserTemplates = useCallback(async () => {
         try {
@@ -419,7 +421,7 @@ const FlowBuilderContent = ({
         return () => clearInterval(pollInterval);
     }, [workflowId]);
 
-    // Function to reload workflow from server
+    // Function to reload workflow from SERVER
     const reloadFromServer = useCallback(async () => {
         if (!workflowId) return;
 
@@ -450,7 +452,8 @@ const FlowBuilderContent = ({
     // Animation: Panel entrance
     useEffect(() => {
         if (showSimulationPanel && simulationPanelRef.current) {
-            animate(simulationPanelRef.current, {
+            anime({
+                targets: simulationPanelRef.current,
                 translateY: [100, 0],
                 opacity: [0, 1],
                 duration: 400,
@@ -467,12 +470,13 @@ const FlowBuilderContent = ({
             const entriesToAnimate = Array.from(newEntries).slice(startIndex);
 
             if (entriesToAnimate.length > 0) {
-                animate(entriesToAnimate, {
+                anime({
+                    targets: entriesToAnimate,
                     translateY: [20, 0],
                     opacity: [0, 1],
                     duration: 300,
                     easing: 'easeOutQuad',
-                    delay: stagger(80)
+                    delay: anime.stagger(80)
                 });
             }
         }

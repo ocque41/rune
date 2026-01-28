@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, Cpu, Thermometer, Terminal, Wrench, Save, Trash2, ChevronDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LLMConfig } from '@/lib/types/agent';
-import { animate, stagger } from 'animejs';
+import anime from 'animejs';
 import { getAgentPresets, saveAgentPreset, deleteAgentPreset, AgentPreset } from '@/app/actions/agent';
 import { toast } from 'sonner';
 
@@ -49,10 +49,11 @@ export function ShimmeringJunoConfig({ config, onChange, onMcpConfigure }: Shimm
     useEffect(() => {
         if (isPresetsOpen && presetsRef.current) {
             // @ts-ignore
-            animate(presetsRef.current.children, {
+            anime({
+                targets: presetsRef.current.children,
                 opacity: [0, 1],
                 translateY: [-10, 0],
-                delay: stagger(50),
+                delay: anime.stagger(50),
                 duration: 400,
                 easing: 'easeOutExpo'
             });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from 'react';
-import { animate, stagger as animeStagger } from 'animejs';
+import anime from 'animejs';
 
 interface UseEnterAnimationProps {
     selector: string;
@@ -22,8 +22,8 @@ export function useEnterAnimation({ selector, stagger = 50, delay = 0 }: UseEnte
 
         if (prefersReducedMotion) {
             // Instant visibility for reduced motion
-            // Use standard DOM or animate with 0 duration
-            animate(targets, {
+            anime({
+                targets,
                 opacity: 1,
                 translateY: 0,
                 duration: 0
@@ -32,11 +32,11 @@ export function useEnterAnimation({ selector, stagger = 50, delay = 0 }: UseEnte
         }
 
         // Animate in
-        // Anime.js v4 handles initial state if passing array [from, to]
-        animate(targets, {
+        anime({
+            targets,
             opacity: [0, 1],
             translateY: [10, 0],
-            delay: animeStagger(stagger, { start: delay }),
+            delay: anime.stagger(stagger, { start: delay }),
             easing: 'easeOutQuad',
             duration: 400
         });
