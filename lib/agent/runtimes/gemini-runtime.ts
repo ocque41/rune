@@ -3,6 +3,7 @@ import { executeToolCall } from '@/lib/agent-tools';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { AgentConfig } from '../types';
 import { isHighImpactTool } from '../tools-metadata';
+import { logUsageEvent } from '@/lib/usage/log';
 
 export interface GeminiRuntimeConfig extends Partial<AgentConfig> {
     model: string;
@@ -246,6 +247,22 @@ export class GeminiAgentRuntime {
                         const finalResponse = await streamResult.response;
                         const finalContent = finalResponse.candidates?.[0]?.content;
                         const usageMetadata = finalResponse.usageMetadata;
+
+                        // LOGGING: Instrument Model Usage
+                        // We do this async (fire and forget)
+                        const source = options.autonomousMode ? 'autonomy_execute' : 'playground_chat';
+
+                        logUsageEvent({
+                            userId: this.userId,
+                            source: source,
+                            chatId: options.chatId,
+                            model: config.model,
+                            inputTokens: usageMetadata?.promptTokenCount,
+                            outputTokens: usageMetadata?.candidatesTokenCount,
+                            totalTokens: usageMetadata?.totalTokenCount,
+                            cachedTokens: usageMetadata?.cachedContentTokenCount,
+                            status: 'success'
+                        });
 
                         // Check for Thought Signature in final response if we missed it
                         // @ts-ignore

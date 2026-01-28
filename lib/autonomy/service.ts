@@ -6,6 +6,7 @@ import { Database } from '@/lib/types/database';
 import { TOOLS_DEFINITION } from '@/lib/agent-tools';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { executeJob } from './execution';
+import { logUsageEvent } from '@/lib/usage/log';
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
 
@@ -168,6 +169,21 @@ export async function runPlanning(jobId: string, supabaseClient?: SupabaseClient
 
     try {
         const result = await model.generateContent(prompt);
+
+        // LOGGING
+        logUsageEvent({
+            userId: job.user_id,
+            source: 'autonomy_plan',
+            jobId: jobId,
+            workflowId: job.workflow_id,
+            model: 'gemini-1.5-flash',
+            inputTokens: result.response.usageMetadata?.promptTokenCount,
+            outputTokens: result.response.usageMetadata?.candidatesTokenCount,
+            totalTokens: result.response.usageMetadata?.totalTokenCount,
+            cachedTokens: result.response.usageMetadata?.cachedContentTokenCount,
+            status: 'success'
+        });
+
         const responseText = result.response.text();
         const plan = JSON.parse(responseText);
 
@@ -223,6 +239,21 @@ async function runTriageAI(event: any, policy: any) {
     `;
 
     const result = await model.generateContent(prompt);
+
+    // LOGGING
+    logUsageEvent({
+        userId: event.user_id,
+        source: 'autonomy_triage',
+        metadata: { event_id: event.id },
+        workflowId: event.workflow_id,
+        model: 'gemini-1.5-flash',
+        inputTokens: result.response.usageMetadata?.promptTokenCount,
+        outputTokens: result.response.usageMetadata?.candidatesTokenCount,
+        totalTokens: result.response.usageMetadata?.totalTokenCount,
+        cachedTokens: result.response.usageMetadata?.cachedContentTokenCount,
+        status: 'success'
+    });
+
     const text = result.response.text();
     return JSON.parse(text);
 }

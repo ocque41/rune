@@ -88,7 +88,13 @@ export async function executeJob(jobId: string, supabaseClient?: SupabaseClient<
         // 4. Execute Step
         console.log(`[Execution] Job ${jobId} Step ${i}: ${step.tool}`);
         try {
-            const result = await executeTool(supabase, job.user_id, step.tool, step.args);
+            const result = await executeTool(
+                supabase,
+                job.user_id,
+                step.tool,
+                step.args,
+                { jobId: job.id, stepId: i.toString(), workflowId: job.workflow_id }
+            );
 
             // Update Step Result
             step.status = 'completed';
