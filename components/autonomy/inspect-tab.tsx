@@ -1,29 +1,76 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { PeriodRange } from '@/lib/inspect/types';
-import {
-    useInspectSummary,
-    useInspectBreakdown,
-    useInspectCalls,
-    useInspectTools,
-    useInspectJobs
-} from '@/lib/inspect/api';
-
+import { PeriodRange, InspectUsageSummary, InspectCallRow, InspectToolRow, InspectJobRow } from '@/lib/inspect/types';
 import { OverviewCards } from '@/components/inspect/overview-cards';
-import { BreakdownTables } from '@/components/inspect/breakdown-tables';
+// import { BreakdownTables } from '@/components/inspect/breakdown-tables'; // Temporarily disabled or need to fetch
 import { DrilldownLists } from '@/components/inspect/drilldown-lists';
+import { toast } from 'sonner';
 
 export const InspectTab = () => {
     const [range, setRange] = useState<PeriodRange>('30d');
+    const [loading, setLoading] = useState(true);
 
-    // Fetch all data in parallel (mocked)
-    const summary = useInspectSummary(range);
-    const breakdown = useInspectBreakdown(range);
-    const calls = useInspectCalls(range);
-    const tools = useInspectTools(range);
-    const jobs = useInspectJobs(range);
+    const [summary, setSummary] = useState<InspectUsageSummary | null>(null);
+    const [activities, setActivities] = useState<{
+        calls: InspectCallRow[];
+        tools: InspectToolRow[];
+        jobs: InspectJobRow[];
+    }>({ calls: [], tools: [], jobs: [] });
+
+    useEffect(() => {
+        let mounted = true;
+
+        async function fetchData() {
+            try {
+                setLoading(true);
+                // 1. Fetch data
+                const [usageRes, activityRes] = await Promise.all([
+                    fetch(`/api/rune/inspect/usage?range=${range}`),
+                    fetch(`/api/rune/inspect/activity?limit=50&range=${range}`)
+                ]);
+
+                if (!usageRes.ok || !activityRes.ok) throw new Error('Failed to fetch data');
+
+                const usageData = await usageRes.json();
+                const activityData = await activityRes.json();
+
+                if (!mounted) return;
+
+                setSummary(usageData);
+
+                // Transform activity data if needed, or assume API matches
+                const calls: InspectCallRow[] = [];
+                if (activityData.items) {
+                    activityData.items.forEach((item: any) => {
+                        if (item.type === 'llm_call') {
+                            calls.push({
+                                id: item.id,
+                                timestamp: item.timestamp,
+                                model: item.details.model,
+                                latency_ms: item.details.latency,
+                                tokens: item.details.tokens,
+                                cost_usd: item.details.cost,
+                                status: item.details.status
+                            });
+                        }
+                    });
+                }
+
+                setActivities({ calls, tools: [], jobs: [] });
+
+            } catch (error) {
+                console.error("Inspect fetch error", error);
+                toast.error("Could not load inspect data");
+            } finally {
+                if (mounted) setLoading(false);
+            }
+        }
+
+        fetchData();
+        return () => { mounted = false; };
+    }, [range]);
 
     return (
         <div className="p-6 space-y-6 max-w-7xl mx-auto min-h-screen pb-20">
@@ -53,21 +100,24 @@ export const InspectTab = () => {
             </div>
 
             <OverviewCards
-                data={summary.data}
-                loading={summary.loading}
+                data={summary}
+                loading={loading}
             />
 
+            {/* Breakdown Tables temporarily hidden until new API endpoint handles them or we derive from activity */}
+            {/* 
             <BreakdownTables
-                models={breakdown.models}
-                tools={breakdown.tools}
-                loading={breakdown.loading}
-            />
+                models={[]}
+                tools={[]}
+                loading={loading}
+            /> 
+            */}
 
             <DrilldownLists
-                calls={calls.calls}
-                tools={tools.tools}
-                jobs={jobs.jobs}
-                loading={calls.loading || tools.loading || jobs.loading}
+                calls={activities.calls}
+                tools={activities.tools}
+                jobs={activities.jobs}
+                loading={loading}
             />
         </div>
     );

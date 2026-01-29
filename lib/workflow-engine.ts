@@ -520,11 +520,41 @@ export class WorkflowEngine {
         });
 
         this.log('info', `Generating AI content with model ${modelName}`, { promptLength: prompt.length, thinking: !!config.thinkingConfig });
+        const startTs = Date.now();
 
         try {
             const result = await model.generateContent(prompt);
             const response = result.response;
             const text = response.text();
+
+            // Usage Logging
+            const usage = response.usageMetadata;
+            const latencyMs = Date.now() - startTs;
+
+            // Dynamically import logUsageEvent to avoid circular dependencies if any (though usually fine)
+            // Or just import at top level. Let's assume top level import is safe or do it here.
+            // Using dynamic import to be safe with existing imports.
+            const { logUsageEvent } = await import('@/lib/usage/log');
+
+            await logUsageEvent({
+                userId: this.userId, // WorkflowEngine has this.userId
+                source: 'autonomy_execute',
+                model: modelName,
+                provider: 'google',
+                workflowId: this.workflowId,
+                runId: this.context.runId,
+                status: 'success',
+                latencyMs,
+                inputTokens: usage?.promptTokenCount,
+                outputTokens: usage?.candidatesTokenCount,
+                totalTokens: usage?.totalTokenCount,
+                // cachedTokens: usage?.cachedContentTokenCount, // API might differ, check types if needed
+                metadata: {
+                    stepId: 'ai-generate-node', // ideally we pass the node ID here, but this method signature doesn't have it.
+                    // We could pass it in 'data' or 'input' if we changed the signature.
+                    // For now, this is better than nothing.
+                }
+            });
 
             this.log('info', `AI Generation successful. Length: ${text.length}`);
 
@@ -537,6 +567,20 @@ export class WorkflowEngine {
             };
         } catch (e: any) {
             this.log('error', `AI Generation Failed: ${e.message}`);
+            // Log failure
+            const { logUsageEvent } = await import('@/lib/usage/log');
+            await logUsageEvent({
+                userId: this.userId,
+                source: 'autonomy_execute',
+                model: modelName,
+                provider: 'google',
+                workflowId: this.workflowId,
+                runId: this.context.runId,
+                status: 'error',
+                errorCode: 'GENERATION_FAILED',
+                latencyMs: Date.now() - startTs,
+                metadata: { error: e.message }
+            });
             throw e;
         }
     }

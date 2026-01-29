@@ -1,48 +1,108 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LLMConfig, Message } from '@/lib/types/agent';
-
-// This would typically come from an environment variable
-const SIMULATE_DELAY = true;
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { logUsageEvent } from '@/lib/usage/log';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(req: NextRequest) {
+    const startTs = Date.now();
+    let userId = 'anon';
+
     try {
-        const { messages, config } = await req.json() as { messages: Message[], config: LLMConfig };
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) userId = user.id;
+
+        const body = await req.json();
+        const { messages, config } = body as { messages: Message[], config: LLMConfig };
 
         if (!messages || !Array.isArray(messages)) {
             return NextResponse.json({ error: 'Invalid messages format' }, { status: 400 });
         }
 
-        // Create a ReadableStream
+        const apiKey = process.env.GOOGLE_API_KEY;
+        if (!apiKey) {
+            return NextResponse.json({ error: 'Server configuration error: Missing API Key' }, { status: 500 });
+        }
+
+        const genAI = new GoogleGenerativeAI(apiKey);
+
+        // Map model names if needed, or use directly
+        const modelName = config.model || 'gemini-1.5-flash';
+
+        const model = genAI.getGenerativeModel({
+            model: modelName,
+            generationConfig: {
+                temperature: config.temperature ?? 0.7,
+                maxOutputTokens: config.maxTokens,
+            }
+        });
+
+        // Convert messages to Gemini format
+        // Gemini expects history + last message. history uses 'role': 'user' | 'model'
+        // Last message is the prompt.
+        // Simple conversion:
+        const history = messages.slice(0, -1).map(m => ({
+            role: m.role === 'user' ? 'user' : 'model',
+            parts: [{ text: m.content }]
+        }));
+
+        const lastMessage = messages[messages.length - 1];
+        const chat = model.startChat({
+            history: history
+        });
+
+        const result = await chat.sendMessageStream(lastMessage.content);
+
+        // Stream response
         const stream = new ReadableStream({
             async start(controller) {
                 const encoder = new TextEncoder();
+                let fullText = "";
+                let finalUsage: any = null;
 
-                // Simulation: In a real app, you would call OpenAI here with stream: true
-                // and forward the chunks.
+                try {
+                    for await (const chunk of result.stream) {
+                        const chunkText = chunk.text();
+                        fullText += chunkText;
+                        controller.enqueue(encoder.encode(chunkText));
 
-                const prompt = messages[messages.length - 1].content;
-                let responseText = "";
-
-                if (config.model.includes('gpt')) {
-                    responseText = `[${config.model}] Received: "${prompt}". \n\nThinking process...\n\nBased on your configuration (Temp: ${config.temperature}), here is a response.`;
-                } else if (config.model.includes('claude')) {
-                    responseText = `[${config.model}] Hello! I see you sent: "${prompt}". \n\nI am operating with a temperature of ${config.temperature}. How can I assist you further with your workflow?`;
-                } else {
-                    responseText = `[System] Echo: ${prompt}`;
-                }
-
-                // Simulate token streaming
-                const tokens = responseText.split(/(?=[\s\S])/); // Split by char but keep delimiters if any
-
-                for (const token of tokens) {
-                    if (SIMULATE_DELAY) {
-                        // Random delay between 10ms and 50ms to simulate network variance
-                        await new Promise(resolve => setTimeout(resolve, Math.random() * 40 + 10));
+                        // Capture usage if available in the last chunk
+                        if (chunk.usageMetadata) {
+                            finalUsage = chunk.usageMetadata;
+                        }
                     }
-                    controller.enqueue(encoder.encode(token));
-                }
 
-                controller.close();
+                    // Log usage after stream completes
+                    await logUsageEvent({
+                        userId,
+                        source: 'playground_chat',
+                        model: modelName,
+                        provider: 'google',
+                        inputTokens: finalUsage?.promptTokenCount,
+                        outputTokens: finalUsage?.candidatesTokenCount,
+                        totalTokens: finalUsage?.totalTokenCount,
+                        latencyMs: Date.now() - startTs,
+                        status: 'success'
+                    });
+
+                } catch (err: any) {
+                    console.error('Stream Error:', err);
+                    controller.error(err);
+
+                    // Log failure
+                    await logUsageEvent({
+                        userId,
+                        source: 'playground_chat',
+                        model: modelName,
+                        provider: 'google',
+                        status: 'error',
+                        latencyMs: Date.now() - startTs,
+                        errorCode: err.message
+                    });
+                } finally {
+                    controller.close();
+                }
             }
         });
 
@@ -53,8 +113,20 @@ export async function POST(req: NextRequest) {
             },
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Chat API Error:', error);
+
+        // Log top-level failure
+        await logUsageEvent({
+            userId,
+            source: 'playground_chat',
+            model: 'unknown',
+            provider: 'google',
+            status: 'error',
+            latencyMs: Date.now() - startTs,
+            errorCode: error.message
+        });
+
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
