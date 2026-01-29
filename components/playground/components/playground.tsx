@@ -121,14 +121,17 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
     // Load messages when currentChatId changes
     useEffect(() => {
         if (currentChatId) {
-            loadChat(currentChatId);
+            // Don't reload if we are in the middle of generating (avoids overwriting optimistic state)
+            if (!isGenerating) {
+                loadChat(currentChatId);
+            }
         } else {
             // Clear messages if no chat
             setMessages([]);
             setOutput('');
             // Optional: If we want to show empty state
         }
-    }, [currentChatId]);
+    }, [currentChatId, isGenerating]);
 
     const loadChat = async (chatId: string) => {
         try {
@@ -348,8 +351,13 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
             const sessionStatus = response.headers.get('X-Session-Status');
             const sessionId = response.headers.get('X-Session-Id');
 
-            if (responseChatId && !currentChatId && !isTemporaryChat) {
+            if (responseChatId && !currentChatId) {
+                // IMPORTANT: Update store immediately so subsequent requests use this ID
                 setCurrentChat(responseChatId);
+                // Also update the local reference safely
+                if (!isTemporaryChat) {
+                    // Update recent chats list optimistically or wait for revalidation
+                }
             }
 
             // Stream the response

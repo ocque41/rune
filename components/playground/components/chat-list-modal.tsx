@@ -183,7 +183,7 @@ export function ChatListModal({
                                                     {chat.title}
                                                 </h3>
                                                 <p className="text-xs text-white/40 mt-1">
-                                                    {chat.messageCount || 0} messages · {formatDistanceToNow(new Date(chat.updatedAt), { addSuffix: true })}
+                                                    {chat.messageCount || 0} messages · {safeDateDistance(chat.updatedAt)}
                                                 </p>
                                             </>
                                         )}
@@ -216,4 +216,16 @@ export function ChatListModal({
             </div>
         </div>
     );
+}
+
+function safeDateDistance(dateStr: string | undefined | null) {
+    if (!dateStr) return 'Unknown time';
+    try {
+        const date = new Date(dateStr);
+        // Check for invalid date
+        if (isNaN(date.getTime())) return 'Unknown time';
+        return formatDistanceToNow(date, { addSuffix: true });
+    } catch (e) {
+        return 'Unknown time';
+    }
 }
