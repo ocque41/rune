@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+tests/flutter_test_app/
 
 # next.js
 /.next/
