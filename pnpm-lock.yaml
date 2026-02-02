@@ -137,6 +137,9 @@ importers:
       tailwind-merge:
         specifier: ^3.4.0
         version: 3.4.0
+      use-stick-to-bottom:
+        specifier: ^1.1.2
+        version: 1.1.2(react@19.2.4)
       vaul:
         specifier: ^1.1.2
         version: 1.1.2(@types/react-dom@19.2.3(@types/react@19.2.10))(@types/react@19.2.10)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -5028,6 +5031,11 @@ packages:
     peerDependenciesMeta:
       '@types/react':
         optional: true
+
+  use-stick-to-bottom@1.1.2:
+    resolution: {integrity: sha512-ssUfMNvfH8a8hGLoAt5kcOsjbsVORknon2tbkECuf3EsVucFFBbyXl+Xnv3b58P8ZRuZelzO81fgb6M0eRo8cg==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   use-sync-external-store@1.6.0:
     resolution: {integrity: sha512-Pp6GSwGP/NrPIrxVFAIkOQeyw8lFenOHijQWkUTrDvrF4ALqylP2C/KCkeS9dpUM3KvYRQhna5vt7IL95+ZQ9w==}
@@ -10714,6 +10722,10 @@ snapshots:
       tslib: 2.8.1
     optionalDependencies:
       '@types/react': 19.2.10
+
+  use-stick-to-bottom@1.1.2(react@19.2.4):
+    dependencies:
+      react: 19.2.4
 
   use-sync-external-store@1.6.0(react@19.2.4):
     dependencies:
