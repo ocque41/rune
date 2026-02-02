@@ -12,7 +12,8 @@ Deliver full autonomy with deterministic subgraph execution, auditable logs, and
    - (e) produce auditable logs for every run.
 
 ## Execution Model
-- **Always-on device** runs `autonomy:worker` (polls `/api/cron`).
+- **Vercel Cron** hits `/api/cron` every minute (vercel.json).
+- **Always-on device** can run `autonomy:worker` as a fallback or for local/dev.
 - `/api/cron` leases jobs via `lease_jobs` RPC and executes short batches.
 - All work is chunked and resumable to survive timeouts.
 
