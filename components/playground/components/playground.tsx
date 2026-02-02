@@ -122,25 +122,6 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
         }
     }, [workflowId]);
 
-    useEffect(() => {
-        loadAutonomyPolicy(workflowId);
-    }, [workflowId, loadAutonomyPolicy]);
-
-    // Load messages when currentChatId changes
-    useEffect(() => {
-        if (currentChatId) {
-            // Don't reload if we are in the middle of generating (avoids overwriting optimistic state)
-            if (!isGenerating) {
-                loadChat(currentChatId);
-            }
-        } else {
-            // Clear messages if no chat
-            setMessages([]);
-            setOutput('');
-            // Optional: If we want to show empty state
-        }
-    }, [currentChatId, isGenerating]);
-
     const loadChat = async (chatId: string) => {
         try {
             const res = await fetch(`/api/rune/chats/${chatId}`);
@@ -186,6 +167,25 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
             setIsAutonomyLoading(false);
         }
     }, []);
+
+    useEffect(() => {
+        loadAutonomyPolicy(workflowId);
+    }, [workflowId, loadAutonomyPolicy]);
+
+    // Load messages when currentChatId changes
+    useEffect(() => {
+        if (currentChatId) {
+            // Don't reload if we are in the middle of generating (avoids overwriting optimistic state)
+            if (!isGenerating) {
+                loadChat(currentChatId);
+            }
+        } else {
+            // Clear messages if no chat
+            setMessages([]);
+            setOutput('');
+            // Optional: If we want to show empty state
+        }
+    }, [currentChatId, isGenerating]);
 
     // Load tools and presets on mount
     useEffect(() => {
