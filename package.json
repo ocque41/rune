@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest",
-    "inspector": "npx workflow inspect runs --web"
+    "inspector": "npx workflow inspect runs --web",
+    "autonomy:worker": "node ./scripts/autonomy-worker.js"
   },
   "dependencies": {
     "@aws-sdk/client-secrets-manager": "^3.943.0",
