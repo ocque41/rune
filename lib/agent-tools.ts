@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { Node, Edge } from '@xyflow/react';
 import { workflowStore } from './workflow-store';
 import { validateGraph } from './workflow-validator';
+import { getRuneProductId } from './product';
 
 export async function getActiveContext(supabase: SupabaseClient, userId: string) {
     // This tool is similar to the prompt injection but allows the agent to call it on-demand
@@ -386,6 +387,8 @@ export async function createWorkflow(
 ) {
     const graph = payload.graph || DEFAULT_GRAPH;
 
+    const productId = await getRuneProductId(supabase);
+
     const { data: workflow, error } = await supabase
         .from('rune_workflows')
         .insert({
@@ -393,6 +396,7 @@ export async function createWorkflow(
             description: payload.description || null,
             graph_json: graph,
             user_id: userId,
+            product_id: productId,
             updated_at: new Date().toISOString()
         })
         .select()

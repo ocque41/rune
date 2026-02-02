@@ -13,6 +13,7 @@
 
 ## Notes
 - Shared database uses `ecosystem_products` and `user_product_roles`.
+- Workflow creation must set `product_id` = Rune product.
 - Ensure every Rune row ties to `product_id` or `workflow_id` and is RLS‑scoped.
 - `rune_autonomy_policies` already stores per‑workflow and per‑user policies.
 
