@@ -1,4 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { Node, Edge } from '@xyflow/react';
+import { workflowStore } from './workflow-store';
+import { validateGraph } from './workflow-validator';
 
 export async function getActiveContext(supabase: SupabaseClient, userId: string) {
     // This tool is similar to the prompt injection but allows the agent to call it on-demand
@@ -298,6 +301,412 @@ export async function runNode(supabase: SupabaseClient, userId: string, nodeIden
             error: `Node execution failed: ${err.message}`
         };
     }
+}
+
+const DEFAULT_GRAPH = { nodes: [], edges: [] };
+
+type WorkflowPatchOp =
+    | { op: 'add_node'; node: Node }
+    | { op: 'update_node'; nodeId: string; patch: Partial<Node> }
+    | { op: 'remove_node'; nodeId: string }
+    | { op: 'add_edge'; edge: Edge }
+    | { op: 'remove_edge'; edgeId?: string; source?: string; target?: string }
+    | { op: 'set_graph'; graph: { nodes: Node[]; edges: Edge[] } };
+
+function applyWorkflowPatch(graph: { nodes: Node[]; edges: Edge[] }, ops: WorkflowPatchOp[]) {
+    let nextGraph = {
+        nodes: [...(graph?.nodes || [])],
+        edges: [...(graph?.edges || [])]
+    };
+
+    for (const op of ops) {
+        switch (op.op) {
+            case 'add_node':
+                if (nextGraph.nodes.find((n) => n.id === op.node.id)) {
+                    throw new Error(`Node with id ${op.node.id} already exists`);
+                }
+                nextGraph.nodes.push(op.node);
+                break;
+            case 'update_node': {
+                const idx = nextGraph.nodes.findIndex((n) => n.id === op.nodeId);
+                if (idx === -1) throw new Error(`Node ${op.nodeId} not found`);
+                nextGraph.nodes[idx] = { ...nextGraph.nodes[idx], ...op.patch } as Node;
+                break;
+            }
+            case 'remove_node':
+                nextGraph.nodes = nextGraph.nodes.filter((n) => n.id !== op.nodeId);
+                nextGraph.edges = nextGraph.edges.filter((e) => e.source !== op.nodeId && e.target !== op.nodeId);
+                break;
+            case 'add_edge':
+                if (nextGraph.edges.find((e) => e.id === op.edge.id)) {
+                    throw new Error(`Edge with id ${op.edge.id} already exists`);
+                }
+                nextGraph.edges.push(op.edge);
+                break;
+            case 'remove_edge':
+                if (op.edgeId) {
+                    nextGraph.edges = nextGraph.edges.filter((e) => e.id !== op.edgeId);
+                } else if (op.source && op.target) {
+                    nextGraph.edges = nextGraph.edges.filter((e) => !(e.source === op.source && e.target === op.target));
+                } else {
+                    throw new Error('remove_edge requires edgeId or source+target');
+                }
+                break;
+            case 'set_graph':
+                nextGraph = {
+                    nodes: [...(op.graph?.nodes || [])],
+                    edges: [...(op.graph?.edges || [])]
+                };
+                break;
+            default:
+                throw new Error(`Unknown patch op: ${(op as any).op}`);
+        }
+    }
+
+    return nextGraph;
+}
+
+async function resolveActiveWorkflowId(supabase: SupabaseClient, userId: string, workflowId?: string) {
+    if (workflowId) return workflowId;
+    const { data: session } = await supabase
+        .from('rune_agent_sessions')
+        .select('active_workflow_id')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    return session?.active_workflow_id || null;
+}
+
+export async function createWorkflow(
+    supabase: SupabaseClient,
+    userId: string,
+    payload: { name: string; description?: string; graph?: { nodes: Node[]; edges: Edge[] } }
+) {
+    const graph = payload.graph || DEFAULT_GRAPH;
+
+    const { data: workflow, error } = await supabase
+        .from('rune_workflows')
+        .insert({
+            name: payload.name,
+            description: payload.description || null,
+            graph_json: graph,
+            user_id: userId,
+            updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+    if (error) throw error;
+
+    const { data: draft, error: draftError } = await supabase
+        .from('rune_workflow_drafts')
+        .insert({
+            workflow_id: workflow.id,
+            user_id: userId,
+            draft_json: graph,
+            updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+    if (draftError) throw draftError;
+
+    await supabase
+        .from('rune_agent_sessions')
+        .upsert({
+            user_id: userId,
+            active_workflow_id: workflow.id,
+            active_draft_id: draft.id,
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' });
+
+    return { workflow, draft };
+}
+
+export async function inspectWorkflow(
+    supabase: SupabaseClient,
+    userId: string,
+    workflowId?: string
+) {
+    const resolvedWorkflowId = await resolveActiveWorkflowId(supabase, userId, workflowId);
+    if (!resolvedWorkflowId) {
+        return { success: false, error: 'No active workflow.' };
+    }
+
+    const { data: workflow } = await supabase
+        .from('rune_workflows')
+        .select('id, name, description, graph_json, updated_at, version')
+        .eq('id', resolvedWorkflowId)
+        .single();
+
+    const { data: draft } = await supabase
+        .from('rune_workflow_drafts')
+        .select('id, draft_json, updated_at')
+        .eq('workflow_id', resolvedWorkflowId)
+        .single();
+
+    const { data: latestVersion } = await supabase
+        .from('rune_workflow_versions')
+        .select('id, version_number, definition_json, created_at')
+        .eq('workflow_id', resolvedWorkflowId)
+        .order('version_number', { ascending: false })
+        .limit(1)
+        .single();
+
+    return {
+        success: true,
+        workflow,
+        draft,
+        latestVersion
+    };
+}
+
+export async function editWorkflow(
+    supabase: SupabaseClient,
+    userId: string,
+    workflowId: string | undefined,
+    ops: WorkflowPatchOp[]
+) {
+    const resolvedWorkflowId = await resolveActiveWorkflowId(supabase, userId, workflowId);
+    if (!resolvedWorkflowId) {
+        return { success: false, error: 'No active workflow.' };
+    }
+
+    const { data: workflow } = await supabase
+        .from('rune_workflows')
+        .select('id, graph_json')
+        .eq('id', resolvedWorkflowId)
+        .single();
+
+    if (!workflow) {
+        return { success: false, error: 'Workflow not found.' };
+    }
+
+    const { data: draft } = await supabase
+        .from('rune_workflow_drafts')
+        .select('id, draft_json')
+        .eq('workflow_id', resolvedWorkflowId)
+        .single();
+
+    const baseGraph = (draft?.draft_json || workflow.graph_json || DEFAULT_GRAPH) as { nodes: Node[]; edges: Edge[] };
+    const nextGraph = applyWorkflowPatch(baseGraph, ops);
+
+    const { error: draftError } = await supabase
+        .from('rune_workflow_drafts')
+        .upsert({
+            workflow_id: resolvedWorkflowId,
+            user_id: userId,
+            draft_json: nextGraph,
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'workflow_id' });
+
+    if (draftError) throw draftError;
+
+    await supabase
+        .from('rune_workflows')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', resolvedWorkflowId);
+
+    return { success: true, graph: nextGraph };
+}
+
+export async function validateWorkflow(
+    supabase: SupabaseClient,
+    userId: string,
+    workflowId?: string
+) {
+    const resolvedWorkflowId = await resolveActiveWorkflowId(supabase, userId, workflowId);
+    if (!resolvedWorkflowId) {
+        return { success: false, error: 'No active workflow.' };
+    }
+
+    const { data: draft } = await supabase
+        .from('rune_workflow_drafts')
+        .select('draft_json')
+        .eq('workflow_id', resolvedWorkflowId)
+        .single();
+
+    const graph = (draft?.draft_json || DEFAULT_GRAPH) as { nodes: Node[]; edges: Edge[] };
+    const result = validateGraph(graph.nodes || [], graph.edges || []);
+
+    return { success: result.valid, ...result };
+}
+
+export async function publishWorkflow(
+    supabase: SupabaseClient,
+    userId: string,
+    workflowId?: string,
+    commitMessage?: string
+) {
+    const resolvedWorkflowId = await resolveActiveWorkflowId(supabase, userId, workflowId);
+    if (!resolvedWorkflowId) {
+        return { success: false, error: 'No active workflow.' };
+    }
+
+    const { data: draft } = await supabase
+        .from('rune_workflow_drafts')
+        .select('draft_json')
+        .eq('workflow_id', resolvedWorkflowId)
+        .single();
+
+    const graph = (draft?.draft_json || DEFAULT_GRAPH) as { nodes: Node[]; edges: Edge[] };
+    const version = await workflowStore.deployVersion(supabase, resolvedWorkflowId, graph, '', commitMessage, userId);
+
+    return { success: true, version };
+}
+
+export async function deleteWorkflow(
+    supabase: SupabaseClient,
+    userId: string,
+    workflowId?: string
+) {
+    const resolvedWorkflowId = await resolveActiveWorkflowId(supabase, userId, workflowId);
+    if (!resolvedWorkflowId) {
+        return { success: false, error: 'No active workflow.' };
+    }
+
+    const { error } = await supabase
+        .from('rune_workflows')
+        .update({ archived_at: new Date().toISOString() })
+        .eq('id', resolvedWorkflowId)
+        .eq('user_id', userId);
+
+    if (error) throw error;
+    return { success: true };
+}
+
+function buildSubgraph(
+    graph: { nodes: Node[]; edges: Edge[] },
+    options: {
+        nodeIds?: string[];
+        startNodes?: string[];
+        endNodes?: string[];
+        includeDependencies?: boolean;
+        inputOverrides?: Record<string, any>;
+    }
+) {
+    const nodes = graph.nodes || [];
+    const edges = graph.edges || [];
+
+    const selected = new Set<string>();
+
+    const seedNodes = [
+        ...(options.nodeIds || []),
+        ...(options.startNodes || []),
+        ...(options.endNodes || [])
+    ];
+
+    for (const id of seedNodes) {
+        if (nodes.find((n) => n.id === id)) {
+            selected.add(id);
+        }
+    }
+
+    if (options.inputOverrides) {
+        Object.keys(options.inputOverrides).forEach((id) => selected.add(id));
+    }
+
+    if (options.includeDependencies) {
+        const queue = Array.from(selected);
+        while (queue.length > 0) {
+            const current = queue.shift()!;
+            const incoming = edges.filter((e) => e.target === current);
+            for (const edge of incoming) {
+                if (!selected.has(edge.source)) {
+                    selected.add(edge.source);
+                    queue.push(edge.source);
+                }
+            }
+        }
+    }
+
+    const filteredNodes = nodes.filter((n) => selected.has(n.id));
+    const filteredEdges = edges.filter((e) => selected.has(e.source) && selected.has(e.target));
+
+    const incomingCount: Record<string, number> = {};
+    for (const edge of filteredEdges) {
+        incomingCount[edge.target] = (incomingCount[edge.target] || 0) + 1;
+    }
+
+    const startNodes = (options.startNodes && options.startNodes.length > 0)
+        ? options.startNodes.filter((id) => selected.has(id))
+        : filteredNodes.filter((n) => !incomingCount[n.id]).map((n) => n.id);
+
+    if (options.inputOverrides) {
+        for (const id of Object.keys(options.inputOverrides)) {
+            if (!startNodes.includes(id) && selected.has(id)) {
+                startNodes.push(id);
+            }
+        }
+    }
+
+    filteredNodes.sort((a, b) => a.id.localeCompare(b.id));
+    filteredEdges.sort((a, b) => `${a.source}:${a.target}`.localeCompare(`${b.source}:${b.target}`));
+
+    return { nodes: filteredNodes, edges: filteredEdges, startNodes };
+}
+
+export async function runWorkflowPlan(
+    supabase: SupabaseClient,
+    userId: string,
+    payload: {
+        workflowId?: string;
+        nodeIds?: string[];
+        startNodes?: string[];
+        endNodes?: string[];
+        includeDependencies?: boolean;
+        inputOverrides?: Record<string, any>;
+    }
+) {
+    const resolvedWorkflowId = await resolveActiveWorkflowId(supabase, userId, payload.workflowId);
+    if (!resolvedWorkflowId) {
+        return { success: false, error: 'No active workflow.' };
+    }
+
+    const { data: workflow } = await supabase
+        .from('rune_workflows')
+        .select('id, name, graph_json')
+        .eq('id', resolvedWorkflowId)
+        .single();
+
+    if (!workflow) {
+        return { success: false, error: 'Workflow not found.' };
+    }
+
+    const graph = (workflow.graph_json || DEFAULT_GRAPH) as { nodes: Node[]; edges: Edge[] };
+
+    const { nodes, edges, startNodes } = buildSubgraph(graph, {
+        nodeIds: payload.nodeIds,
+        startNodes: payload.startNodes,
+        endNodes: payload.endNodes,
+        includeDependencies: payload.includeDependencies ?? true,
+        inputOverrides: payload.inputOverrides
+    });
+
+    if (nodes.length === 0 || startNodes.length === 0) {
+        return { success: false, error: 'No runnable nodes found for plan.' };
+    }
+
+    const { WorkflowEngine } = await import('./workflow-engine');
+    const engine = new WorkflowEngine(
+        supabase,
+        workflow.id,
+        workflow.name,
+        nodes,
+        edges,
+        userId
+    );
+
+    const startQueue = startNodes.map((nodeId) => ({
+        nodeId,
+        input: payload.inputOverrides?.[nodeId] || {}
+    }));
+
+    const runResult = await engine.runPlan(startQueue, { trigger: 'run_plan' });
+
+    return { success: true, runId: runResult.id, status: runResult.status };
 }
 
 /**
@@ -658,6 +1067,111 @@ export const TOOLS_DEFINITION = [
     {
         type: "function",
         function: {
+            name: "workflow_inspect",
+            description: "Inspect the active workflow (or a specific workflow) including draft and latest version details.",
+            parameters: {
+                type: "object",
+                properties: {
+                    workflowId: { type: "string", description: "Optional workflow ID. Defaults to active workflow." }
+                }
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "workflow_create",
+            description: "Create a new workflow and set it as active.",
+            parameters: {
+                type: "object",
+                properties: {
+                    name: { type: "string", description: "Workflow name" },
+                    description: { type: "string", description: "Optional description" }
+                },
+                required: ["name"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "workflow_edit",
+            description: "Apply patch operations to the active workflow draft.",
+            parameters: {
+                type: "object",
+                properties: {
+                    workflowId: { type: "string", description: "Optional workflow ID. Defaults to active workflow." },
+                    ops: {
+                        type: "array",
+                        description: "Patch operations (add_node, update_node, remove_node, add_edge, remove_edge, set_graph).",
+                        items: { type: "object" }
+                    }
+                },
+                required: ["ops"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "workflow_validate",
+            description: "Validate the active workflow draft and return errors/warnings.",
+            parameters: {
+                type: "object",
+                properties: {
+                    workflowId: { type: "string", description: "Optional workflow ID. Defaults to active workflow." }
+                }
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "workflow_publish",
+            description: "Publish the active workflow draft as a new immutable version.",
+            parameters: {
+                type: "object",
+                properties: {
+                    workflowId: { type: "string", description: "Optional workflow ID. Defaults to active workflow." },
+                    commitMessage: { type: "string", description: "Optional commit message" }
+                }
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "workflow_delete",
+            description: "Archive the active workflow. Requires explicit approval for destructive actions.",
+            parameters: {
+                type: "object",
+                properties: {
+                    workflowId: { type: "string", description: "Optional workflow ID. Defaults to active workflow." }
+                }
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "workflow_run_plan",
+            description: "Run a deterministic subgraph plan (including dependencies) within the active workflow.",
+            parameters: {
+                type: "object",
+                properties: {
+                    workflowId: { type: "string", description: "Optional workflow ID. Defaults to active workflow." },
+                    nodeIds: { type: "array", items: { type: "string" }, description: "Specific node IDs to run" },
+                    startNodes: { type: "array", items: { type: "string" }, description: "Explicit start nodes" },
+                    endNodes: { type: "array", items: { type: "string" }, description: "Optional end nodes to bound the plan" },
+                    includeDependencies: { type: "boolean", description: "Include upstream dependencies (default true)" },
+                    inputOverrides: { type: "object", description: "Per-node input overrides" }
+                }
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
             name: "get_recent_runs",
             description: "Get recent execution runs. Can be filtered by workflow.",
             parameters: {
@@ -828,6 +1342,27 @@ export async function executeToolCall(supabase: any, userId: string, toolName: s
                 return await getActiveContext(supabase, userId);
             case 'list_workflows':
                 return await listWorkflows(supabase, userId, args.limit);
+            case 'workflow_inspect':
+                return await inspectWorkflow(supabase, userId, args.workflowId);
+            case 'workflow_create':
+                return await createWorkflow(supabase, userId, { name: args.name, description: args.description });
+            case 'workflow_edit':
+                return await editWorkflow(supabase, userId, args.workflowId, args.ops || []);
+            case 'workflow_validate':
+                return await validateWorkflow(supabase, userId, args.workflowId);
+            case 'workflow_publish':
+                return await publishWorkflow(supabase, userId, args.workflowId, args.commitMessage);
+            case 'workflow_delete':
+                return await deleteWorkflow(supabase, userId, args.workflowId);
+            case 'workflow_run_plan':
+                return await runWorkflowPlan(supabase, userId, {
+                    workflowId: args.workflowId,
+                    nodeIds: args.nodeIds,
+                    startNodes: args.startNodes,
+                    endNodes: args.endNodes,
+                    includeDependencies: args.includeDependencies,
+                    inputOverrides: args.inputOverrides
+                });
             case 'get_recent_runs':
                 return await getRecentRuns(supabase, userId, args.workflowId, args.limit);
             case 'run_workflow':

@@ -7,7 +7,14 @@ import {
     configureNode,
     scheduleMessage,
     validateNodeConfig,
-    markNodeFailed
+    markNodeFailed,
+    createWorkflow,
+    inspectWorkflow,
+    editWorkflow,
+    validateWorkflow,
+    publishWorkflow,
+    deleteWorkflow,
+    runWorkflowPlan
 } from '@/lib/agent-tools';
 
 import { logUsageEvent } from '@/lib/usage/log';

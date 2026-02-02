@@ -41,17 +41,77 @@ export class WorkflowEngine {
      * @param triggerNodeId - Optional: Specific node ID to start execution from (e.g. for Webhooks)
      */
     async run(initialPayload: any = {}, triggerNodeId?: string): Promise<WorkflowRun> {
+        // Determine Trigger Node
+        let startNode: Node | undefined;
+
+        // 1. If a specific trigger node ID is provided, verify and use it
+        if (triggerNodeId) {
+            startNode = this.nodes.find(n => n.id === triggerNodeId);
+            if (!startNode) {
+                throw new Error(`Specified trigger node "${triggerNodeId}" not found in workflow`);
+            }
+        } else {
+            // 2. Auto-detect triggers if no specific ID provided
+            const triggerNodes = this.nodes.filter(n =>
+                (n.type === 'step' && n.data.label === 'Start Workflow') ||
+                n.type === 'webhook' ||
+                n.type === 'schedule'
+            );
+
+            if (triggerNodes.length === 0) {
+                throw new Error('No valid Trigger node found (Start, Webhook, or Schedule)');
+            }
+
+            if (triggerNodes.length === 1) {
+                startNode = triggerNodes[0];
+            } else {
+                startNode = triggerNodes.find(n => n.data.label === 'Start Workflow');
+                if (!startNode) {
+                    startNode = triggerNodes[0];
+                    this.log('warn', `Multiple triggers found. Defaulting to ${startNode.data.label || startNode.id}`);
+                }
+            }
+        }
+
+        if (!startNode) {
+            throw new Error('Could not determine entry point');
+        }
+
+        return this.runInternal([{ nodeId: startNode.id, input: initialPayload }], [initialPayload]);
+    }
+
+    /**
+     * Execute a specific subgraph plan (multiple start nodes supported)
+     */
+    async runPlan(startNodes: { nodeId: string; input?: any }[], metadata?: { trigger?: string }): Promise<WorkflowRun> {
+        if (!startNodes || startNodes.length === 0) {
+            throw new Error('No start nodes provided for plan execution');
+        }
+
+        const queue = startNodes.map((node) => ({
+            nodeId: node.nodeId,
+            input: node.input ?? {}
+        }));
+
+        const args = queue.map((item) => item.input);
+        return this.runInternal(queue, args, metadata);
+    }
+
+    private async runInternal(
+        queue: { nodeId: string; input: any }[],
+        args: any[] = [],
+        metadata?: { trigger?: string }
+    ): Promise<WorkflowRun> {
         const startTime = new Date().toISOString();
 
-        // Initial run record
         const run: WorkflowRun = {
             id: this.context.runId,
             workflowId: this.workflowId,
-            workflowVersionId: this.workflowVersionId, // Added
+            workflowVersionId: this.workflowVersionId,
             workflowName: this.workflowName,
             status: 'running',
             startTime,
-            args: [initialPayload],
+            args,
             logs: [],
             steps: []
         };
@@ -59,56 +119,16 @@ export class WorkflowEngine {
         await saveRun(this.supabase, run, this.userId);
 
         try {
-            // Determine Trigger Node
-            let startNode: Node | undefined;
-
-            // 1. If a specific trigger node ID is provided, verify and use it
-            if (triggerNodeId) {
-                startNode = this.nodes.find(n => n.id === triggerNodeId);
-                if (!startNode) {
-                    throw new Error(`Specified trigger node "${triggerNodeId}" not found in workflow`);
-                }
+            if (metadata?.trigger) {
+                this.log('info', `Workflow execution started (trigger: ${metadata.trigger})`);
             } else {
-                // 2. Auto-detect triggers if no specific ID provided
-                // Search for valid triggers
-                const triggerNodes = this.nodes.filter(n =>
-                    (n.type === 'step' && n.data.label === 'Start Workflow') ||
-                    n.type === 'webhook' ||
-                    n.type === 'schedule'
-                );
-
-                if (triggerNodes.length === 0) {
-                    throw new Error('No valid Trigger node found (Start, Webhook, or Schedule)');
-                }
-
-                // 3. For manual runs (no inputs keyed to specific nodes), prefer "Start Workflow"
-                // If strictly one trigger exists, use it.
-                if (triggerNodes.length === 1) {
-                    startNode = triggerNodes[0];
-                } else {
-                    // Multiple triggers exist. 
-                    // Prioritize 'Start Workflow' for manual/test runs
-                    startNode = triggerNodes.find(n => n.data.label === 'Start Workflow');
-
-                    // If no manual start, pick the first one (e.g. Schedule) but log specific warning
-                    if (!startNode) {
-                        startNode = triggerNodes[0];
-                        this.log('warn', `Multiple triggers found. Defaulting to ${startNode.data.label || startNode.id}`);
-                    }
-                }
+                this.log('info', 'Workflow execution started');
             }
 
-            if (!startNode) {
-                throw new Error('Could not determine entry point');
+            for (const entry of queue) {
+                this.context.inputs[entry.nodeId] = entry.input;
             }
 
-            this.context.inputs[startNode.id] = initialPayload;
-            this.log('info', 'Workflow execution started');
-
-            // Start traversal
-            // Using a queue for BFS traversal, but we need to handle async steps sequentially per path
-            // For simplicity in v1: Basic BFS/processing queue
-            const queue: { nodeId: string; input: any }[] = [{ nodeId: startNode.id, input: initialPayload }];
             const processedCount: Record<string, number> = {};
 
             while (queue.length > 0) {
@@ -123,10 +143,8 @@ export class WorkflowEngine {
                 await this.executeNode(nodeId, input, queue);
             }
 
-            // Completion
             await updateRunStatus(this.supabase, this.context.runId, 'completed', this.context.inputs);
 
-            // Trigger Autonomy Event
             try {
                 await ingestAutonomyEvent(this.userId, {
                     source_type: 'system',
@@ -142,8 +160,6 @@ export class WorkflowEngine {
                 console.warn('[Autonomy] Failed to emit completion event', e);
             }
 
-            // Re-fetch to get final object? Or construct from known state.
-            // For now, return what we have (updated locally)
             return {
                 ...run,
                 status: 'completed',
@@ -155,7 +171,6 @@ export class WorkflowEngine {
             console.error('Workflow execution failed:', error);
             await updateRunStatus(this.supabase, this.context.runId, 'failed', undefined, error.message);
 
-            // Trigger Autonomy Event
             try {
                 await ingestAutonomyEvent(this.userId, {
                     source_type: 'system',
