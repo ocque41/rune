@@ -10,25 +10,35 @@ const Conversation = React.forwardRef<
     HTMLDivElement,
     React.ComponentProps<typeof StickToBottom> & { className?: string }
 >(({ className, initial = "smooth", resize = "smooth", ...props }, ref) => (
-    <StickToBottom
-        ref={ref}
-        className={cn("relative h-full w-full overflow-hidden", className)}
-        initial={initial}
-        resize={resize}
-        {...props}
-    />
+    <div ref={ref} className={cn("relative h-full w-full overflow-hidden", className)}>
+        <StickToBottom
+            initial={initial}
+            resize={resize}
+            {...props}
+            className="h-full w-full"
+        />
+    </div>
 ))
 Conversation.displayName = "Conversation"
 
 const ConversationContent = React.forwardRef<
     HTMLDivElement,
-    React.ComponentProps<typeof StickToBottom.Content> & { className?: string }
->(({ className, ...props }, ref) => (
-    <StickToBottom.Content
-        ref={ref}
-        className={cn("flex flex-col gap-4 p-4", className)}
-        {...props}
-    />
+    Omit<React.HTMLAttributes<HTMLDivElement>, "children"> & {
+        className?: string
+        children?: React.ReactNode | ((context: any) => React.ReactNode)
+    }
+>(({ className, children, ...props }, ref) => (
+    <StickToBottom.Content>
+        {(context) => (
+            <div
+                ref={ref}
+                className={cn("flex flex-col gap-4 p-4", className)}
+                {...props}
+            >
+                {typeof children === "function" ? children(context) : children}
+            </div>
+        )}
+    </StickToBottom.Content>
 ))
 ConversationContent.displayName = "ConversationContent"
 

@@ -1,6 +1,11 @@
 
 export const HIGH_IMPACT_TOOLS = [
     'run_workflow',
+    'workflow_run_plan',
+    'workflow_publish',
+    'workflow_delete',
+    'workflow_edit',
+    'workflow_create',
     'configure_node',
     'mark_node_failed',
     'schedule_message',

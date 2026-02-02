@@ -10,8 +10,18 @@ export const dynamic = 'force-dynamic'; // Prevent caching
 
 // GET /api/cron
 // This endpoint should be called by an external scheduler (e.g. Vercel Cron, GitHub Actions)
-export async function GET() {
+export async function GET(req: Request) {
     try {
+        const cronSecret = process.env.RUNE_CRON_SECRET;
+        if (cronSecret) {
+            const headerSecret = req.headers.get('x-rune-cron-secret');
+            const url = new URL(req.url);
+            const querySecret = url.searchParams.get('secret');
+            if (headerSecret !== cronSecret && querySecret !== cronSecret) {
+                return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+            }
+        }
+
         const supabase = createAdminClient();
 
         // 1. Ingest Events

@@ -41,6 +41,34 @@ export async function executeTool(supabase: any, userId: string, toolName: strin
             case 'list_workflows':
                 result = await listWorkflows(supabase, userId, args.limit);
                 break;
+            case 'workflow_inspect':
+                result = await inspectWorkflow(supabase, userId, args.workflowId);
+                break;
+            case 'workflow_create':
+                result = await createWorkflow(supabase, userId, { name: args.name, description: args.description });
+                break;
+            case 'workflow_edit':
+                result = await editWorkflow(supabase, userId, args.workflowId, args.ops || []);
+                break;
+            case 'workflow_validate':
+                result = await validateWorkflow(supabase, userId, args.workflowId);
+                break;
+            case 'workflow_publish':
+                result = await publishWorkflow(supabase, userId, args.workflowId, args.commitMessage);
+                break;
+            case 'workflow_delete':
+                result = await deleteWorkflow(supabase, userId, args.workflowId);
+                break;
+            case 'workflow_run_plan':
+                result = await runWorkflowPlan(supabase, userId, {
+                    workflowId: args.workflowId,
+                    nodeIds: args.nodeIds,
+                    startNodes: args.startNodes,
+                    endNodes: args.endNodes,
+                    includeDependencies: args.includeDependencies,
+                    inputOverrides: args.inputOverrides
+                });
+                break;
             case 'get_recent_runs':
                 result = await getRecentRuns(supabase, userId, args.workflowId, args.limit);
                 break;

@@ -122,13 +122,13 @@ export async function runWorkflow(supabase: SupabaseClient, userId: string, payl
     // 3. Check for deployed version (optional - fallback to draft graph)
     const { data: latestVersion } = await supabase
         .from('rune_workflow_versions')
-        .select('id, graph_json')
+        .select('id, definition_json, version_number')
         .eq('workflow_id', workflowId)
-        .order('version', { ascending: false })
+        .order('version_number', { ascending: false })
         .limit(1)
         .single();
 
-    const graph = latestVersion?.graph_json || workflow.graph_json;
+    const graph = latestVersion?.definition_json?.graph || workflow.graph_json;
     if (!graph || !graph.nodes || graph.nodes.length === 0) {
         return { success: false, error: "Workflow has no nodes. Please add nodes before running." };
     }
@@ -675,7 +675,15 @@ export async function runWorkflowPlan(
         return { success: false, error: 'Workflow not found.' };
     }
 
-    const graph = (workflow.graph_json || DEFAULT_GRAPH) as { nodes: Node[]; edges: Edge[] };
+    const { data: latestVersion } = await supabase
+        .from('rune_workflow_versions')
+        .select('id, definition_json, version_number')
+        .eq('workflow_id', resolvedWorkflowId)
+        .order('version_number', { ascending: false })
+        .limit(1)
+        .single();
+
+    const graph = (latestVersion?.definition_json?.graph || workflow.graph_json || DEFAULT_GRAPH) as { nodes: Node[]; edges: Edge[] };
 
     const { nodes, edges, startNodes } = buildSubgraph(graph, {
         nodeIds: payload.nodeIds,

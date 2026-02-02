@@ -24,6 +24,8 @@ import { toast } from "sonner"
 import { getAvailableTools, AgentToolDef } from "@/app/actions/tools"
 import { getAgentPresets, saveAgentPreset, deleteAgentPreset, AgentPreset } from "@/app/actions/presets"
 import { getEffectiveAgentConfig } from "@/app/actions/agent-config"
+import { getAutonomyPolicy, updateAutonomyPolicy } from "@/app/actions/autonomy"
+import { AutonomyConfig } from "@/lib/autonomy/policy"
 import anime from "animejs"
 import { ApprovalCard } from "@/components/chat/approval-card"
 
@@ -74,6 +76,8 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
     const [saved, setSaved] = useState(false);
     const [showChatModal, setShowChatModal] = useState(false);
     const [autonomousMode, setAutonomousMode] = useState(false);
+    const [autonomyPolicy, setAutonomyPolicy] = useState<AutonomyConfig | null>(null);
+    const [isAutonomyLoading, setIsAutonomyLoading] = useState(false);
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [isStreamEnabled, setIsStreamEnabled] = useState(true);
@@ -118,6 +122,10 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
         }
     }, [workflowId]);
 
+    useEffect(() => {
+        loadAutonomyPolicy(workflowId);
+    }, [workflowId, loadAutonomyPolicy]);
+
     // Load messages when currentChatId changes
     useEffect(() => {
         if (currentChatId) {
@@ -147,6 +155,37 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
             console.error('Failed to load chat:', e);
         }
     };
+
+    const loadAutonomyPolicy = useCallback(async (workflowId?: string | null) => {
+        if (!workflowId) {
+            setAutonomyPolicy(null);
+            setAutonomousMode(false);
+            return;
+        }
+
+        setIsAutonomyLoading(true);
+        try {
+            const workflowPolicy = await getAutonomyPolicy(workflowId);
+            if (workflowPolicy) {
+                setAutonomyPolicy(workflowPolicy);
+                setAutonomousMode(workflowPolicy.mode === 'AUTONOMOUS');
+                return;
+            }
+
+            const userPolicy = await getAutonomyPolicy();
+            if (userPolicy) {
+                setAutonomyPolicy(userPolicy);
+                setAutonomousMode(userPolicy.mode === 'AUTONOMOUS');
+            } else {
+                setAutonomyPolicy(null);
+                setAutonomousMode(false);
+            }
+        } catch (e) {
+            console.error('Failed to load autonomy policy', e);
+        } finally {
+            setIsAutonomyLoading(false);
+        }
+    }, []);
 
     // Load tools and presets on mount
     useEffect(() => {
@@ -180,6 +219,44 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
             setSelectedPresetId(preset.id);
             setSelectedPresetName(preset.name);
             toast.success(`Loaded preset: ${preset.name}`);
+        }
+    };
+
+    const handleAutonomousToggle = async (enabled: boolean) => {
+        setAutonomousMode(enabled);
+        if (!workflowId) return;
+
+        try {
+            const basePolicy = autonomyPolicy || (await getAutonomyPolicy()) || {
+                mode: 'OFF',
+                maxActionsPerHour: 10,
+                maxActionsPerDay: 50,
+                maxTokensPerHour: 100000,
+                maxTokensPerDay: 500000,
+                maxParallelJobs: 3,
+                toolAllowlist: [],
+                toolBlocklist: [],
+                triggersEnabled: {
+                    webhook: true,
+                    schedule: true,
+                    runCompletion: true,
+                    manualOnly: false
+                },
+                notifyOnSuccess: false,
+                notifyOnFailure: true,
+                notifyOnApprovalNeeded: true
+            } as AutonomyConfig;
+
+            const nextPolicy = {
+                ...basePolicy,
+                mode: enabled ? 'AUTONOMOUS' : 'OFF'
+            } as AutonomyConfig;
+
+            await updateAutonomyPolicy(nextPolicy, workflowId);
+            setAutonomyPolicy(nextPolicy);
+        } catch (e) {
+            console.error('Failed to update autonomy policy', e);
+            toast.error('Failed to update autonomy mode');
         }
     };
 
@@ -589,7 +666,8 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                         </span>
                                         <Switch
                                             checked={autonomousMode}
-                                            onCheckedChange={setAutonomousMode}
+                                            onCheckedChange={handleAutonomousToggle}
+                                            disabled={isAutonomyLoading}
                                             className="scale-75 -mr-1 data-[state=unchecked]:bg-white/10 data-[state=unchecked]:border-white/20 data-[state=checked]:bg-amber-500 border border-transparent transition-all"
                                         />
                                         {activeSessionId && (
