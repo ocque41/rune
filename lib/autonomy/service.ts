@@ -82,6 +82,30 @@ export async function processEvent(eventId: string, supabaseClient?: SupabaseCli
         return;
     }
 
+    // Trigger filters
+    if (policy.triggersEnabled?.manualOnly) {
+        await updateEventStatus(supabase, eventId, 'ignored', { reason: 'Manual-only mode enabled' });
+        return;
+    }
+
+    if (event.source_type === 'webhook' && policy.triggersEnabled?.webhook === false) {
+        await updateEventStatus(supabase, eventId, 'ignored', { reason: 'Webhook triggers disabled' });
+        return;
+    }
+
+    if (event.source_type === 'schedule' && policy.triggersEnabled?.schedule === false) {
+        await updateEventStatus(supabase, eventId, 'ignored', { reason: 'Schedule triggers disabled' });
+        return;
+    }
+
+    if (event.source_type === 'system') {
+        const systemEvent = event.payload?.event || '';
+        if (systemEvent.startsWith('run.') && policy.triggersEnabled?.runCompletion === false) {
+            await updateEventStatus(supabase, eventId, 'ignored', { reason: 'Run completion triggers disabled' });
+            return;
+        }
+    }
+
     // 3. Triage (AI)
     try {
         const decision = await runTriageAI(event, policy);
