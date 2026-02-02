@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildAgentContext } from '@/lib/agent-context';
-import { TOOLS_DEFINITION, getActiveContext, listWorkflows, getRecentRuns, runWorkflow, runNode, configureNode, scheduleMessage, validateNodeConfig, markNodeFailed } from '@/lib/agent-tools';
+import { TOOLS_DEFINITION, getActiveContext, listWorkflows, getRecentRuns, runWorkflow, runNode, configureNode, scheduleMessage, validateNodeConfig, markNodeFailed, createWorkflow, inspectWorkflow, editWorkflow, validateWorkflow, publishWorkflow, deleteWorkflow, runWorkflowPlan } from '@/lib/agent-tools';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, FunctionDeclaration, FunctionDeclarationSchema } from '@google/generative-ai';
 import { AgentConfig } from '@/lib/agent/types';
 import { isHighImpactTool } from '@/lib/agent/tools-metadata';
@@ -335,6 +335,27 @@ export async function POST(req: NextRequest) {
                         return await getActiveContext(supabase, userId);
                     case 'list_workflows':
                         return await listWorkflows(supabase, userId, args.limit);
+                    case 'workflow_inspect':
+                        return await inspectWorkflow(supabase, userId, args.workflowId);
+                    case 'workflow_create':
+                        return await createWorkflow(supabase, userId, { name: args.name, description: args.description });
+                    case 'workflow_edit':
+                        return await editWorkflow(supabase, userId, args.workflowId, args.ops || []);
+                    case 'workflow_validate':
+                        return await validateWorkflow(supabase, userId, args.workflowId);
+                    case 'workflow_publish':
+                        return await publishWorkflow(supabase, userId, args.workflowId, args.commitMessage);
+                    case 'workflow_delete':
+                        return await deleteWorkflow(supabase, userId, args.workflowId);
+                    case 'workflow_run_plan':
+                        return await runWorkflowPlan(supabase, userId, {
+                            workflowId: args.workflowId,
+                            nodeIds: args.nodeIds,
+                            startNodes: args.startNodes,
+                            endNodes: args.endNodes,
+                            includeDependencies: args.includeDependencies,
+                            inputOverrides: args.inputOverrides
+                        });
                     case 'get_recent_runs':
                         return await getRecentRuns(supabase, userId, args.workflowId, args.limit);
                     case 'run_workflow':
