@@ -7,6 +7,7 @@ import { TOOLS_DEFINITION } from '@/lib/agent-tools';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { executeJob } from './execution';
 import { logUsageEvent } from '@/lib/usage/log';
+import { scheduleMessage } from '@/lib/agent-tools';
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
 
@@ -225,6 +226,14 @@ export async function runPlanning(jobId: string, supabaseClient?: SupabaseClient
             status: initialStatus,
             updated_at: new Date().toISOString()
         }).eq('id', jobId);
+
+        if (initialStatus === 'waiting_approval' && policy.notifyOnApprovalNeeded) {
+            await scheduleMessage(supabase, job.user_id, {
+                message: `[Autonomy] Approval required for job: ${job.title || job.id}`,
+                priority: 'high',
+                workflowId: job.workflow_id
+            });
+        }
 
         // Connect Execution Phase
         if (initialStatus === 'pending') {

@@ -3,6 +3,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@/lib/types/database';
 import { getEffectivePolicy, checkBudget } from './policy';
 import { executeTool } from '@/lib/agent/executor';
+import { scheduleMessage } from '@/lib/agent-tools';
 
 export async function executeJob(jobId: string, supabaseClient?: SupabaseClient<Database>) {
     const supabase = supabaseClient || await createClient();
@@ -27,6 +28,8 @@ export async function executeJob(jobId: string, supabaseClient?: SupabaseClient<
         return;
     }
 
+    const { config: policy } = await getEffectivePolicy(supabase, job.user_id, job.workflow_id || undefined);
+
     // Mark as running if not already
     if (job.status === 'pending') {
         // @ts-ignore
@@ -39,12 +42,11 @@ export async function executeJob(jobId: string, supabaseClient?: SupabaseClient<
     if (!plan || !Array.isArray(plan.steps)) {
         console.error(`[Execution] Invalid plan for job ${jobId}`);
         await updateJobStatus(supabase, jobId, 'failed', { error: 'Invalid plan structure' });
+        await notifyUser(supabase, job, policy, 'failed', 'Invalid plan structure');
         return;
     }
 
     // 2. Policy & Budget
-    const { config: policy } = await getEffectivePolicy(supabase, job.user_id, job.workflow_id || undefined);
-
     let allCompleted = true;
     let stepsExecutedThisRun = 0;
     const MAX_STEPS_PER_BATCH = 5; // Prevent timeout in cron/lambda
@@ -66,12 +68,14 @@ export async function executeJob(jobId: string, supabaseClient?: SupabaseClient<
             if (!policy.toolAllowlist.includes(step.tool)) {
                 console.warn(`[Execution] Tool usage denied by allowlist: ${step.tool}`);
                 await updateJobStatus(supabase, jobId, 'failed', { error: `Tool denied by policy: ${step.tool}` });
+                await notifyUser(supabase, job, policy, 'failed', `Tool denied by policy: ${step.tool}`);
                 return;
             }
         }
         if (policy.toolBlocklist && policy.toolBlocklist.includes(step.tool)) {
             console.warn(`[Execution] Tool usage denied by blocklist: ${step.tool}`);
             await updateJobStatus(supabase, jobId, 'failed', { error: `Tool blocked by policy: ${step.tool}` });
+            await notifyUser(supabase, job, policy, 'failed', `Tool blocked by policy: ${step.tool}`);
             return;
         }
 
@@ -82,6 +86,7 @@ export async function executeJob(jobId: string, supabaseClient?: SupabaseClient<
         if (!budget.allowed) {
             console.warn(`[Execution] Budget exceeded for job ${jobId}: ${budget.reason}`);
             await updateJobStatus(supabase, jobId, 'paused', { reason: budget.reason });
+            await notifyUser(supabase, job, policy, 'paused', budget.reason || 'Budget exceeded');
             return;
         }
 
@@ -111,12 +116,14 @@ export async function executeJob(jobId: string, supabaseClient?: SupabaseClient<
                 console.warn(`[Execution] Step failed: ${result.error}`);
                 step.status = 'failed';
                 await updateJobStatus(supabase, jobId, 'paused', { reason: `Step ${i} failed: ${result.error}` });
+                await notifyUser(supabase, job, policy, 'paused', `Step ${i} failed: ${result.error}`);
                 return;
             }
 
         } catch (e: any) {
             console.error(`[Execution] Step exception`, e);
             await updateJobStatus(supabase, jobId, 'failed', { error: e.message });
+            await notifyUser(supabase, job, policy, 'failed', e.message);
             return;
         }
     }
@@ -124,7 +131,20 @@ export async function executeJob(jobId: string, supabaseClient?: SupabaseClient<
     // 5. Completion
     if (allCompleted) {
         await updateJobStatus(supabase, jobId, 'completed');
+        await notifyUser(supabase, job, policy, 'completed', 'Job completed successfully');
     }
+}
+
+async function notifyUser(supabase: SupabaseClient<Database>, job: any, policy: any, status: 'completed' | 'failed' | 'paused', message: string) {
+    if (status === 'completed' && !policy.notifyOnSuccess) return;
+    if (status !== 'completed' && !policy.notifyOnFailure) return;
+
+    const title = job.title || `Job ${job.id}`;
+    await scheduleMessage(supabase, job.user_id, {
+        message: `[Autonomy] ${title} ${status}: ${message}`,
+        priority: status === 'completed' ? 'normal' : 'high',
+        workflowId: job.workflow_id
+    });
 }
 
 async function updateJobStatus(supabase: any, jobId: string, status: string, resultUpdate: any = {}) {
