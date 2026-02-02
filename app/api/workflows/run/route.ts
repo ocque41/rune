@@ -13,7 +13,7 @@ async function executeRunLogic(name: string, args: any) {
     // 1. Resolve workflow by name
     const { data: workflow, error: wfError } = await supabase
         .from('rune_workflows')
-        .select('id, name')
+        .select('id, name, user_id')
         .eq('name', name)
         .single();
 
@@ -49,6 +49,7 @@ async function executeRunLogic(name: string, args: any) {
         workflow.name,
         graph.nodes || [],
         graph.edges || [],
+        workflow.user_id,
         latestVersion.id // Pass version ID
     );
 

@@ -77,11 +77,12 @@ async function handleWorkflowTrigger(workflowId: string, payload: any) {
         // 2. Fetch Workflow Name
         const { data: wfMeta } = await supabase
             .from('rune_workflows')
-            .select('name')
+            .select('name, user_id')
             .eq('id', workflowId)
             .single();
 
         const workflowName = wfMeta?.name || 'Unknown Workflow';
+        const workflowUserId = wfMeta?.user_id;
 
         // 3. Initialize Engine
         const engine = new WorkflowEngine(
@@ -90,6 +91,7 @@ async function handleWorkflowTrigger(workflowId: string, payload: any) {
             workflowName,
             graph.nodes,
             graph.edges,
+            workflowUserId,
             latestVersion.id // Pass version ID
         );
 

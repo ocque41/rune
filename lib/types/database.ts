@@ -198,58 +198,76 @@ export type Database = {
             }
             rune_agent_jobs: {
                 Row: {
+                    actions_taken: Json[] | null
+                    approval_responded_at: string | null
+                    approval_response: Json | null
+                    completed_at: string | null
                     context: Json | null
                     created_at: string
+                    error: string | null
                     event_id: string | null
                     id: string
+                    leased_until: string | null
                     plan: Json | null
                     priority: string
                     result: Json | null
+                    started_at: string | null
                     status: string
                     title: string
+                    tokens_used: number | null
+                    triage_result: Json | null
                     updated_at: string
                     user_id: string
-                    workflow_id: string | null
-                    approval_responded_at: string | null
-                    approval_response: Json | null
-                    leased_until: string | null
                     worker_id: string | null
+                    workflow_id: string | null
                 }
                 Insert: {
+                    actions_taken?: Json[] | null
+                    approval_responded_at?: string | null
+                    approval_response?: Json | null
+                    completed_at?: string | null
                     context?: Json | null
                     created_at?: string
+                    error?: string | null
                     event_id?: string | null
                     id?: string
+                    leased_until?: string | null
                     plan?: Json | null
                     priority?: string
                     result?: Json | null
+                    started_at?: string | null
                     status?: string
                     title: string
+                    tokens_used?: number | null
+                    triage_result?: Json | null
                     updated_at?: string
                     user_id: string
-                    workflow_id?: string | null
-                    approval_responded_at?: string | null
-                    approval_response?: Json | null
-                    leased_until?: string | null
                     worker_id?: string | null
+                    workflow_id?: string | null
                 }
                 Update: {
+                    actions_taken?: Json[] | null
+                    approval_responded_at?: string | null
+                    approval_response?: Json | null
+                    completed_at?: string | null
                     context?: Json | null
                     created_at?: string
+                    error?: string | null
                     event_id?: string | null
                     id?: string
+                    leased_until?: string | null
                     plan?: Json | null
                     priority?: string
                     result?: Json | null
+                    started_at?: string | null
                     status?: string
                     title?: string
+                    tokens_used?: number | null
+                    triage_result?: Json | null
                     updated_at?: string
                     user_id?: string
-                    workflow_id?: string | null
-                    approval_responded_at?: string | null
-                    approval_response?: Json | null
-                    leased_until?: string | null
                     worker_id?: string | null
+                    workflow_id?: string | null
                 }
                 Relationships: [
                     {
@@ -257,6 +275,59 @@ export type Database = {
                         columns: ["event_id"]
                         isOneToOne: false
                         referencedRelation: "rune_agent_events"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+            rune_agent_decisions: {
+                Row: {
+                    created_at: string
+                    decision_type: string
+                    duration_ms: number | null
+                    id: string
+                    input_summary: Json | null
+                    job_id: string
+                    metadata: Json | null
+                    model_used: string | null
+                    output_summary: Json | null
+                    tokens_in: number | null
+                    tokens_out: number | null
+                    user_id: string
+                }
+                Insert: {
+                    created_at?: string
+                    decision_type: string
+                    duration_ms?: number | null
+                    id?: string
+                    input_summary?: Json | null
+                    job_id: string
+                    metadata?: Json | null
+                    model_used?: string | null
+                    output_summary?: Json | null
+                    tokens_in?: number | null
+                    tokens_out?: number | null
+                    user_id: string
+                }
+                Update: {
+                    created_at?: string
+                    decision_type?: string
+                    duration_ms?: number | null
+                    id?: string
+                    input_summary?: Json | null
+                    job_id?: string
+                    metadata?: Json | null
+                    model_used?: string | null
+                    output_summary?: Json | null
+                    tokens_in?: number | null
+                    tokens_out?: number | null
+                    user_id?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "rune_agent_decisions_job_id_fkey"
+                        columns: ["job_id"]
+                        isOneToOne: false
+                        referencedRelation: "rune_agent_jobs"
                         referencedColumns: ["id"]
                     }
                 ]

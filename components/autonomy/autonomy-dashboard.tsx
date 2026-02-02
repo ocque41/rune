@@ -20,6 +20,30 @@ export const AutonomyDashboard = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
 
+    useEffect(() => {
+        try {
+            const stored = localStorage.getItem('autonomyDashboardState');
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if (parsed?.view) setView(parsed.view);
+                if (parsed?.selectedJobId) setSelectedJobId(parsed.selectedJobId);
+            }
+        } catch (e) {
+            console.warn('Failed to restore autonomy dashboard state');
+        }
+    }, []);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('autonomyDashboardState', JSON.stringify({
+                view,
+                selectedJobId
+            }));
+        } catch (e) {
+            console.warn('Failed to persist autonomy dashboard state');
+        }
+    }, [view, selectedJobId]);
+
     // Initial load & Polling
     useEffect(() => {
         loadJobs();
@@ -44,7 +68,12 @@ export const AutonomyDashboard = () => {
         if (!silent) setRefreshing(true);
         try {
             const data = await getAutonomyJobs(50);
-            setJobs(data || []);
+            const nextJobs = data || [];
+            setJobs(nextJobs);
+
+            if (selectedJobId && !nextJobs.find((job) => job.id === selectedJobId)) {
+                setSelectedJobId(undefined);
+            }
 
             // If we have a selected job, refresh its details too if visible
             if (selectedJobId && silent) {

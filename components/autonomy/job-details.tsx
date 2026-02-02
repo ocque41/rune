@@ -4,8 +4,10 @@ import React, { useState } from 'react';
 import { approveJob, rejectJob } from '@/app/actions/autonomy';
 import { toast } from 'sonner';
 import { useEnterAnimation } from '@/hooks/use-enter-animation';
-import { CheckCircle, XCircle, Clock, Play, AlertCircle, Terminal, Cpu, UserCheck, ShieldAlert } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Play, Terminal, Cpu, UserCheck, ShieldAlert } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 
 export const JobDetails = ({ job }: { job: any }) => {
     const scope = useEnterAnimation({ selector: '.step-item', stagger: 50, delay: 100 });
@@ -40,6 +42,10 @@ export const JobDetails = ({ job }: { job: any }) => {
     };
 
     const planSteps = job.plan?.steps || [];
+    const completedSteps = planSteps.filter((step: any) => step.status === 'completed').length;
+    const failedSteps = planSteps.filter((step: any) => step.status === 'failed').length;
+    const runningSteps = planSteps.filter((step: any) => step.status === 'running').length;
+    const progressValue = planSteps.length ? Math.round((completedSteps / planSteps.length) * 100) : 0;
 
     return (
         <div className="h-full flex flex-col bg-background animate-in fade-in duration-300">
@@ -91,6 +97,33 @@ export const JobDetails = ({ job }: { job: any }) => {
                     <p className="text-sm text-muted-foreground leading-relaxed">
                         {job.context?.triage_reason || job.triage_result?.reason || "No reasoning context provided."}
                     </p>
+                </div>
+
+                {/* Progress */}
+                <div className="bg-card/60 border border-border rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h3 className="text-sm font-semibold text-foreground">Execution Progress</h3>
+                            <p className="text-xs text-muted-foreground">{completedSteps}/{planSteps.length} steps complete</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {runningSteps > 0 && (
+                                <Badge className="bg-primary/15 text-primary border-primary/30">Running</Badge>
+                            )}
+                            {failedSteps > 0 && (
+                                <Badge className="bg-destructive/10 text-destructive border-destructive/30">{failedSteps} Failed</Badge>
+                            )}
+                        </div>
+                    </div>
+                    <Progress
+                        value={progressValue}
+                        className="h-2 bg-muted"
+                        indicatorClassName={failedSteps > 0 ? "bg-destructive" : "bg-primary"}
+                    />
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                        <span>{progressValue}% complete</span>
+                        <span>{planSteps.length === 0 ? 'No plan available' : 'Tracking step execution'}</span>
+                    </div>
                 </div>
 
                 {/* Execution Plan */}

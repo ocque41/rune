@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { McpModal } from "./mcp-modal"
 import { ChatListModal } from "./chat-list-modal"
 import { Textarea } from "@/components/ui/textarea"
@@ -138,15 +139,9 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
     };
 
     const loadAutonomyPolicy = useCallback(async (workflowId?: string | null) => {
-        if (!workflowId) {
-            setAutonomyPolicy(null);
-            setAutonomousMode(false);
-            return;
-        }
-
         setIsAutonomyLoading(true);
         try {
-            const workflowPolicy = await getAutonomyPolicy(workflowId);
+            const workflowPolicy = workflowId ? await getAutonomyPolicy(workflowId) : null;
             if (workflowPolicy) {
                 setAutonomyPolicy(workflowPolicy);
                 setAutonomousMode(workflowPolicy.mode === 'AUTONOMOUS');
@@ -224,10 +219,10 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
 
     const handleAutonomousToggle = async (enabled: boolean) => {
         setAutonomousMode(enabled);
-        if (!workflowId) return;
+        setIsAutonomyLoading(true);
 
         try {
-            const basePolicy = autonomyPolicy || (await getAutonomyPolicy()) || {
+            const basePolicy = autonomyPolicy || (workflowId ? await getAutonomyPolicy(workflowId) : await getAutonomyPolicy()) || {
                 mode: 'OFF',
                 maxActionsPerHour: 10,
                 maxActionsPerDay: 50,
@@ -252,13 +247,28 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                 mode: enabled ? 'AUTONOMOUS' : 'OFF'
             } as AutonomyConfig;
 
-            await updateAutonomyPolicy(nextPolicy, workflowId);
+            await updateAutonomyPolicy(nextPolicy, workflowId || undefined);
             setAutonomyPolicy(nextPolicy);
         } catch (e) {
             console.error('Failed to update autonomy policy', e);
+            setAutonomousMode(autonomyPolicy?.mode === 'AUTONOMOUS');
             toast.error('Failed to update autonomy mode');
+        } finally {
+            setIsAutonomyLoading(false);
         }
     };
+
+    const autonomyLabel = autonomyPolicy?.mode === 'CONFIRM'
+        ? 'Confirm'
+        : autonomousMode
+            ? 'Autonomous'
+            : 'Off';
+
+    const autonomyBadgeVariant: "default" | "secondary" | "outline" = autonomousMode
+        ? 'default'
+        : autonomyPolicy?.mode === 'CONFIRM'
+            ? 'secondary'
+            : 'outline';
 
     // Track config changes to clear selection
     useEffect(() => {
@@ -659,11 +669,31 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                             {/* Autonomous Mode Toggle */}
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-white/5 border border-white/10 ml-1">
-                                        <Zap className={cn("w-3.5 h-3.5", autonomousMode ? "text-amber-500" : "text-white/40")} />
-                                        <span className={cn("text-xs hidden sm:inline", autonomousMode ? "text-amber-500" : "text-white/50")}>
-                                            Auto
-                                        </span>
+                                    <div
+                                        className={cn(
+                                            "flex items-center gap-2 px-2.5 py-1.5 rounded-md border ml-1 transition-all",
+                                            autonomousMode ? "bg-amber-500/10 border-amber-500/30" : "bg-white/5 border-white/10"
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-1.5">
+                                            <Zap className={cn("w-3.5 h-3.5", autonomousMode ? "text-amber-400" : "text-white/40")} />
+                                            <span className={cn("text-xs hidden sm:inline", autonomousMode ? "text-amber-400" : "text-white/50")}>
+                                                Auto
+                                            </span>
+                                        </div>
+                                        <Badge
+                                            variant={autonomyBadgeVariant}
+                                            className={cn(
+                                                "text-[10px] uppercase tracking-wide",
+                                                autonomousMode
+                                                    ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                                                    : autonomyPolicy?.mode === 'CONFIRM'
+                                                        ? "bg-white/10 text-white/70 border-white/20"
+                                                        : "border-white/20 text-white/50"
+                                            )}
+                                        >
+                                            {autonomyLabel}
+                                        </Badge>
                                         <Switch
                                             checked={autonomousMode}
                                             onCheckedChange={handleAutonomousToggle}
@@ -676,7 +706,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                     </div>
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom" className="bg-[#1A1A1A] border-white/10 text-xs text-white">
-                                    Autonomous Mode: Agent runs recursively to complete tasks (up to 50 rounds)
+                                    Autonomous Mode persists to your policy and runs recursively (up to 50 rounds)
                                 </TooltipContent>
                             </Tooltip>
 

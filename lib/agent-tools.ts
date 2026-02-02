@@ -581,7 +581,7 @@ export async function deleteWorkflow(
     return { success: true };
 }
 
-function buildSubgraph(
+export function buildSubgraph(
     graph: { nodes: Node[]; edges: Edge[] },
     options: {
         nodeIds?: string[];
@@ -646,6 +646,7 @@ function buildSubgraph(
         }
     }
 
+    startNodes.sort((a, b) => a.localeCompare(b));
     filteredNodes.sort((a, b) => a.id.localeCompare(b.id));
     filteredEdges.sort((a, b) => `${a.source}:${a.target}`.localeCompare(`${b.source}:${b.target}`));
 

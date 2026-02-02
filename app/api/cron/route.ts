@@ -3,8 +3,8 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { WorkflowEngine } from '@/lib/workflow-engine';
 import CronParser from 'cron-parser';
 import { processPendingEvents } from '@/lib/autonomy/service';
-
 import { executeJob } from '@/lib/autonomy/execution';
+import { processPendingMessages } from '@/lib/notifications/process';
 
 export const dynamic = 'force-dynamic'; // Prevent caching
 
@@ -51,7 +51,7 @@ export async function GET(req: Request) {
         // 3. Schedule Checks (Existing Logic)
         const { data: workflows, error } = await supabase
             .from('rune_workflows')
-            .select('id, name')
+            .select('id, name, user_id')
             .limit(50);
 
         if (error) throw error;
@@ -111,6 +111,7 @@ export async function GET(req: Request) {
                         wf.name || 'Scheduled Workflow',
                         nodes,
                         edges || [],
+                        wf.user_id,
                         latestVersion.id // Pass version ID
                     );
 
@@ -142,6 +143,14 @@ export async function GET(req: Request) {
         } catch (e) {
             console.error('[Cron] Usage rollup failed:', e);
             errors.push({ type: 'rollup', error: e });
+        }
+
+        // 5. Notifications (Pending Messages)
+        try {
+            await processPendingMessages(supabase);
+        } catch (e: any) {
+            console.error('[Cron] Notification processing failed:', e);
+            errors.push({ type: 'notifications', error: e.message || e });
         }
 
         return NextResponse.json({
