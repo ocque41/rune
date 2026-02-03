@@ -12,9 +12,14 @@ export async function GET() {
       const supabase = await createClient();
       const { data: { user } } = await supabase.auth.getUser();
 
+      if (!user) {
+        return NextResponse.json({ workflows: [] });
+      }
+
       const { data, error } = await supabase
         .from("rune_workflows")
-        .select("id, name, description, updated_at, graph_json, graph")
+        .select("id, name, description, updated_at, graph_json")
+        .eq("user_id", user.id)
         .order("updated_at", { ascending: false });
 
       if (error) throw error;
