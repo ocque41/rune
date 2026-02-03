@@ -945,11 +945,8 @@ const FlowBuilderContent = ({
                                 }
                             }}
                             disabled={isSaving}
-                            className="flex items-center gap-2 rounded px-4 py-2 text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50"
-                            style={{
-                                backgroundColor: 'var(--foreground-title)',
-                                color: 'var(--background)',
-                            }}
+                            className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50"
+                            style={{ color: 'var(--foreground-title)' }}
                         >
                             <Cloud size={14} />
                             {isSaving ? 'Saving...' : 'Save'}
@@ -970,13 +967,8 @@ const FlowBuilderContent = ({
 
                         <button
                             onClick={onDeploy}
-                            className="px-6 py-2 text-sm font-medium transition-all"
-                            style={{
-                                backgroundColor: 'var(--foreground-body)',
-                                color: 'var(--background)',
-                                letterSpacing: '0.05em',
-                                textTransform: 'uppercase'
-                            }}
+                            className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                            style={{ color: 'var(--foreground-title)' }}
                         >
                             Deploy
                         </button>
