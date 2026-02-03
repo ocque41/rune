@@ -30,37 +30,37 @@
 
 :root {
   /* Brand Spec: Monochrome, High Contrast */
-  --brand-bg: #141414;
-  --brand-fg: #F0EEE9;
+  --brand-bg: #000000;
+  --brand-fg: #AAAAAA;
 
   /* Shadcn / Tailwind Tokens */
-  --background: #141414;
-  --foreground: #F0EEE9;
+  --background: #000000;
+  --foreground: #AAAAAA;
 
-  --card: #141414;
-  --card-foreground: #F0EEE9;
+  --card: #111111;
+  --card-foreground: #AAAAAA;
 
-  --popover: #141414;
-  --popover-foreground: #F0EEE9;
+  --popover: #111111;
+  --popover-foreground: #AAAAAA;
 
-  --primary: #F0EEE9;
-  --primary-foreground: #141414;
+  --primary: #AAAAAA;
+  --primary-foreground: #000000;
 
-  --secondary: #1F1F1F;
-  --secondary-foreground: #F0EEE9;
+  --secondary: #141414;
+  --secondary-foreground: #AAAAAA;
 
-  --muted: #2A2A2A;
-  --muted-foreground: #A0A0A0;
+  --muted: #1F1F1F;
+  --muted-foreground: #AAAAAA;
 
-  --accent: #2A2A2A;
-  --accent-foreground: #F0EEE9;
+  --accent: #1F1F1F;
+  --accent-foreground: #AAAAAA;
 
   --destructive: #990000;
-  --destructive-foreground: #F0EEE9;
+  --destructive-foreground: #AAAAAA;
 
-  --border: #333333;
-  --input: #333333;
-  --ring: #F0EEE9;
+  --border: #1F1F1F;
+  --input: #1F1F1F;
+  --ring: #AAAAAA;
 
   --radius: 0.5rem;
 
@@ -78,8 +78,12 @@
 
 /* Force dark mode */
 [data-theme="light"] {
-  --background: #141414;
-  --foreground: #F0EEE9;
+  --background: #000000;
+  --foreground: #AAAAAA;
+}
+
+html {
+  font-size: 15px;
 }
 
 html,
@@ -88,7 +92,7 @@ body {
   color: var(--foreground);
   font-family: var(--font-anonymous), monospace;
   font-weight: 400;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
   min-height: 100%;
   overflow-x: hidden;
 }
@@ -101,6 +105,10 @@ h5,
 h6 {
   font-family: var(--font-anonymous), monospace;
   font-weight: 700;
+}
+
+.font-drafting {
+  font-family: var(--font-drafting), monospace;
 }
 
 /* Links */

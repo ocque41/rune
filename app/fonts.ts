@@ -26,3 +26,40 @@ export const anonymousPro = localFont({
     variable: '--font-anonymous',
     display: 'swap',
 })
+
+export const draftingMono = localFont({
+    src: [
+        {
+            path: '../public/DraftingMono-Regular.ttf',
+            weight: '400',
+            style: 'normal',
+        },
+        {
+            path: '../public/DraftingMono-Italic.ttf',
+            weight: '400',
+            style: 'italic',
+        },
+        {
+            path: '../public/DraftingMono-Medium.ttf',
+            weight: '500',
+            style: 'normal',
+        },
+        {
+            path: '../public/DraftingMono-MediumItalic.ttf',
+            weight: '500',
+            style: 'italic',
+        },
+        {
+            path: '../public/DraftingMono-SemiBold.ttf',
+            weight: '600',
+            style: 'normal',
+        },
+        {
+            path: '../public/DraftingMono-SemiBoldItalic.ttf',
+            weight: '600',
+            style: 'italic',
+        },
+    ],
+    variable: '--font-drafting',
+    display: 'swap',
+})

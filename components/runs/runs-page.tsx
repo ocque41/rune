@@ -20,7 +20,7 @@ export function RunsPage() {
   return (
     <div className="flex min-h-screen w-full flex-col bg-background text-foreground">
       <AppHeader />
-      <main className="flex flex-1 flex-col px-10 py-10">
+      <main className="flex flex-1 flex-col px-8 py-8">
         <div className="min-h-[720px] overflow-hidden rounded-2xl border border-white/10 bg-black/40">
           <div className="flex h-full">
             <div className="w-80 border-r border-white/10">

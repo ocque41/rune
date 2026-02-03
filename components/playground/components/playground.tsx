@@ -829,9 +829,14 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                                             ? "bg-white/5 text-white/90 border border-white/10 rounded-br-md"
                                                             : "bg-white/[0.08] text-white/90 rounded-bl-md border border-white/[0.06]"
                                                     )}>
-                                                        <div className="whitespace-pre-wrap font-mono text-[13px]">
-                                                            {msg.content}
-                                                        </div>
+                                                        <div
+                                                        className={cn(
+                                                            "whitespace-pre-wrap text-[13px]",
+                                                            msg.role === 'assistant' ? "font-drafting" : "font-mono"
+                                                        )}
+                                                    >
+                                                        {msg.content}
+                                                    </div>
                                                     </div>
                                                 </div>
 
@@ -862,7 +867,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                         {isGenerating && output && (
                                             <div className="flex gap-3 self-start max-w-[85%]">
                                                 <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-white/[0.08] text-white/90 border border-white/[0.06] select-text">
-                                                    <div className="whitespace-pre-wrap font-mono text-[13px]">
+                                                    <div className="whitespace-pre-wrap text-[13px] font-drafting">
                                                         {output}
                                                         <span className="inline-block w-1.5 h-3 ml-1 bg-white/60 animate-pulse" />
                                                     </div>

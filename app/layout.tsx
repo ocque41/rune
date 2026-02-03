@@ -1,6 +1,6 @@
 import "@/lib/react-shim";
 import type { Metadata } from "next";
-import { anonymousPro } from "./fonts";
+import { anonymousPro, draftingMono } from "./fonts";
 import { Toaster } from 'sonner';
 import React from 'react';
 import "./globals.css";
@@ -24,7 +24,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${anonymousPro.variable} antialiased`}
+        className={`${anonymousPro.variable} ${draftingMono.variable} antialiased`}
       >
         <AuthProvider>
           <TransitionCurtain />
@@ -37,7 +37,7 @@ export default function RootLayout({
                 background: 'hsl(var(--background))',
                 color: 'hsl(var(--foreground))',
                 border: '1px solid hsl(var(--border))',
-                fontFamily: 'var(--font-anonymous-pro)',
+                fontFamily: 'var(--font-anonymous)',
               },
               className: 'group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg',
             }}

@@ -17,7 +17,7 @@ export function EditorPage() {
   return (
     <div className="flex min-h-screen w-full flex-col bg-background text-foreground">
       <AppHeader />
-      <main className="flex flex-1 flex-col px-10 py-10">
+      <main className="flex flex-1 flex-col px-8 py-8">
         <div className="min-h-[720px] overflow-hidden rounded-2xl border border-white/10 bg-black/40">
           <FlowBuilder initialWorkflowId={workflowId} />
         </div>

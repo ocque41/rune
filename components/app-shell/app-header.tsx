@@ -17,7 +17,7 @@ export function AppHeader() {
   const pathname = usePathname();
 
   return (
-    <header className="flex items-center justify-between border-b border-white/10 px-10 py-6">
+    <header className="flex items-center justify-between border-b border-white/10 px-8 py-4">
       <div className="flex items-center gap-4">
         <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-sm font-semibold text-white">
           R

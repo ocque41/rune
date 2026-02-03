@@ -59,7 +59,7 @@ export function WorkflowPicker() {
   };
 
   return (
-    <main className="flex flex-1 flex-col gap-10 px-10 py-10">
+    <main className="flex flex-1 flex-col gap-8 px-8 py-8">
       <section className="grid grid-cols-[1.25fr_0.75fr] gap-10">
         <div className="rounded-3xl border border-white/10 bg-white/5 p-8">
           <div className="mb-6 flex items-center justify-between">
