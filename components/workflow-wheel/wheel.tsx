@@ -9,9 +9,10 @@ type WheelProps = {
   workflows: WorkflowItem[];
   activeIndex: number;
   onSelect: (index: number) => void;
+  onItemClick?: (index: number) => void;
 };
 
-export function WorkflowWheel({ workflows, activeIndex, onSelect }: WheelProps) {
+export function WorkflowWheel({ workflows, activeIndex, onSelect, onItemClick }: WheelProps) {
   const { ringRef, itemRefs, handlers } = useWheel({
     count: workflows.length,
     onSelect
@@ -36,6 +37,7 @@ export function WorkflowWheel({ workflows, activeIndex, onSelect }: WheelProps) 
               setRef={(node) => {
                 itemRefs.current[index] = node;
               }}
+              onClick={onItemClick}
             />
           ))}
         </div>

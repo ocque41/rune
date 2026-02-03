@@ -9,16 +9,21 @@ type WheelItemProps = {
   active: boolean;
   index: number;
   setRef: (node: HTMLDivElement | null) => void;
+  onClick?: (index: number) => void;
 };
 
-export function WheelItem({ item, active, setRef }: WheelItemProps) {
+export function WheelItem({ item, active, setRef, onClick, index }: WheelItemProps) {
   return (
     <div
       ref={setRef}
+      onClick={() => onClick?.(index)}
+      role="button"
+      tabIndex={0}
       className={cn(
         "absolute left-1/2 top-1/2 h-44 w-64 -translate-x-1/2 -translate-y-1/2",
         "rounded-2xl border border-white/10 bg-black/40 backdrop-blur",
         "p-4 transition-all duration-300",
+        "cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
         active ? "scale-105 shadow-[0_0_40px_rgba(255,255,255,0.25)]" : "opacity-70"
       )}
     >

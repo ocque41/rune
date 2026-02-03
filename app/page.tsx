@@ -1,9 +1,14 @@
 'use client';
 
 import React from "react";
-import { WorkflowDashboard } from "@/components/workflow-dashboard/workflow-dashboard";
+import { AppHeader } from "@/components/app-shell/app-header";
+import { WorkflowPicker } from "@/components/workflow-picker/workflow-picker";
 
 export default function Home() {
-  return <WorkflowDashboard />;
+  return (
+    <div className="flex min-h-screen w-full flex-col bg-background text-foreground">
+      <AppHeader />
+      <WorkflowPicker />
+    </div>
+  );
 }
-
