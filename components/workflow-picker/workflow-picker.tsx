@@ -60,14 +60,14 @@ export function WorkflowPicker() {
 
   return (
     <main className="flex flex-1 flex-col gap-8 px-8 py-8">
-      <section className="grid grid-cols-[1.25fr_0.75fr] gap-10">
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-8">
-          <div className="mb-6 flex items-center justify-between">
+      <section className="grid grid-cols-[1.25fr_0.75fr] gap-8">
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+          <div className="mb-5 flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-white/40">Selection Engine</p>
-              <h2 className="text-2xl font-semibold text-white">Workflow Wheel</h2>
+              <p className="text-[10px] uppercase tracking-[0.28em] text-white/40">Selection Engine</p>
+              <h2 className="text-xl font-semibold text-white">Workflow Wheel</h2>
             </div>
-            <div className="rounded-full border border-white/10 bg-black/40 px-4 py-2 text-xs uppercase tracking-[0.3em] text-white/60">
+            <div className="rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-[10px] uppercase tracking-[0.28em] text-white/60">
               {isLoadingWorkflows ? "Loading workflows" : `Active ${activeWorkflow.name}`}
             </div>
           </div>
@@ -79,12 +79,12 @@ export function WorkflowPicker() {
           />
         </div>
 
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-5">
           <WheelHud active={activeWorkflow} />
-          <div className="rounded-2xl border border-white/10 bg-black/60 p-6 backdrop-blur">
-            <p className="text-xs uppercase tracking-[0.3em] text-white/40">System Notes</p>
-            <h3 className="mt-2 text-lg font-semibold text-white">Stability First</h3>
-            <ul className="mt-4 space-y-2 text-sm text-white/60">
+          <div className="rounded-2xl border border-white/10 bg-black/60 p-5 backdrop-blur">
+            <p className="text-[10px] uppercase tracking-[0.28em] text-white/40">System Notes</p>
+            <h3 className="mt-2 text-base font-semibold text-white">Stability First</h3>
+            <ul className="mt-3 space-y-2 text-xs text-white/60">
               <li>Transform-only animation pipeline for 60fps target.</li>
               <li>Reduced-motion fallback renders static wheel layout.</li>
               <li>Error boundaries isolate animation subsystems.</li>

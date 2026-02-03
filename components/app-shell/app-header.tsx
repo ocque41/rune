@@ -36,7 +36,7 @@ export function AppHeader() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-2 rounded-full border px-4 py-2 text-xs uppercase tracking-[0.3em] transition",
+                "flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-[0.28em] transition",
                 active
                   ? "border-white/30 bg-white/10 text-white"
                   : "border-white/10 text-white/50 hover:text-white"

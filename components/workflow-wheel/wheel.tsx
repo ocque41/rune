@@ -19,7 +19,7 @@ export function WorkflowWheel({ workflows, activeIndex, onSelect, onItemClick }:
   });
 
   return (
-    <div className="relative flex h-[520px] w-full items-center justify-center">
+    <div className="relative flex h-[460px] w-full items-center justify-center">
       <div
         className="relative h-full w-full [perspective:1200px]"
         {...handlers}
@@ -42,8 +42,8 @@ export function WorkflowWheel({ workflows, activeIndex, onSelect, onItemClick }:
           ))}
         </div>
       </div>
-      <div className="pointer-events-none absolute inset-x-0 bottom-10 flex items-center justify-center">
-        <div className="rounded-full border border-white/10 bg-black/40 px-4 py-2 text-xs uppercase tracking-[0.3em] text-white/60">
+      <div className="pointer-events-none absolute inset-x-0 bottom-8 flex items-center justify-center">
+        <div className="rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-[10px] uppercase tracking-[0.28em] text-white/60">
           Drag to rotate · Release to snap
         </div>
       </div>

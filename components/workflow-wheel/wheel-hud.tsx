@@ -9,24 +9,24 @@ type WheelHudProps = {
 
 export function WheelHud({ active }: WheelHudProps) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/60 p-6 backdrop-blur">
+    <div className="rounded-2xl border border-white/10 bg-black/60 p-5 backdrop-blur">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-white/50">Active Workflow</p>
-          <h2 className="text-2xl font-semibold text-white">{active.name}</h2>
+          <p className="text-[10px] uppercase tracking-[0.28em] text-white/50">Active Workflow</p>
+          <h2 className="text-xl font-semibold text-white">{active.name}</h2>
         </div>
-        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/5 text-xl font-bold text-white">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/5 text-lg font-bold text-white">
           {active.grade}
         </div>
       </div>
-      <p className="mt-4 text-sm text-white/60">{active.summary}</p>
-      <div className="mt-6 grid grid-cols-3 gap-4">
+      <p className="mt-3 text-xs text-white/60">{active.summary}</p>
+      <div className="mt-4 grid grid-cols-3 gap-3">
         {active.metrics.map((metric) => (
-          <div key={metric.label} className="rounded-xl border border-white/10 bg-white/5 p-3 text-center">
-            <p className="text-[10px] uppercase tracking-[0.25em] text-white/40">
+          <div key={metric.label} className="rounded-xl border border-white/10 bg-white/5 p-2.5 text-center">
+            <p className="text-[9px] uppercase tracking-[0.22em] text-white/40">
               {metric.label}
             </p>
-            <p className="mt-1 text-lg font-semibold text-white">{metric.value}</p>
+            <p className="mt-1 text-sm font-semibold text-white">{metric.value}</p>
           </div>
         ))}
       </div>
