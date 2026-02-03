@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { WorkflowWheel } from "@/components/workflow-wheel/wheel";
 import { WheelHud } from "@/components/workflow-wheel/wheel-hud";
-import { workflows } from "@/lib/workflows.data";
+import { WorkflowItem, workflowFallbacks } from "@/lib/workflows.data";
 import { cn } from "@/lib/utils";
 import { Activity, Bot, FolderGit2, LayoutDashboard } from "lucide-react";
 import { toast } from "sonner";
@@ -48,8 +48,41 @@ export function WorkflowDashboard() {
   const [activeModule, setActiveModule] = useState<ModuleKey>("editor");
   const [selectedRunId, setSelectedRunId] = useState<string | undefined>();
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | undefined>();
+  const [workflowItems, setWorkflowItems] = useState<WorkflowItem[]>(workflowFallbacks);
+  const [isLoadingWorkflows, setIsLoadingWorkflows] = useState(false);
 
-  const activeWorkflow = workflows[activeIndex];
+  const activeWorkflow = useMemo(() => {
+    if (!workflowItems.length) return workflowFallbacks[0];
+    return workflowItems[Math.min(activeIndex, workflowItems.length - 1)];
+  }, [workflowItems, activeIndex]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchWorkflows = async () => {
+      setIsLoadingWorkflows(true);
+      try {
+        const res = await fetch("/api/rune/workflows/summary");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to load workflows");
+        if (!isMounted) return;
+        const items = (data.workflows || []) as WorkflowItem[];
+        setWorkflowItems(items.length ? items : workflowFallbacks);
+        setActiveIndex(0);
+        setSelectedWorkflowId(items[0]?.id);
+      } catch (error) {
+        console.error("Workflow summary fetch error:", error);
+        if (isMounted) setWorkflowItems(workflowFallbacks);
+      } finally {
+        if (isMounted) setIsLoadingWorkflows(false);
+      }
+    };
+
+    fetchWorkflows();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-background text-foreground">
@@ -95,15 +128,18 @@ export function WorkflowDashboard() {
                 <h2 className="text-2xl font-semibold text-white">3D Workflow Wheel</h2>
               </div>
               <div className="rounded-full border border-white/10 bg-black/40 px-4 py-2 text-xs uppercase tracking-[0.3em] text-white/60">
-                Active {activeWorkflow.name}
+                {isLoadingWorkflows ? "Loading workflows" : `Active ${activeWorkflow.name}`}
               </div>
             </div>
             <WorkflowWheel
+              workflows={workflowItems}
               activeIndex={activeIndex}
               onSelect={(index) => {
                 setActiveIndex(index);
-                setSelectedWorkflowId(workflows[index]?.id);
-                toast.success(`Locked ${workflows[index]?.name}`);
+                setSelectedWorkflowId(workflowItems[index]?.id);
+                if (workflowItems[index]?.name) {
+                  toast.success(`Locked ${workflowItems[index]?.name}`);
+                }
               }}
             />
           </div>

@@ -1,16 +1,17 @@
 "use client";
 
 import React from "react";
-import { workflows } from "@/lib/workflows.data";
+import { WorkflowItem } from "@/lib/workflows.data";
 import { useWheel } from "@/components/workflow-wheel/use-wheel";
 import { WheelItem } from "@/components/workflow-wheel/wheel-item";
 
 type WheelProps = {
+  workflows: WorkflowItem[];
   activeIndex: number;
   onSelect: (index: number) => void;
 };
 
-export function WorkflowWheel({ activeIndex, onSelect }: WheelProps) {
+export function WorkflowWheel({ workflows, activeIndex, onSelect }: WheelProps) {
   const { ringRef, itemRefs, handlers } = useWheel({
     count: workflows.length,
     onSelect
