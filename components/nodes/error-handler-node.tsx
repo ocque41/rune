@@ -25,6 +25,7 @@ export type ErrorHandlerNodeData = {
         message?: string; // For slack
         payload?: string; // For webhook
     };
+    status?: 'idle' | 'running' | 'completed' | 'failed' | 'success' | 'failure';
 };
 
 export default memo(function ErrorHandlerNode({ data, id, selected }: NodeProps<any>) {
@@ -63,6 +64,16 @@ export default memo(function ErrorHandlerNode({ data, id, selected }: NodeProps<
 
     return (
         <div className="relative group">
+        <div className="relative group">
+            {/* Status Indicator */}
+            {data.status && data.status !== 'idle' && (
+                <div className="absolute top-0 right-0 p-2 z-10"> {/* Added z-10 to ensure it's on top */}
+                    <div className={`h-3 w-3 rounded-full shadow-lg ${data.status === 'running' ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] animate-pulse' :
+                        data.status === 'completed' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
+                            'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
+                        }`} />
+                </div>
+            )}
             <NodeWrapper
                 selected={selected}
                 className="border-red-500/50 bg-red-500/5 min-w-[200px]"

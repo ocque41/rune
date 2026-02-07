@@ -8,6 +8,7 @@ export type ApprovalNodeData = {
     label: string;
     approverEmail?: string;
     timeout?: string;
+    status?: 'idle' | 'running' | 'completed' | 'failed' | 'waiting' | 'success' | 'failure';
 };
 
 export const ApprovalNode = (props: NodeProps<any>) => {
@@ -27,6 +28,18 @@ export const ApprovalNode = (props: NodeProps<any>) => {
                 backdropFilter: 'blur(10px)',
             }}
         >
+            {/* Status Indicator */}
+            {data.status && data.status !== 'idle' && (
+                <div className="absolute top-0 right-0 p-2">
+                    <div className={`h-3 w-3 rounded-full shadow-lg ${data.status === 'running' ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] animate-pulse' :
+                        (data.status === 'completed' || data.status === 'success') ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
+                        (data.status === 'failed' || data.status === 'failure') ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' :
+                        data.status === 'waiting' ? 'bg-yellow-500 shadow-[0_0_8px_rgba(245,158,11,0.5)] animate-pulse' : // Waiting status
+                            'bg-white/30' // Default for unknown/idle
+                        }`} />
+                </div>
+            )}
+
             {/* Header */}
             <div
                 className="flex items-center justify-between border-b px-4 py-3"

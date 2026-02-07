@@ -7,5 +7,9 @@
 // Types
 export * from './types';
 
-// Configuration
+// Streams
+export * from './streams'; // NEW EXPORT
 export * from './config';
+
+// Streams
+export * from './streams';

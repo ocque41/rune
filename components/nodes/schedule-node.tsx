@@ -8,6 +8,7 @@ export type ScheduleNodeData = {
     label: string;
     cron: string;
     timezone?: string;
+    status?: 'idle' | 'running' | 'completed' | 'failed' | 'success' | 'failure';
 };
 
 export const ScheduleNode = (props: NodeProps<any>) => {
@@ -23,6 +24,17 @@ export const ScheduleNode = (props: NodeProps<any>) => {
                 backdropFilter: 'blur(10px)'
             }}
         >
+            {/* Status Indicator */}
+            {props.data.status && props.data.status !== 'idle' && (
+                <div className="absolute top-0 right-0 p-2">
+                    <div className={`h-3 w-3 rounded-full shadow-lg ${props.data.status === 'running' ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] animate-pulse' :
+                        (props.data.status === 'completed' || props.data.status === 'success') ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
+                            (props.data.status === 'failed' || props.data.status === 'failure') ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' :
+                                'bg-white/30' // Default for unknown/idle
+                            }`} />
+                </div>
+            )}
+
             {/* Header */}
             <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3 bg-white/5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white/70 ring-1 ring-white/20">

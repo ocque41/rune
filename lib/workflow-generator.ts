@@ -1,7 +1,7 @@
 import { Node, Edge } from '@xyflow/react';
 
 export function generateWorkflowCode(nodes: Node[], edges: Edge[]): string {
-  const imports = `import { sleep, getWritable, resumeHook, createHook, getSecret } from "workflow";`;
+  const imports = `import { sleep, resumeHook, createHook, getSecret } from "workflow";\nimport { getStreamWritable } from '@/lib/workflow/runtime/streams';`;
 
   // Collect unique Sub-Workflow IDs
   const subWorkflowIds = Array.from(new Set(
@@ -796,12 +796,13 @@ export const transformData = async (params: { mapping: string; data: any }) => {
   let workflowBody = '';
 
   if (startNode) {
-    workflowBody = traverseGraph(startNode.id, nodes, edges, new Set());
+    workflowBody = traverseGraph(startNode.id, nodes, edges, new Set(), 'runId');
   }
 
   const workflowDefinition = `
-export async function workflow(params: any) {
+export async function workflow(params: { runId: string; [key: string]: any }) {
   "use workflow";
+  const { runId } = params; // Extract runId
   ${workflowBody}
   return { result: "Workflow completed" };
 }
@@ -870,7 +871,8 @@ function traverseGraph(
   currentId: string,
   nodes: Node[],
   edges: Edge[],
-  visited: Set<string>
+  visited: Set<string>,
+  runId: string // NEW PARAMETER
 ): string {
   if (visited.has(currentId)) return ''; // Prevent cycles for MVP
   visited.add(currentId);
@@ -884,11 +886,11 @@ function traverseGraph(
 
     // Find True branch
     const trueEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'true');
-    const trueCode = trueEdge ? generateNodeCall(nodes.find(n => n.id === trueEdge.target)!) + traverseGraph(trueEdge.target, nodes, edges, new Set(visited)) : '';
+    const trueCode = trueEdge ? generateNodeCall(nodes.find(n => n.id === trueEdge.target)!, runId) + traverseGraph(trueEdge.target, nodes, edges, new Set(visited), runId) : ''; // UPDATED CALL
 
     // Find False branch
     const falseEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'false');
-    const falseCode = falseEdge ? generateNodeCall(nodes.find(n => n.id === falseEdge.target)!) + traverseGraph(falseEdge.target, nodes, edges, new Set(visited)) : '';
+    const falseCode = falseEdge ? generateNodeCall(nodes.find(n => n.id === falseEdge.target)!, runId) + traverseGraph(falseEdge.target, nodes, edges, new Set(visited), runId) : ''; // UPDATED CALL
 
     return `\n    if (${condition}) {\n      ${trueCode}\n    } else {\n      ${falseCode}\n    }`;
   }
@@ -899,11 +901,11 @@ function traverseGraph(
 
     // Find Body branch
     const bodyEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'body');
-    const bodyCode = bodyEdge ? generateNodeCall(nodes.find(n => n.id === bodyEdge.target)!) + traverseGraph(bodyEdge.target, nodes, edges, new Set(visited)) : '';
+    const bodyCode = bodyEdge ? generateNodeCall(nodes.find(n => n.id === bodyEdge.target)!, runId) + traverseGraph(bodyEdge.target, nodes, edges, new Set(visited), runId) : ''; // UPDATED CALL
 
     // Find Done branch
     const doneEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'done');
-    const doneCode = doneEdge ? generateNodeCall(nodes.find(n => n.id === doneEdge.target)!) + traverseGraph(doneEdge.target, nodes, edges, visited) : '';
+    const doneCode = doneEdge ? generateNodeCall(nodes.find(n => n.id === doneEdge.target)!, runId) + traverseGraph(doneEdge.target, nodes, edges, visited, runId) : ''; // UPDATED CALL
 
     return `\n    for (const item of ${items}) {\n      ${bodyCode}\n    }\n    ${doneCode}`;
   }
@@ -917,7 +919,7 @@ function traverseGraph(
     for (let i = 0; i < branches; i++) {
       const branchEdge = edges.find(e => e.source === currentId && e.sourceHandle === `branch-${i}`);
       const branchCode = branchEdge
-        ? generateNodeCall(nodes.find(n => n.id === branchEdge.target)!) + traverseGraph(branchEdge.target, nodes, edges, new Set(visited))
+        ? generateNodeCall(nodes.find(n => n.id === branchEdge.target)!, runId) + traverseGraph(branchEdge.target, nodes, edges, new Set(visited), runId) // UPDATED CALL
         : '';
 
       branchPromises.push(`(async () => {\n      ${branchCode}\n    })()`);
@@ -926,7 +928,7 @@ function traverseGraph(
     // Find Merge/Continue branch
     const mergeEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'merge');
     const mergeCode = mergeEdge
-      ? generateNodeCall(nodes.find(n => n.id === mergeEdge.target)!) + traverseGraph(mergeEdge.target, nodes, edges, visited)
+      ? generateNodeCall(nodes.find(n => n.id === mergeEdge.target)!, runId) + traverseGraph(mergeEdge.target, nodes, edges, visited, runId) // UPDATED CALL
       : '';
 
     return `\n    await Promise.all([\n      ${branchPromises.join(',\n      ')}\n    ]);\n    ${mergeCode}`;
@@ -939,56 +941,39 @@ function traverseGraph(
 
     // Find Next node
     const nextEdge = edges.find(e => e.source === currentId);
-    const nextCode = nextEdge ? generateNodeCall(nodes.find(n => n.id === nextEdge.target)!) + traverseGraph(nextEdge.target, nodes, edges, visited) : '';
+    const nextCode = nextEdge ? generateNodeCall(nodes.find(n => n.id === nextEdge.target)!, runId) + traverseGraph(nextEdge.target, nodes, edges, visited, runId) : ''; // UPDATED CALL
 
     return `\n    const approvalResult = await waitForApproval({ approverEmail: "${approverEmail}", timeout: "${timeout}" });\n    ${nextCode}`;
   }
 
   // Handle AI Node
   if (currentNode.type === 'ai') {
-    const prompt = (currentNode.data as any).prompt || '';
-    const model = (currentNode.data as any).model || 'gemini-pro';
+    const config = (currentNode.data as any).aiConfig || {};
+    const prompt = config.promptTemplate || (currentNode.data as any).prompt || '';
+    const model = config.model || (currentNode.data as any).model || 'gpt-4o';
+    const provider = config.provider || 'gemini';
+    const thinkingLevel = (currentNode.data as any).thinkingLevel;
 
     const nextEdge = edges.find(e => e.source === currentId);
-    const nextCode = nextEdge ? generateNodeCall(nodes.find(n => n.id === nextEdge.target)!) + traverseGraph(nextEdge.target, nodes, edges, visited) : '';
+    const nextCode = nextEdge ? generateNodeCall(nodes.find(n => n.id === nextEdge.target)!, runId) + traverseGraph(nextEdge.target, nodes, edges, visited, runId) : ''; // UPDATED CALL
 
-    // Handle AI Node
-    if (currentNode.type === 'ai') {
-      const config = (currentNode.data as any).aiConfig || {};
-      const prompt = config.promptTemplate || (currentNode.data as any).prompt || '';
-      const model = config.model || (currentNode.data as any).model || 'gpt-4o';
-      const provider = config.provider || 'gemini'; // Default to gemini if not set, or keep generic? logic check below uses 'generic' default in orig code but 'gemini' seems better for this app context. Sticking to logic flow.
-      const thinkingLevel = (currentNode.data as any).thinkingLevel;
-
-      const nextEdge = edges.find(e => e.source === currentId);
-      const nextCode = nextEdge ? generateNodeCall(nodes.find(n => n.id === nextEdge.target)!) + traverseGraph(nextEdge.target, nodes, edges, visited) : '';
-
-      return `\n    const aiResult = await generateContent({ 
-        prompt: \`${prompt.replace(/`/g, '\\`')}\`, 
+    return `\n    const aiResult = await generateContent({
+        prompt: \`${prompt.replace(/`/g, '\\`')}\`,
         model: "${model}",
         provider: "${provider}",
         thinkingLevel: "${thinkingLevel || ''}"
     });\n    ${nextCode}`;
-    }
   }
 
   // Handle Transform Node
   if (currentNode.type === 'transform') {
-    const mapping = (currentNode.data as any).mapping || 'return params;';
+    const config = (currentNode.data as any).transformConfig || {};
+    const mapping = config.expression || (currentNode.data as any).mapping || 'return params;';
 
     const nextEdge = edges.find(e => e.source === currentId);
-    const nextCode = nextEdge ? generateNodeCall(nodes.find(n => n.id === nextEdge.target)!) + traverseGraph(nextEdge.target, nodes, edges, visited) : '';
+    const nextCode = nextEdge ? generateNodeCall(nodes.find(n => n.id === nextEdge.target)!, runId) + traverseGraph(nextEdge.target, nodes, edges, visited, runId) : ''; // UPDATED CALL
 
-    // Handle Transform Node
-    if (currentNode.type === 'transform') {
-      const config = (currentNode.data as any).transformConfig || {};
-      const mapping = config.expression || (currentNode.data as any).mapping || 'return params;';
-
-      const nextEdge = edges.find(e => e.source === currentId);
-      const nextCode = nextEdge ? generateNodeCall(nodes.find(n => n.id === nextEdge.target)!) + traverseGraph(nextEdge.target, nodes, edges, visited) : '';
-
-      return `\n    const transformResult = await transformData({ mapping: \`${mapping.replace(/`/g, '\\`')}\`, data: params });\n    ${nextCode}`;
-    }
+    return `\n    const transformResult = await transformData({ mapping: \`${mapping.replace(/`/g, '\\`')}\`, data: params });\n    ${nextCode}`;
   }
 
   const outgoingEdges = edges.filter((e) => e.source === currentId);
@@ -1005,8 +990,8 @@ function traverseGraph(
     const targetNode = nodes.find((n) => n.id === targetId);
 
     if (targetNode) {
-      code += generateNodeCall(targetNode);
-      code += traverseGraph(targetId, nodes, edges, visited);
+      code += generateNodeCall(targetNode, runId); // UPDATED CALL
+      code += traverseGraph(targetId, nodes, edges, visited, runId); // UPDATED CALL
     }
   } else {
     // Parallel (Promise.all)
@@ -1015,9 +1000,7 @@ function traverseGraph(
       const targetNode = nodes.find((n) => n.id === targetId);
       if (!targetNode) return '';
 
-      // For parallel, we need to traverse down each branch
-      // This is a simplification; complex graphs need a better traversal (DAG)
-      const branchCode = generateNodeCall(targetNode) + traverseGraph(targetId, nodes, edges, new Set(visited));
+      const branchCode = generateNodeCall(targetNode, runId) + traverseGraph(targetId, nodes, edges, new Set(visited), runId); // UPDATED CALL
       return `(async () => { ${branchCode} })()`;
     });
 
@@ -1027,7 +1010,7 @@ function traverseGraph(
   return code;
 }
 
-function generateNodeCall(node: Node): string {
+function generateNodeCall(node: Node, runId: string): string {
   // Handle Sleep nodes specifically
   if (node.data.label === 'Sleep') {
     const duration = (node.data as any).config?.timeout || (node.data as any).duration || '5s';
@@ -1051,7 +1034,7 @@ function generateNodeCall(node: Node): string {
         idempotencyKey: "${(node.data as any).idempotencyKey || node.id}"
     })`;
 
-    return wrapWithRetry(stepCode, 'HTTP Request', errorConfig);
+    return wrapWithRetry(stepCode, 'HTTP Request', errorConfig, node.id, runId);
   }
 
   // Handle Send Email nodes
@@ -1069,7 +1052,7 @@ function generateNodeCall(node: Node): string {
         idempotencyKey: "${(node.data as any).idempotencyKey || node.id}"
     })`;
 
-    return wrapWithRetry(stepCode, 'Send Email', errorConfig);
+    return wrapWithRetry(stepCode, 'Send Email', errorConfig, node.id, runId);
   }
 
   // Handle Database Query nodes
@@ -1099,7 +1082,7 @@ function generateNodeCall(node: Node): string {
         idempotencyKey: "${(node.data as any).idempotencyKey || node.id}"
     })`;
 
-    return wrapWithRetry(stepCode, 'Database Query', errorConfig);
+    return wrapWithRetry(stepCode, 'Database Query', errorConfig, node.id, runId);
   }
 
   // Handle Run Script nodes
@@ -1114,7 +1097,7 @@ function generateNodeCall(node: Node): string {
         context: {} 
     })`;
 
-    return wrapWithRetry(stepCode, 'Run Script', errorConfig);
+    return wrapWithRetry(stepCode, 'Run Script', errorConfig, node.id, runId);
   }
 
   // Handle Slack Message nodes
@@ -1132,7 +1115,7 @@ function generateNodeCall(node: Node): string {
         idempotencyKey: "${(node.data as any).idempotencyKey || node.id}"
     })`;
 
-    return wrapWithRetry(stepCode, 'Slack Message', errorConfig);
+    return wrapWithRetry(stepCode, 'Slack Message', errorConfig, node.id, runId);
   }
 
   // Handle Stream nodes
@@ -1145,7 +1128,7 @@ function generateNodeCall(node: Node): string {
         message: ${processString(message)} 
     })`;
 
-    return wrapWithRetry(stepCode, 'Stream', errorConfig);
+    return wrapWithRetry(stepCode, 'Stream', errorConfig, node.id, runId);
   }
 
   // Handle Wait for Event nodes
@@ -1160,7 +1143,7 @@ function generateNodeCall(node: Node): string {
         timeout: "${timeout || ''}"
     })`;
 
-    return wrapWithRetry(stepCode, 'Wait for Event', errorConfig);
+    return wrapWithRetry(stepCode, 'Wait for Event', errorConfig, node.id, runId);
   }
 
   // Handle Sub-Workflow nodes
@@ -1173,7 +1156,7 @@ function generateNodeCall(node: Node): string {
     const stepCode = `
     await ${workflowId}(JSON.parse(${processString(params)}))`;
 
-    return wrapWithRetry(stepCode, 'Sub-Workflow', errorConfig);
+    return wrapWithRetry(stepCode, 'Sub-Workflow', errorConfig, node.id, runId);
   }
 
   // Handle regular step nodes
@@ -1194,7 +1177,7 @@ function toCamelCase(str: string): string {
     .replace(/[^a-zA-Z0-9]/g, '');
 }
 
-function wrapWithRetry(stepCode: string, stepName: string, errorConfig: any): string {
+function wrapWithRetry(stepCode: string, stepName: string, errorConfig: any, nodeId: string, runId: string): string {
   // If no error config or using defaults, just return the step code
   if (!errorConfig || Object.keys(errorConfig).length === 0) {
     return stepCode;
@@ -1229,30 +1212,38 @@ function wrapWithRetry(stepCode: string, stepName: string, errorConfig: any): st
       const fatalPatterns = ${JSON.stringify(errorConfig.fatalErrorPatterns || [])};
       
       for (let attempt = 1; attempt <= ${maxRetries}; attempt++) {
+        // Emit 'running' status at the beginning of each attempt
+        await emitNodeStatus(nodeId, 'running', runId, stepName, \`Attempt \${attempt}/${maxRetries}\`); 
         try {
           console.log(\`[${stepName}] Attempt \${attempt}/${maxRetries}\`);
-          ${stepExecution};
+          const stepResult = ${stepExecution}; 
+          await emitNodeOutput(nodeId, stepResult, runId, stepName);
+          await emitNodeStatus(nodeId, 'success', runId, stepName, \`Succeeded on attempt \${attempt}\`); // Emit 'success' status
           console.log(\`[${stepName}] Succeeded on attempt \${attempt}\`);
           success = true;
           break;
         } catch (error: any) {
           lastError = error;
+          await emitNodeStatus(nodeId, 'failed', runId, stepName, \`Failed on attempt \${attempt}: \${error.message}\`); // Emit 'failed' status
           console.error(\`[${stepName}] Failed on attempt \${attempt}:\`, error.message);
           
           // Check for FatalError
           if (error.name === 'FatalError') {
              console.error(\`[${stepName}] Fatal error encountered, stopping retries.\`);
+             await emitNodeStatus(nodeId, 'fatal_error', runId, stepName, \`Fatal error: \${error.message}\`); // Emit 'fatal_error' status
              throw error;
           }
 
           // Check for fatal patterns
           if (fatalPatterns.some((p: string) => error.message.includes(p))) {
              console.error(\`[${stepName}] Error matches fatal pattern, stopping retries.\`);
+             await emitNodeStatus(nodeId, 'fatal_error', runId, stepName, \`Fatal pattern match: \${error.message}\`); // Emit 'fatal_error' status
              throw new FatalError(error.message);
           }
           
           ${failureAction === 'fail-workflow'
-      ? `throw new Error(\`Fatal error in ${stepName}: \${error.message}\`);`
+      ? `await emitNodeStatus(nodeId, 'failed', runId, stepName, \`Failing workflow due to error: \${error.message}\`); // Emit 'failed' status before throwing
+        throw new Error(\`Fatal error in ${stepName}: \${error.message}\`);`
       : ''}
           
           if (attempt < ${maxRetries}) {
@@ -1273,12 +1264,14 @@ function wrapWithRetry(stepCode: string, stepName: string, errorConfig: any): st
       
       ${failureAction === 'retry'
       ? `if (!success) {
+        await emitNodeStatus(nodeId, 'failed', runId, stepName, \`Max retries (${maxRetries}) exceeded.\`); // Emit 'failed' status after retries
         throw new Error(\`Max retries (${maxRetries}) exceeded for ${stepName}: \${lastError?.message}\`);
       }`
       : ''}
       
       ${failureAction === 'ignore'
       ? `if (!success) {
+        await emitNodeStatus(nodeId, 'ignored', runId, stepName, \`All retries failed, error ignored.\`); // Emit 'ignored' status
         console.warn(\`[${stepName}] All retries failed, ignoring error:\`, lastError?.message);
       }`
       : ''}
@@ -1292,6 +1285,44 @@ function processString(str: string): string {
     return `\${getSecret("${secretName.trim()}")}`;
   });
   return `\`${processed}\``;
+}
+
+// NEW: Helper to emit node output
+export async function emitNodeOutput(nodeId: string, output: any, runId: string, stepType: string) {
+  const writable = getStreamWritable(runId);
+  if (writable) {
+    const writer = writable.getWriter();
+    await writer.write(new TextEncoder().encode(JSON.stringify({
+      type: 'nodeOutput',
+      nodeId,
+      stepType,
+      output,
+      runId,
+      timestamp: Date.now()
+    }) + "\\n"));
+    writer.releaseLock();
+  } else {
+    console.log(`[Node Output Debug - ${stepType}:${nodeId}]`, output);
+  }
+}
+
+export async function emitNodeStatus(nodeId: string, status: string, runId: string, stepType: string, message?: string) {
+  const writable = getStreamWritable(runId);
+  if (writable) {
+    const writer = writable.getWriter();
+    await writer.write(new TextEncoder().encode(JSON.stringify({
+      type: 'nodeStatus',
+      nodeId,
+      stepType,
+      status,
+      runId,
+      timestamp: Date.now(),
+      message: message || `Node ${nodeId} status: ${status}`
+    }) + "\\n"));
+    writer.releaseLock();
+  } else {
+    console.log(`[Node Status Debug - ${stepType}:${nodeId}] Status: ${status}`, message);
+  }
 }
 
 function generateScheduleConfig(nodes: Node[]): string {

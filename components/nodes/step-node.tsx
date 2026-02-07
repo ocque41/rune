@@ -8,7 +8,7 @@ import { VerifiedSendersDrawer } from '../verified-senders-drawer';
 export type StepNodeData = {
     label: string;
     description?: string;
-    status?: 'idle' | 'running' | 'completed' | 'failed';
+    status?: 'idle' | 'running' | 'completed' | 'failed' | 'success' | 'failure';
     duration?: string; // For Sleep nodes
     httpRequest?: {
         method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -539,11 +539,14 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                 {data.status && data.status !== 'idle' && (
                     <div className="pt-3 border-t border-white/5 flex items-center gap-2">
                         <div className={`h-2 w-2 rounded-full ${data.status === 'running' ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)] animate-pulse' :
-                            data.status === 'completed' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' :
-                                'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]'
+                            (data.status === 'completed' || data.status === 'success') ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' :
+                                (data.status === 'failed' || data.status === 'failure') ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' :
+                                    'bg-white/30' // Default for unknown/idle
                             }`} />
                         <span className={`text-[10px] uppercase tracking-wider font-bold ${data.status === 'running' ? 'text-blue-400' :
-                            data.status === 'completed' ? 'text-green-400' : 'text-red-400'
+                            (data.status === 'completed' || data.status === 'success') ? 'text-green-400' :
+                                (data.status === 'failed' || data.status === 'failure') ? 'text-red-400' :
+                                    'text-white/50' // Default for unknown/idle
                             }`}>
                             {data.status}
                         </span>

@@ -6,6 +6,7 @@ import { NodeWrapper } from './node-wrapper';
 export type IfNodeData = {
     label: string;
     condition?: string;
+    status?: 'idle' | 'running' | 'completed' | 'failed' | 'skipped' | 'success' | 'failure';
 };
 
 export type CustomIfNode = Node<IfNodeData>;
@@ -56,6 +57,17 @@ const IfNode = ({ data, selected }: NodeProps<CustomIfNode>) => {
                     </div>
                 )}
             </div>
+
+            {data.status && data.status !== 'idle' && (
+                <div className="absolute top-0 right-0 p-2"> {/* Positioning adjusted for top-right */}
+                    <div className={`h-3 w-3 rounded-full shadow-lg ${data.status === 'running' ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] animate-pulse' :
+                        (data.status === 'completed' || data.status === 'success') ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
+                        (data.status === 'failed' || data.status === 'failure') ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' :
+                        data.status === 'skipped' ? 'bg-gray-500 shadow-[0_0_8px_rgba(107,114,128,0.5)]' : // Skipped status
+                            'bg-white/30' // Default for unknown/idle
+                        }`} />
+                </div>
+            )}
 
             {/* True Output */}
             <div className="absolute -bottom-6 left-1/4 flex flex-col items-center">

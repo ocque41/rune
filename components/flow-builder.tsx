@@ -99,12 +99,17 @@ const FlowBuilderContent = ({
     const [isSaving, setIsSaving] = useState(false);
 
     // Simulation State
-    const [simulationLogs, setSimulationLogs] = useState<SimulationLogEntry[]>([]);
-    const [isSimulating, setIsSimulating] = useState(false);
-    const [showSimulationPanel, setShowSimulationPanel] = useState(false);
-    const simulationPanelRef = useRef<HTMLDivElement>(null);
+    const [executionLogs, setExecutionLogs] = useState<SimulationLogEntry[]>([]);
+    const [nodeStatuses, setNodeStatuses] = useState<Record<string, { status: string; message?: string; timestamp: number }>>({});
+    const [isExecuting, setIsExecuting] = useState(false);
+    const [showExecutionLogPanel, setShowExecutionLogPanel] = useState(false);
+    const executionLogPanelRef = useRef<HTMLDivElement>(null);
     const logsContainerRef = useRef<HTMLDivElement>(null);
     const prevLogsLengthRef = useRef(0);
+
+    // NEW: Real-time Node Output State
+    // The outputs are now directly merged into executionLogs
+    const [listeningRunId, setListeningRunId] = useState<string | null>(null);
 
     // Open/Load Modal State
     const [showOpenModal, setShowOpenModal] = useState(false);
@@ -338,9 +343,9 @@ const FlowBuilderContent = ({
     }, [fetchWorkflows, workflowId]);
 
     const onSimulate = useCallback(async () => {
-        setIsSimulating(true);
-        setShowSimulationPanel(true);
-        setSimulationLogs([]); // Clear previous logs
+        setIsExecuting(true);
+        setShowExecutionLogPanel(true);
+        setExecutionLogs([]); // Clear previous logs
 
         try {
             // Basic input mock
@@ -350,7 +355,7 @@ const FlowBuilderContent = ({
             };
 
             const result = await simulateWorkflow(nodes, edges, initialInput);
-            setSimulationLogs(result.logs);
+            setExecutionLogs(result.logs);
 
             if (result.success) {
                 toast.success('Simulation completed');
@@ -361,7 +366,7 @@ const FlowBuilderContent = ({
             console.error('Simulation error:', error);
             toast.error('Simulation failed');
         } finally {
-            setIsSimulating(false);
+            setIsExecuting(false);
         }
     }, [nodes, edges]);
 
@@ -421,6 +426,67 @@ const FlowBuilderContent = ({
         return () => clearInterval(pollInterval);
     }, [workflowId]);
 
+    // NEW: Effect for Real-time Node Output Stream
+    useEffect(() => {
+        if (!listeningRunId) {
+            setExecutionLogs([]); // Clear outputs if we stop listening
+            setNodeStatuses({}); // Clear node statuses if we stop listening
+            return;
+        }
+
+        const eventSource = new EventSource(`/api/rune/workflow/stream-output?runId=${listeningRunId}`);
+
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                // Ensure it's a nodeOutput type, as other events might stream
+                if (data.type === 'nodeOutput') {
+                    setExecutionLogs((prevLogs) => [...prevLogs, { type: 'nodeOutput', nodeId: data.nodeId, output: data.output, runId: data.runId, timestamp: data.timestamp }]);
+                } 
+                // Handle nodeStatus events
+                else if (data.type === 'nodeStatus') {
+                    setNodeStatuses((prevStatuses) => ({
+                        ...prevStatuses,
+                        [data.nodeId]: { status: data.status, message: data.message, timestamp: data.timestamp },
+                    }));
+                }
+            } catch (error) {
+                console.error('Failed to parse stream message:', error);
+            }
+        };
+
+        eventSource.onerror = (error) => {
+            console.error('EventSource error:', error);
+            eventSource.close();
+        };
+
+        return () => {
+            eventSource.close();
+            console.log(`Closed EventSource for runId: ${listeningRunId}`);
+        };
+    }, [listeningRunId]);
+
+    // Effect to update node data with real-time status
+    useEffect(() => {
+        setNodes((prevNodes) =>
+            prevNodes.map((node) => {
+                const statusUpdate = nodeStatuses[node.id];
+                if (statusUpdate && node.data.status !== statusUpdate.status) {
+                    return {
+                        ...node,
+                        data: {
+                            ...node.data,
+                            status: statusUpdate.status,
+                            // Optionally, include message if needed in node itself
+                            // statusMessage: statusUpdate.message,
+                        },
+                    };
+                }
+                return node;
+            })
+        );
+    }, [nodeStatuses, setNodes]);
+
     // Function to reload workflow from SERVER
     const reloadFromServer = useCallback(async () => {
         if (!workflowId) return;
@@ -451,20 +517,20 @@ const FlowBuilderContent = ({
 
     // Animation: Panel entrance
     useEffect(() => {
-        if (showSimulationPanel && simulationPanelRef.current) {
+        if (showExecutionLogPanel && executionLogPanelRef.current) {
             anime({
-                targets: simulationPanelRef.current,
+                targets: executionLogPanelRef.current,
                 translateY: [100, 0],
                 opacity: [0, 1],
                 duration: 400,
                 easing: 'easeOutCubic'
             });
         }
-    }, [showSimulationPanel]);
+    }, [showExecutionLogPanel]);
 
     // Animation: Stagger new log entries
     useEffect(() => {
-        if (simulationLogs.length > prevLogsLengthRef.current && logsContainerRef.current) {
+        if (executionLogs.length > prevLogsLengthRef.current && logsContainerRef.current) {
             const newEntries = logsContainerRef.current.querySelectorAll('[data-log-entry]');
             const startIndex = prevLogsLengthRef.current;
             const entriesToAnimate = Array.from(newEntries).slice(startIndex);
@@ -480,8 +546,8 @@ const FlowBuilderContent = ({
                 });
             }
         }
-        prevLogsLengthRef.current = simulationLogs.length;
-    }, [simulationLogs]);
+        prevLogsLengthRef.current = executionLogs.length;
+    }, [executionLogs]);
 
     const onConnect = useCallback(
         (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -676,6 +742,11 @@ const FlowBuilderContent = ({
             toast.success(`Deployed version ${data.version} successfully!`, {
                 description: 'Your workflow is now live.'
             });
+
+            setShowExecutionLogPanel(true);
+            // NEW: Start listening for real-time outputs for this deployment
+            setListeningRunId(crypto.randomUUID()); // Placeholder for actual runId from server
+
         } catch (error) {
             console.error('Deploy error:', error);
             toast.error(error instanceof Error ? error.message : 'Failed to deploy');
@@ -1210,10 +1281,10 @@ const FlowBuilderContent = ({
                         </div>
                     </div>
                 )}
-                {/* Simulation Logs Panel - Enhanced */}
-                {showSimulationPanel && (
+                {/* Execution Logs Panel - Enhanced */}
+                {showExecutionLogPanel && (
                     <div
-                        ref={simulationPanelRef}
+                        ref={executionLogPanelRef}
                         data-simulation-panel
                         className="absolute bottom-0 left-0 right-0 z-40 flex flex-col shadow-2xl"
                         style={{
@@ -1276,7 +1347,7 @@ const FlowBuilderContent = ({
                                                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
                                                 Running
                                             </span>
-                                        ) : simulationLogs.some(l => l.type === 'error') ? (
+                                        ) : executionLogs.some(l => l.type === 'error') ? (
                                             <span
                                                 className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider"
                                                 style={{
@@ -1288,7 +1359,7 @@ const FlowBuilderContent = ({
                                                 <XCircle size={10} />
                                                 Error
                                             </span>
-                                        ) : simulationLogs.length > 0 ? (
+                                        ) : executionLogs.length > 0 ? (
                                             <span
                                                 className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider"
                                                 style={{
@@ -1312,7 +1383,7 @@ const FlowBuilderContent = ({
                                             </span>
                                         )}
                                         <span className="text-xs" style={{ color: '#555555' }}>
-                                            {simulationLogs.length} {simulationLogs.length === 1 ? 'step' : 'steps'}
+                                            {executionLogs.length} {executionLogs.length === 1 ? 'step' : 'steps'}
                                         </span>
                                     </div>
                                 </div>
@@ -1321,7 +1392,7 @@ const FlowBuilderContent = ({
                             {/* Actions */}
                             <div className="flex items-center gap-1">
                                 <button
-                                    onClick={() => setSimulationLogs([])}
+                                    onClick={() => setExecutionLogs([])}
                                     title="Clear Logs"
                                     className="p-2 rounded-lg transition-all duration-200 hover:bg-white/10"
                                     style={{ color: '#A0A0A0' }}
@@ -1344,7 +1415,7 @@ const FlowBuilderContent = ({
                             ref={logsContainerRef}
                             className="flex-1 overflow-y-auto px-5 py-4 space-y-3 font-mono text-xs scrollbar-hide"
                         >
-                            {simulationLogs.length === 0 ? (
+                            {executionLogs.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center h-full gap-4 py-8">
                                     {isSimulating ? (
                                         <>
@@ -1374,7 +1445,7 @@ const FlowBuilderContent = ({
                                     )}
                                 </div>
                             ) : (
-                                simulationLogs.map((log, i) => (
+                                executionLogs.map((log, i) => (
                                     <div
                                         key={i}
                                         data-log-entry
@@ -1408,16 +1479,17 @@ const FlowBuilderContent = ({
                                                     className={`font-bold uppercase text-[10px] px-2 py-0.5 rounded-md tracking-wider ${log.type === 'error' ? 'bg-red-500/15 text-red-400 border border-red-500/30' :
                                                         log.type === 'success' ? 'bg-green-500/15 text-green-400 border border-green-500/30' :
                                                             log.type === 'warning' ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30' :
-                                                                'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30'
+                                                                log.type === 'nodeOutput' ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30' : // New style for nodeOutput
+                                                                    'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30'
                                                         }`}
                                                 >
-                                                    {log.type}
+                                                    {log.type === 'nodeOutput' ? 'OUTPUT' : log.type} {/* Display 'OUTPUT' for nodeOutput */}
                                                 </span>
                                                 <span
                                                     className="font-semibold text-sm truncate"
                                                     style={{ color: '#FFFFFF' }}
                                                 >
-                                                    {log.stepLabel}
+                                                    {log.type === 'nodeOutput' ? log.nodeId : log.stepLabel} {/* Display nodeId for nodeOutput */}
                                                 </span>
                                                 <span
                                                     className="text-[10px] ml-auto shrink-0"
@@ -1430,10 +1502,10 @@ const FlowBuilderContent = ({
                                                 className="mt-1.5 text-sm leading-relaxed"
                                                 style={{ color: '#A0A0A0' }}
                                             >
-                                                {log.message}
+                                                {log.type === 'nodeOutput' ? `Output from node '${log.nodeId}'` : log.message} {/* Custom message for nodeOutput */}
                                             </div>
 
-                                            {log.data && Object.keys(log.data).length > 0 && (
+                                            {(log.data && Object.keys(log.data).length > 0) || (log.type === 'nodeOutput' && log.output) ? ( // Conditional for nodeOutput
                                                 <pre
                                                     className="mt-3 block overflow-x-auto rounded-lg p-3 text-[11px] leading-relaxed"
                                                     style={{
@@ -1442,9 +1514,9 @@ const FlowBuilderContent = ({
                                                         color: '#E0E0E0'
                                                     }}
                                                 >
-                                                    {JSON.stringify(log.data, null, 2)}
+                                                    {JSON.stringify(log.type === 'nodeOutput' ? log.output : log.data, null, 2)} {/* Display log.output for nodeOutput */}
                                                 </pre>
-                                            )}
+                                            ) : null}
                                         </div>
                                     </div>
                                 ))

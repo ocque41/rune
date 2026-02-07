@@ -10,6 +10,7 @@ export type AINodeData = {
     prompt?: string;
     model?: string;
     thinkingLevel?: string;
+    status?: 'idle' | 'running' | 'completed' | 'failed' | 'success' | 'failure';
 };
 
 export const AINode = (props: NodeProps<any>) => {
@@ -32,6 +33,17 @@ export const AINode = (props: NodeProps<any>) => {
             ]}
             className="min-w-[280px]"
         >
+            {/* Status Indicator */}
+            {data.status && data.status !== 'idle' && (
+                <div className="absolute top-0 right-0 p-2">
+                    <div className={`h-3 w-3 rounded-full shadow-lg ${data.status === 'running' ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] animate-pulse' :
+                        (data.status === 'completed' || data.status === 'success') ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
+                            (data.status === 'failed' || data.status === 'failure') ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' :
+                                'bg-white/30' // Default for unknown/idle
+                            }`} />
+                </div>
+            )}
+
             {/* Header */}
             <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3 bg-white/5 justify-between">
                 <div className="flex items-center gap-3">
