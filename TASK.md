@@ -1,4 +1,4 @@
-# TASK.md - Current Objective: Set up Basic Project Structure and Version Control
+# TASK.md - Current Objective: Configure Essential Development Tools and Environments
 
 ## Project: `/Users/miguel/Documents/cumulus/rune`
 
@@ -6,36 +6,43 @@
 
 ## Objective:
 
-To establish the foundational project structure and integrate it with a version control system (Git), ensuring a robust and organized starting point for development.
+To set up and configure the necessary development tools and environments required for the `rune` project, ensuring all contributors have a consistent and efficient development workflow.
 
 ## Description:
 
-This task involves creating the initial directory layout for the `rune` project, initializing a Git repository, and making the first commit with a basic `README.md` and `.gitignore` file.
+This task involves identifying, installing, and configuring core development tools, such as programming language runtimes, package managers, code editors, and any specific project dependencies. It also includes establishing best practices for environment setup and consistency.
 
 ## Sub-tasks:
 
-1.  **Create Project Directory Structure:**
-    *   Create a `src` directory for source code.
-    *   Create a `docs` directory for project documentation.
-    *   Create a `tests` directory for unit and integration tests.
-    *   Create a `config` directory for configuration files.
-2.  **Initialize Git Repository:**
-    *   Initialize a new Git repository in the project root.
-    *   Add a `.gitignore` file with common exclusions (e.g., `node_modules`, `.DS_Store`, `dist`, logs).
-    *   Create an initial `README.md` file with a brief project description.
-3.  **Initial Commit:**
-    *   Add all created files and directories to the Git staging area.
-    *   Perform the first commit with a clear and descriptive message (e.g., "feat: Initial project setup and Git configuration").
+1.  **Identify Core Technologies:**
+    *   Determine the primary programming language(s) and framework(s) for the `rune` project. (e.g., Node.js, Python, Go, Rust, React, Vue, etc.)
+    *   Identify necessary databases, caching layers, or message queues.
+2.  **Install Runtimes and SDKs:**
+    *   Ensure the appropriate language runtimes (e.g., Node.js, Python, Java JDK) and SDKs are specified and available.
+    *   Recommend version managers (e.g., NVM for Node.js, pyenv for Python) for consistent version control.
+3.  **Configure Package Management:**
+    *   Specify the package manager to use (e.g., npm, yarn, pip, cargo).
+    *   Define project-specific dependencies in `package.json`, `requirements.txt`, `Cargo.toml`, etc.
+4.  **Editor/IDE Configuration (Recommendations):**
+    *   Recommend preferred code editors (e.g., VS Code) and essential extensions for the project's technologies.
+    *   Provide `.editorconfig` for consistent coding styles.
+5.  **Initial Tooling Setup:**
+    *   Set up linting (e.g., ESLint, Prettier, Black, Ruff) for code quality.
+    *   Configure testing frameworks (e.g., Jest, Pytest, Go test).
+    *   Consider setting up basic build/transpilation steps if required.
+6.  **Document Setup Process:**
+    *   Create a section in the `docs` directory (e.g., `docs/SETUP.md`) detailing the environment setup process step-by-step.
 
 ## Expected Outcome:
 
--   A well-defined project directory structure.
--   A fully initialized Git repository.
--   A `README.md` file providing basic project information.
--   A `.gitignore` file preventing unnecessary files from being committed.
--   A clean initial commit marking the project's inception.
+-   A clear definition of the project's core technologies.
+-   Instructions and configurations for installing language runtimes and SDKs.
+-   Properly configured package management.
+-   Recommendations for editor/IDE setup.
+-   Initial setup of code quality and testing tools.
+-   Comprehensive documentation for setting up the development environment.
 
 ## Next Steps (after completion):
 
 -   Update `TASKS.md` to mark this task as complete.
--   Update `TASK.md` with the next objective: "Configure essential development tools and environments."
+-   Update `TASK.md` with the next objective: "Establish initial documentation guidelines."

@@ -5,7 +5,6 @@ This document outlines the high-level roadmap and major objectives for the `/Use
 ## Current Roadmap:
 
 -   **Objective 1: Project Infrastructure Setup**
-    *   Set up basic project structure and version control.
     *   Configure essential development tools and environments.
     *   Establish initial documentation guidelines.
 
@@ -21,7 +20,7 @@ This document outlines the high-level roadmap and major objectives for the `/Use
 
 ## Completed Tasks:
 
--   None yet.
+-   Set up basic project structure and version control.
 
 ## Notes:
 
