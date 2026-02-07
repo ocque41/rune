@@ -7,6 +7,7 @@ import { Code, Settings } from 'lucide-react';
 export type TransformNodeData = {
     label: string;
     mapping?: string;
+    transformType?: 'javascript' | 'jsonata'; // New property
     status?: 'idle' | 'running' | 'completed' | 'failed' | 'success' | 'failure';
 };
 
@@ -14,6 +15,22 @@ export const TransformNode = (props: NodeProps<any>) => {
     const { data, isConnectable } = props;
     const [showConfig, setShowConfig] = useState(false);
     const [mapping, setMapping] = useState(data.mapping || 'return params;');
+    const [transformType, setTransformType] = useState(data.transformType || 'javascript'); // New state for transformType
+
+    // Update node data when transformType changes
+    const onTransformTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const newType = e.target.value as 'javascript' | 'jsonata';
+        setTransformType(newType);
+        data.transformType = newType;
+        // Optionally, reset mapping or set a default based on type
+        if (newType === 'jsonata' && data.mapping === 'return params;') {
+            setMapping('$.'); // Default JSONata identity
+            data.mapping = '$.';
+        } else if (newType === 'javascript' && data.mapping === '$.') {
+            setMapping('return params;'); // Default JS identity
+            data.mapping = 'return params;';
+        }
+    };
 
     return (
         <div
@@ -48,6 +65,7 @@ export const TransformNode = (props: NodeProps<any>) => {
                 <button
                     onClick={() => setShowConfig(!showConfig)}
                     className="rounded p-1.5 transition-colors text-white/40 hover:text-white/80 hover:bg-white/5"
+                    aria-label="Toggle node settings"
                 >
                     <Settings size={16} />
                 </button>
@@ -56,18 +74,35 @@ export const TransformNode = (props: NodeProps<any>) => {
             {/* Content */}
             <div className="p-3 space-y-3">
                 {showConfig && (
-                    <div>
-                        <label className="mb-1 block text-xs font-medium text-white/50">Mapping Function (JS)</label>
-                        <textarea
-                            placeholder="return { ...params, newField: 'value' };"
-                            className="w-full rounded-lg bg-[#222222] border-none px-2 py-1.5 text-sm font-mono text-white placeholder-white/30 min-h-[80px] focus:outline-none focus:ring-1 focus:ring-white/30"
-                            value={mapping}
-                            onChange={(e) => {
-                                setMapping(e.target.value);
-                                data.mapping = e.target.value;
-                            }}
-                        />
-                    </div>
+                    <>
+                        <div>
+                            <label htmlFor="transform-type-select" className="mb-1 block text-xs font-medium text-white/50">Transformation Type</label>
+                            <select
+                                id="transform-type-select"
+                                className="w-full rounded-lg bg-[#222222] border-none px-2 py-1.5 text-xs font-mono text-white focus:outline-none focus:ring-1 focus:ring-white/30"
+                                value={transformType}
+                                onChange={onTransformTypeChange}
+                            >
+                                <option value="javascript">JavaScript</option>
+                                <option value="jsonata">JSONata</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label htmlFor="mapping-input" className="mb-1 block text-xs font-medium text-white/50">
+                                {transformType === 'javascript' ? 'Mapping Function (JS)' : 'JSONata Expression'}
+                            </label>
+                            <textarea
+                                id="mapping-input"
+                                placeholder={transformType === 'javascript' ? 'return params;' : '$.'}
+                                className="w-full rounded-lg bg-[#222222] border-none px-2 py-1.5 text-sm font-mono text-white placeholder-white/30 min-h-[80px] focus:outline-none focus:ring-1 focus:ring-white/30"
+                                value={mapping}
+                                onChange={(e) => {
+                                    setMapping(e.target.value);
+                                    data.mapping = e.target.value;
+                                }}
+                            />
+                        </div>
+                    </>
                 )}
             </div>
 

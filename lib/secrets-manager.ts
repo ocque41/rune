@@ -4,9 +4,14 @@
  * - Environment variables (default, for development)
  * - AWS Secrets Manager (optional, for production)
  * - HashiCorp Vault (optional, for production)
+ * - Supabase (optional, for database-backed secrets)
  */
 
-export type SecretsProvider = 'env' | 'aws' | 'vault';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/server'; // Import Supabase server client factory
+import { createSupabaseSecret, getSupabaseSecret as getSupabaseSecretInternal, updateSupabaseSecret, deleteSupabaseSecret, listSupabaseSecretKeys as listSupabaseSecretKeysInternal } from './supabase-secrets'; // Import Supabase secrets functions
+
+export type SecretsProvider = 'env' | 'aws' | 'vault' | 'supabase';
 
 export interface SecretsConfig {
     provider: SecretsProvider;
@@ -35,8 +40,9 @@ function getConfig(): SecretsConfig {
  * List all available secret keys (not values)
  * Returns only the keys to display in UI
  */
-export async function listSecretKeys(): Promise<string[]> {
+export async function listSecretKeys(userId: string): Promise<string[]> {
     const config = getConfig();
+    const supabase = createClient(); // Create Supabase client once per request
 
     switch (config.provider) {
         case 'env':
@@ -48,6 +54,9 @@ export async function listSecretKeys(): Promise<string[]> {
         case 'vault':
             return listVaultSecretKeys(config);
 
+        case 'supabase':
+            return listSupabaseSecretKeysInternal(supabase, userId);
+
         default:
             return listEnvSecretKeys();
     }
@@ -57,8 +66,9 @@ export async function listSecretKeys(): Promise<string[]> {
  * Get a secret value by key
  * This should only be called server-side, never expose to client
  */
-export async function getSecret(key: string): Promise<string | null> {
+export async function getSecret(key: string, userId?: string): Promise<string | null> {
     const config = getConfig();
+    const supabase = createClient(); // Create Supabase client
 
     switch (config.provider) {
         case 'env':
@@ -70,8 +80,63 @@ export async function getSecret(key: string): Promise<string | null> {
         case 'vault':
             return getVaultSecret(key, config);
 
+        case 'supabase':
+            if (!userId) {
+                console.error("userId is required for Supabase secrets provider");
+                return null;
+            }
+            return getSupabaseSecretInternal(supabase, userId, key);
+
         default:
             return getEnvSecret(key);
+    }
+}
+
+/**
+ * Create a new secret.
+ */
+export async function createSecret(userId: string, name: string, value: string): Promise<void> {
+    const config = getConfig();
+    const supabase = createClient();
+
+    switch (config.provider) {
+        case 'supabase':
+            return createSupabaseSecret(supabase, userId, name, value);
+        // Add cases for other providers if they support direct creation
+        default:
+            throw new Error(`Secret creation not supported for provider: ${config.provider}`);
+    }
+}
+
+/**
+ * Update an existing secret.
+ */
+export async function updateSecret(userId: string, name: string, value: string): Promise<void> {
+    const config = getConfig();
+    const supabase = createClient();
+
+    switch (config.provider) {
+        case 'supabase':
+            return updateSupabaseSecret(supabase, userId, name, value);
+        // Add cases for other providers if they support direct updating
+        default:
+            throw new Error(`Secret updating not supported for provider: ${config.provider}`);
+    }
+}
+
+/**
+ * Delete a secret.
+ */
+export async function deleteSecret(userId: string, name: string): Promise<void> {
+    const config = getConfig();
+    const supabase = createClient();
+
+    switch (config.provider) {
+        case 'supabase':
+            return deleteSupabaseSecret(supabase, userId, name);
+        // Add cases for other providers if they support direct deletion
+        default:
+            throw new Error(`Secret deletion not supported for provider: ${config.provider}`);
     }
 }
 

@@ -18,6 +18,7 @@ import {
     Node,
     BackgroundVariant,
     useReactFlow,
+    useUndoRedo,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -35,7 +36,7 @@ import { TransformNode } from './nodes/transform-node';
 import WebhookNode from './nodes/webhook-node';
 import { generateWorkflowCode } from '@/lib/workflow-generator';
 import { validateGraph, ValidationResult } from '@/lib/workflow-validator';
-import { LayoutTemplate, AlertCircle, X, Download, Upload, Trash2, HelpCircle, Play, FolderOpen, Loader2, FileCode, Plus, Save } from 'lucide-react';
+import { LayoutTemplate, AlertCircle, X, Download, Upload, Trash2, HelpCircle, Play, FolderOpen, Loader2, FileCode, Plus, Save, Undo2, Redo2 } from 'lucide-react';
 import { templates, Template } from '@/lib/templates';
 import { ExportedWorkflow } from '@/lib/types/export';
 import { toast } from 'sonner';
@@ -48,6 +49,12 @@ import { AutoPilotContainer } from '@/components/playground/auto-pilot-container
 import { Bot, Activity, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
 import anime from 'animejs';
 import ErrorHandlerNode from './nodes/error-handler-node';
+import BatchProcessNode from './nodes/batch-process-node';
+import CustomCodeNode from './nodes/custom-code-node';
+import DataValidationNode from './nodes/data-validation-node';
+import SecretsManagerDrawer from './secrets-manager-drawer'; // Import the new component
+import GroupNode from './nodes/group-node';
+import TwilioMessageNode from './nodes/twilio-message-node';
 
 const nodeTypes = {
     step: StepNode,
@@ -61,6 +68,11 @@ const nodeTypes = {
     transform: TransformNode,
     webhook: WebhookNode,
     error: ErrorHandlerNode,
+    batchProcess: BatchProcessNode,
+    customCode: CustomCodeNode,
+    dataValidation: DataValidationNode,
+    groupNode: GroupNode,
+    twilioMessage: TwilioMessageNode,
 } as any;
 
 const initialNodes: Node[] = [
@@ -90,6 +102,7 @@ const FlowBuilderContent = ({
     const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[]);
     const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
     const { getNodes, getEdges } = useReactFlow();
+    const { undo, redo, canUndo, canRedo } = useUndoRedo(); // New: Undo/Redo hook
     const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
     const [showValidation, setShowValidation] = useState(false);
     const [showTemplates, setShowTemplates] = useState(false);
@@ -137,6 +150,7 @@ const FlowBuilderContent = ({
     const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
     const [templateForm, setTemplateForm] = useState({ name: '', description: '' });
     const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+    const [showSecretsManager, setShowSecretsManager] = useState(false); // New state for Secrets Manager
 
     // Workflow external modification detection (for agent changes)
     const [hasExternalChanges, setHasExternalChanges] = useState(false);
@@ -385,6 +399,45 @@ const FlowBuilderContent = ({
             toast.success('Session cleared');
         }
     }, [clearSession, setNodes, setEdges]);
+
+    const onToggleCollapse = useCallback((groupId: string, isCollapsed: boolean) => {
+        setNodes((nds) => {
+            return nds.map((node) => {
+                // Update the group node itself
+                if (node.id === groupId) {
+                    // Store original dimensions if collapsing for the first time
+                    // Need to capture current node dimensions reliably. React Flow provides node.width/height after render.
+                    // For simplicity in generated code, we might set fixed dimensions for collapsed state and restore.
+                    const updatedData = { ...node.data, isCollapsed };
+                    let updatedNode = { ...node, data: updatedData };
+
+                    if (isCollapsed) {
+                         // When collapsing, store current dimensions if not already stored
+                        if (!node.data.originalWidth || !node.data.originalHeight) {
+                            updatedData.originalWidth = node.width;
+                            updatedData.originalHeight = node.height;
+                        }
+                        // Set fixed dimensions for collapsed state
+                        updatedNode.width = 250;
+                        updatedNode.height = 60;
+                    } else {
+                        // When expanding, restore original dimensions
+                        if (node.data.originalWidth && node.data.originalHeight) {
+                            updatedNode.width = node.data.originalWidth;
+                            updatedNode.height = node.data.originalHeight;
+                        }
+                    }
+                    return updatedNode;
+                }
+
+                // Update child nodes' visibility
+                if (node.parentNode === groupId) {
+                    return { ...node, hidden: isCollapsed };
+                }
+                return node;
+            });
+        });
+    }, [setNodes]);
 
 
 
@@ -877,6 +930,7 @@ const FlowBuilderContent = ({
                         <button
                             onClick={() => setHasExternalChanges(false)}
                             className="p-1 rounded hover:bg-white/20 transition-colors"
+                            aria-label="Dismiss workflow modification notification"
                         >
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -885,7 +939,12 @@ const FlowBuilderContent = ({
                     </div>
                 )}
                 <ReactFlow
-                    nodes={nodes}
+                    nodes={nodes.map(n => {
+                        if (n.type === 'groupNode') {
+                            return { ...n, data: { ...n.data, onToggleCollapse } };
+                        }
+                        return n;
+                    })}
                     edges={edges}
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
@@ -955,6 +1014,36 @@ const FlowBuilderContent = ({
                         >
                             <Trash2 size={14} />
                             Clear
+                        </button>
+                        <button
+                            onClick={undo}
+                            disabled={!canUndo}
+                            className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50"
+                            style={{ color: 'var(--foreground-title)' }}
+                            title="Undo Last Change"
+                        >
+                            <Undo2 size={14} />
+                            Undo
+                        </button>
+                        <button
+                            onClick={redo}
+                            disabled={!canRedo}
+                            className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50"
+                            style={{ color: 'var(--foreground-title)' }}
+                            title="Redo Last Change"
+                        >
+                            <Redo2 size={14} />
+                            Redo
+                        </button>
+                        <button
+                            onClick={() => {
+                                setShowSecretsManager(true);
+                            }}
+                            className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                            style={{ color: 'var(--foreground-title)' }}
+                        >
+                            <Lock size={14} />
+                            Secrets
                         </button>
                         <button
                             onClick={() => {
@@ -1046,6 +1135,11 @@ const FlowBuilderContent = ({
                     </div>
                 </ReactFlow>
 
+                <SecretsManagerDrawer
+                    isOpen={showSecretsManager}
+                    onOpenChange={setShowSecretsManager}
+                />
+
                 <DeploymentSuccessDialog
                     open={showDeployModal}
                     onClose={() => setShowDeployModal(false)}
@@ -1054,14 +1148,14 @@ const FlowBuilderContent = ({
 
                 {/* Export Modal */}
                 {exportUrl && (
-                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true">
                         <div className="w-[400px] rounded-lg border p-6 shadow-xl" style={{
                             backgroundColor: 'var(--node-background)',
                             borderColor: 'var(--border-color)'
                         }}>
                             <div className="mb-4 flex items-center justify-between">
                                 <h2 className="text-lg font-bold" style={{ color: 'var(--foreground-title)' }}>Export Ready</h2>
-                                <button onClick={closeExportModal} className="opacity-60 hover:opacity-100">
+                                <button onClick={closeExportModal} className="opacity-60 hover:opacity-100" aria-label="Close export modal">
                                     <X size={20} />
                                 </button>
                             </div>
@@ -1092,14 +1186,14 @@ const FlowBuilderContent = ({
 
                 {/* Templates Modal */}
                 {showTemplates && (
-                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true">
                         <div className="w-[600px] rounded-lg border p-6 shadow-xl" style={{
                             backgroundColor: 'var(--node-background)',
                             borderColor: 'var(--border-color)'
                         }}>
                             <div className="mb-4 flex items-center justify-between">
                                 <h2 className="text-lg font-bold" style={{ color: 'var(--foreground-title)' }}>Choose a Template</h2>
-                                <button onClick={() => setShowTemplates(false)} className="opacity-60 hover:opacity-100">
+                                <button onClick={() => setShowTemplates(false)} className="opacity-60 hover:opacity-100" aria-label="Close templates modal">
                                     <X size={20} />
                                 </button>
                             </div>

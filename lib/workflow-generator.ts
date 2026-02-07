@@ -1,12 +1,21 @@
 import { Node, Edge } from '@xyflow/react';
+import fs from 'fs/promises';
+import path from 'path';
+// Import versioning utilities
+import { generateVersionId, saveWorkflowVersion, updateWorkflowMetadata } from './workflow-versioning';
 
-export function generateWorkflowCode(nodes: Node[], edges: Edge[]): string {
-  const imports = `import { sleep, resumeHook, createHook, getSecret } from "workflow";\nimport { getStreamWritable } from '@/lib/workflow/runtime/streams';`;
+export function generateWorkflowCode(workflowId: string, nodes: Node[], edges: Edge[]): string {
+  const usedStepFunctions = new Set<string>();
+  const usedImports = new Set<string>();
+  const usedHelperFunctions = new Set<string>();
+
+  usedImports.add(`import { sleep, resumeHook, createHook, getSecret } from "workflow";`);
+  usedImports.add(`import { getStreamWritable } from '@/lib/workflow/runtime/streams';`);
 
   // Collect unique Sub-Workflow IDs
   const subWorkflowIds = Array.from(new Set(
     nodes
-      .filter(n => n.data.label === 'Sub-Workflow' || (n.type === 'subWorkflow')) // Handle both label and type check to be safe
+      .filter(n => n.data.label === 'Sub-Workflow' || n.type === 'subWorkflow' || n.type === 'batchProcess') // Added n.type === 'batchProcess'
       .map(n => (n.data as any).workflowId)
       .filter(Boolean)
   ));
@@ -15,23 +24,8 @@ export function generateWorkflowCode(nodes: Node[], edges: Edge[]): string {
     .map(id => `import { ${id} } from "./workflows/${id}";`)
     .join('\n');
 
-  // 1. Identify Steps and Configuration
-  const stepDefinitions = nodes
-    .filter((n) => n.type === 'step' && n.data.label !== 'Start Workflow' && n.data.label !== 'HTTP Request' && n.data.label !== 'Send Email' && n.data.label !== 'Database Query' && n.data.label !== 'Run Script' && n.data.label !== 'Slack Message' && n.data.label !== 'Stream' && n.data.label !== 'Wait for Event' && n.data.label !== 'Approval' && n.data.label !== 'AI' && n.data.label !== 'Transform')
-    .map((node) => {
-      const functionName = toCamelCase(node.data.label as string);
-      // In a real app, we'd generate specific code based on the step type (e.g., email, db)
-      // For now, we generate a generic placeholder
-      return `
-export const ${functionName} = async (params: any) => {
-  "use step";
-  console.log("Running step: ${node.data.label}", params);
-  // Simulate work
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  return { status: "success", step: "${node.data.label}" };
-};`;
-    })
-    .join('\n');
+  // 1. Identify Steps and Configuration (declarations will be gathered dynamically)
+  const usedGenericStepFunctions = new Set<string>();
 
   // Add reusable HTTP Request step
   const httpStepDefinition = `
@@ -757,16 +751,22 @@ export const generateContent = async (params: { prompt: string; model?: string; 
 
   // Add reusable Transform step
   const transformStepDefinition = `
-export const transformData = async (params: { mapping: string; data: any }) => {
+export const transformData = async (params: { mapping: string; transformType: 'javascript' | 'jsonata'; data: any }) => {
   "use step";
   const startTime = Date.now();
   
-  console.log("[Transform] Executing transformation");
+  console.log("[Transform] Executing transformation (" + params.transformType + ")");
   console.log("[Transform] Input data type:", typeof params.data);
   
   try {
-    const transformFn = new Function('params', params.mapping);
-    const result = transformFn(params.data);
+    let result;
+    if (params.transformType === 'jsonata') {
+        const expression = jsonata(params.mapping);
+        result = await expression.evaluate(params.data);
+    } else { // 'javascript'
+        const transformFn = new Function('params', params.mapping);
+        result = transformFn(params.data);
+    }
     const durationMs = Date.now() - startTime;
     
     console.log("[Transform] Completed in", durationMs + "ms");
@@ -790,24 +790,225 @@ export const transformData = async (params: { mapping: string; data: any }) => {
   }
 };`;
 
+  // Add reusable Custom Code step
+  const customCodeStepDefinition = `
+export const executeCustomCode = async (params: { 
+    language: string; 
+    code: string; 
+    entrypoint: string; 
+    input: any; 
+    timeoutMs: number; 
+    dependencies: string; 
+    envVars: string; 
+}, runId: string, nodeId: string, outputMapping: string) => {
+    "use step";
+    const isSandbox = process.env.RUNE_WORKFLOW_MODE === 'sandbox' || (process.env.NODE_ENV !== 'production' && !process.env.RUNE_WORKFLOW_MODE);
+    const executionServiceUrl = process.env.CUSTOM_CODE_EXEC_SERVICE_URL || '/api/rune/execute-custom-code';
+
+    console.log("[Custom Code] Executing with language:", params.language);
+    console.log("[Custom Code] Entrypoint:", params.entrypoint);
+    console.log("[Custom Code] Input type:", typeof params.input);
+    console.log("[Custom Code] Timeout:", params.timeoutMs + "ms");
+    console.log("[Custom Code] Mode:", isSandbox ? 'sandbox' : 'live');
+
+    if (isSandbox) {
+        console.log("[Custom Code] Returning mock response in sandbox mode.");
+        return {
+            ok: true,
+            status: 'mocked',
+            result: \`Mock result for \${params.language} code\`,
+            logs: ["Simulated execution in sandbox"],
+            mocked: true
+        };
+    }
+
+    try {
+        const response = await fetch(executionServiceUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Rune-Run-Id': runId,
+                'X-Rune-Node-Id': nodeId,
+            },
+            body: JSON.stringify({
+                language: params.language,
+                code: params.code,
+                entrypoint: params.entrypoint,
+                input: params.input,
+                timeoutMs: params.timeoutMs,
+                dependencies: JSON.parse(params.dependencies),
+                envVars: JSON.parse(params.envVars),
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: 'Unknown error from execution service' }));
+            throw new Error(\`Custom Code execution failed: \${errorData.error || errorData.message}\`);
+        }
+
+        const result = await response.json();
+
+        let finalResult = result.result;
+        // Apply output mapping if provided
+        if (outputMapping) {
+            try {
+                // The output mapping function receives 'scriptResult' (from the external service)
+                // and 'workflowParams' (the original params passed to this step function).
+                // It should return the value to be used as the node's output.
+                const mapFn = new Function('scriptResult', 'workflowParams', \`return (\${outputMapping})\`);
+                finalResult = mapFn(result.result, params.input); 
+            } catch (mapError: any) {
+                console.warn("[Custom Code Node] Failed to apply output mapping:", mapError.message);
+                // Fallback to raw result if mapping fails
+            }
+        }
+        return finalResult;
+
+    } catch (error: any) {
+        console.error("[Custom Code Node] Execution Service Error:", error.message);
+        throw error;
+    }
+};`;
+
+  // Add reusable Data Validation step
+  const dataValidationStepDefinition = `
+export const validateData = async (params: { schema: string; dataPath: string; onFailure: 'failWorkflow' | 'passThrough' | 'routeToError'; workflowParams: any }) => {
+    "use step";
+    const startTime = Date.now();
+    
+    console.log("[Data Validation] Executing validation for dataPath:", params.dataPath);
+    
+    try {
+        const ajv = new Ajv();
+        // Add a resolver to handle dynamic schema references if needed.
+        // For simplicity, assuming a self-contained schema for now.
+        const validate = ajv.compile(JSON.parse(params.schema));
+        
+        let dataToValidate = params.workflowParams; // Start with full params
+        // Traverse dataPath to get the target data
+        try {
+            const dataPathSegments = params.dataPath.split('.');
+            // Remove 'params' from segments if it's the first one
+            if (dataPathSegments[0] === 'params') {
+                dataPathSegments.shift();
+            }
+            for (const segment of dataPathSegments) {
+                if (dataToValidate && typeof dataToValidate === 'object' && segment in dataToValidate) {
+                    dataToValidate = dataToValidate[segment];
+                } else {
+                    dataToValidate = undefined; // Path not found
+                    break;
+                }
+            }
+        } catch (e) {
+            console.warn("[Data Validation] Error traversing dataPath:", e);
+            dataToValidate = undefined; // Treat as not found
+        }
+        
+        const isValid = validate(dataToValidate);
+        
+        const durationMs = Date.now() - startTime;
+        console.log("[Data Validation] Completed in", durationMs + "ms. Is Valid:", isValid);
+        
+        return {
+            ok: isValid,
+            status: isValid ? 'success' : 'failed',
+            isValid: isValid,
+            errors: validate.errors || [],
+            validatedData: dataToValidate,
+            onFailureStrategy: params.onFailure,
+            timing: { durationMs }
+        };
+    } catch (error: any) {
+        const durationMs = Date.now() - startTime;
+        console.error("[Data Validation] Error during validation setup:", error.message);
+        return {
+            ok: false,
+            status: 'error',
+            isValid: false,
+            errors: [{ message: \`Validation setup error: \${error.message}\` }],
+            onFailureStrategy: params.onFailure,
+            timing: { durationMs }
+        };
+    }
+};`;
+
+  // Add reusable Twilio Message step
+  const twilioMessageStepDefinition = `
+export const sendTwilioMessage = async (params: { 
+    fromPhoneNumber: string; 
+    toPhoneNumber: string; 
+    messageBody: string; 
+    accountSidSecretName: string; 
+    authTokenSecretName: string; 
+}) => {
+    "use step";
+    const isSandbox = process.env.RUNE_WORKFLOW_MODE === 'sandbox' || (process.env.NODE_ENV !== 'production' && !process.env.RUNE_WORKFLOW_MODE);
+    
+    console.log("[Twilio] Sending message from:", params.fromPhoneNumber, "to:", params.toPhoneNumber);
+    console.log("[Twilio] Message body length:", params.messageBody.length);
+    console.log("[Twilio] Mode:", isSandbox ? 'sandbox' : 'live');
+
+    const accountSid = await getSecret(params.accountSidSecretName);
+    const authToken = await getSecret(params.authTokenSecretName);
+
+    if (!accountSid || !authToken) {
+        throw new Error("Twilio Account SID or Auth Token secret not found.");
+    }
+
+    if (isSandbox) {
+        console.log("[Twilio] Simulating SMS send in sandbox mode.");
+        return { 
+            ok: true, 
+            status: 'mocked', 
+            message: 'Simulated Twilio SMS sent.',
+            from: params.fromPhoneNumber,
+            to: params.toPhoneNumber,
+            body: params.messageBody,
+            mocked: true
+        };
+    }
+
+    try {
+        const client = twilio(accountSid, authToken);
+        const message = await client.messages.create({
+            to: params.toPhoneNumber,
+            from: params.fromPhoneNumber,
+            body: params.messageBody,
+        });
+        console.log("[Twilio] SMS sent successfully:", message.sid);
+        return { 
+            ok: true, 
+            status: 'sent', 
+            messageSid: message.sid,
+            from: params.fromPhoneNumber,
+            to: params.toPhoneNumber,
+        };
+    } catch (error: any) {
+        console.error("[Twilio] Failed to send SMS:", error.message);
+        throw error;
+    }
+};`;`;
+
 
   // 2. Build Workflow Logic
   const startNode = nodes.find((n) => n.data.label === 'Start Workflow');
   let workflowBody = '';
 
   if (startNode) {
-    workflowBody = traverseGraph(startNode.id, nodes, edges, new Set(), 'runId');
+    workflowBody = traverseGraph(startNode.id, nodes, edges, new Set(), 'runId', usedStepFunctions, usedImports, usedHelperFunctions);
   }
 
-  const workflowDefinition = `
-export async function workflow(params: { runId: string; [key: string]: any }) {
+  const getWorkflowDefinitionContent = (body: string, scheduleConfig: string) => `async function workflow(params: { runId: string; [key: string]: any }) {
   "use workflow";
   const { runId } = params; // Extract runId
-  ${workflowBody}
+  ${body}
   return { result: "Workflow completed" };
 }
 
-${generateScheduleConfig(nodes)}`;
+${scheduleConfig}`;
+
+const workflowDefinition = getWorkflowDefinitionContent(workflowBody, generateScheduleConfig(nodes));
 
   // Helper functions for error handling and retry logic
   const helperFunctions = `
@@ -864,7 +1065,45 @@ export class RetryableError extends Error {
   }
 }`;
 
-  return `${imports}\n${subWorkflowImports}\n${helperFunctions}\n${stepDefinitions}\n${httpStepDefinition}\n${emailStepDefinition}\n${postgresStepDefinition}\n${mysqlStepDefinition}\n${mongodbStepDefinition}\n${genericDbStepDefinition}\n${scriptStepDefinition}\n${slackStepDefinition}\n${streamStepDefinition}\n${waitStepDefinition}\n${approvalStepDefinition}\n${aiStepDefinition}\n${transformStepDefinition}\n${workflowDefinition}`;
+  let finalImports = Array.from(usedImports).join('\n');
+  
+  // Conditionally add specific step definitions
+  let finalStepDefinitions = Array.from(usedGenericStepFunctions)
+    .map((functionName) => `
+export const ${functionName} = async (params: any) => {
+  "use step";
+  console.log("Running step: ${functionName}", params);
+  // Simulate work
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  return { status: "success", step: "${functionName}" };
+};`)
+    .join('\n');
+
+  if (usedStepFunctions.has('makeHttpRequest')) finalStepDefinitions += `\n${httpStepDefinition}`;
+  if (usedStepFunctions.has('sendEmail')) finalStepDefinitions += `\n${emailStepDefinition}`;
+  if (usedStepFunctions.has('queryPostgres')) finalStepDefinitions += `\n${postgresStepDefinition}`;
+  if (usedStepFunctions.has('queryMysql')) finalStepDefinitions += `\n${mysqlStepDefinition}`;
+  if (usedStepFunctions.has('queryMongodb')) finalStepDefinitions += `\n${mongodbStepDefinition}`;
+  if (usedStepFunctions.has('queryGeneric')) finalStepDefinitions += `\n${genericDbStepDefinition}`;
+  if (usedStepFunctions.has('runScript')) finalStepDefinitions += `\n${scriptStepDefinition}`;
+  if (usedStepFunctions.has('sendSlackMessage')) finalStepDefinitions += `\n${slackStepDefinition}`;
+  if (usedStepFunctions.has('streamUpdate')) finalStepDefinitions += `\n${streamStepDefinition}`;
+  if (usedStepFunctions.has('waitForEvent')) finalStepDefinitions += `\n${waitStepDefinition}`;
+  if (usedStepFunctions.has('waitForApproval')) finalStepDefinitions += `\n${approvalStepDefinition}`;
+  if (usedStepFunctions.has('generateContent')) finalStepDefinitions += `\n${aiStepDefinition}`;
+  if (usedStepFunctions.has('transformData')) finalStepDefinitions += `\n${transformStepDefinition}`;
+  if (usedStepFunctions.has('executeCustomCode')) finalStepDefinitions += `\n${customCodeStepDefinition}`;
+  if (usedStepFunctions.has('validateData')) finalStepDefinitions += `\n${dataValidationStepDefinition}`;
+  if (usedStepFunctions.has('sendTwilioMessage')) finalStepDefinitions += `\n${twilioMessageStepDefinition}`;
+
+  // Conditionally add helper functions
+  let finalHelperFunctions = '';
+  if (usedHelperFunctions.has('wrapWithRetry')) {
+    finalHelperFunctions += `\n${helperFunctions}`; // Assuming helperFunctions contains all retry helpers
+  }
+
+
+  return `${finalImports}\n${subWorkflowImports}\n${finalHelperFunctions}\n${finalStepDefinitions}\nexport ${getWorkflowDefinitionContent(workflowBody, generateScheduleConfig(nodes))}`;
 }
 
 function traverseGraph(
@@ -872,7 +1111,10 @@ function traverseGraph(
   nodes: Node[],
   edges: Edge[],
   visited: Set<string>,
-  runId: string // NEW PARAMETER
+  runId: string,
+  usedStepFunctions: Set<string>,
+  usedImports: Set<string>,
+  usedHelperFunctions: Set<string>
 ): string {
   if (visited.has(currentId)) return ''; // Prevent cycles for MVP
   visited.add(currentId);
@@ -886,11 +1128,12 @@ function traverseGraph(
 
     // Find True branch
     const trueEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'true');
-    const trueCode = trueEdge ? generateNodeCall(nodes.find(n => n.id === trueEdge.target)!, runId) + traverseGraph(trueEdge.target, nodes, edges, new Set(visited), runId) : ''; // UPDATED CALL
+    const trueCode = trueEdge && trueNode ? generateNodeCall(trueNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(trueEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
 
     // Find False branch
     const falseEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'false');
-    const falseCode = falseEdge ? generateNodeCall(nodes.find(n => n.id === falseEdge.target)!, runId) + traverseGraph(falseEdge.target, nodes, edges, new Set(visited), runId) : ''; // UPDATED CALL
+    const falseNode = nodes.find(n => n.id === falseEdge?.target);
+    const falseCode = falseEdge && falseNode ? generateNodeCall(falseNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(falseEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
 
     return `\n    if (${condition}) {\n      ${trueCode}\n    } else {\n      ${falseCode}\n    }`;
   }
@@ -901,11 +1144,12 @@ function traverseGraph(
 
     // Find Body branch
     const bodyEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'body');
-    const bodyCode = bodyEdge ? generateNodeCall(nodes.find(n => n.id === bodyEdge.target)!, runId) + traverseGraph(bodyEdge.target, nodes, edges, new Set(visited), runId) : ''; // UPDATED CALL
+    const bodyCode = bodyEdge && bodyNode ? generateNodeCall(bodyNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(bodyEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
 
     // Find Done branch
     const doneEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'done');
-    const doneCode = doneEdge ? generateNodeCall(nodes.find(n => n.id === doneEdge.target)!, runId) + traverseGraph(doneEdge.target, nodes, edges, visited, runId) : ''; // UPDATED CALL
+    const doneNode = nodes.find(n => n.id === doneEdge?.target);
+    const doneCode = doneEdge && doneNode ? generateNodeCall(doneNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(doneEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
 
     return `\n    for (const item of ${items}) {\n      ${bodyCode}\n    }\n    ${doneCode}`;
   }
@@ -918,8 +1162,9 @@ function traverseGraph(
     // Generate code for each branch
     for (let i = 0; i < branches; i++) {
       const branchEdge = edges.find(e => e.source === currentId && e.sourceHandle === `branch-${i}`);
-      const branchCode = branchEdge
-        ? generateNodeCall(nodes.find(n => n.id === branchEdge.target)!, runId) + traverseGraph(branchEdge.target, nodes, edges, new Set(visited), runId) // UPDATED CALL
+      const branchNode = nodes.find(n => n.id === branchEdge?.target);
+      const branchCode = branchEdge && branchNode
+        ? generateNodeCall(branchNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(branchEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions)
         : '';
 
       branchPromises.push(`(async () => {\n      ${branchCode}\n    })()`);
@@ -927,27 +1172,166 @@ function traverseGraph(
 
     // Find Merge/Continue branch
     const mergeEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'merge');
-    const mergeCode = mergeEdge
-      ? generateNodeCall(nodes.find(n => n.id === mergeEdge.target)!, runId) + traverseGraph(mergeEdge.target, nodes, edges, visited, runId) // UPDATED CALL
-      : '';
+    const mergeNode = nodes.find(n => n.id === mergeEdge?.target);
+    const mergeCode = mergeEdge && mergeNode
+      ? generateNodeCall(mergeNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(mergeEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions)
 
     return `\n    await Promise.all([\n      ${branchPromises.join(',\n      ')}\n    ]);\n    ${mergeCode}`;
   }
 
+  // Handle Batch Process Node
+  if (currentNode.type === 'batchProcess') {
+    const itemsVar = (currentNode.data as any).items || '[]'; // e.g., "params.data.list"
+    const subWorkflowId = (currentNode.data as any).workflowId; // Name of the sub-workflow to call per item
+    const concurrency = (currentNode.data as any).concurrency || 1; // Default to 1
+    const outputAggregation = (currentNode.data as any).outputAggregation || 'array'; // Default to 'array'
+
+    if (!subWorkflowId) {
+      console.warn(`Batch Process node ${currentId} missing sub-workflow ID.`);
+      return `\n    // Batch Process node ${currentId} skipped due to missing sub-workflow ID\n`;
+    }
+    usedStepFunctions.add(subWorkflowId); // Mark sub-workflow as used
+
+    const doneEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'done');
+
+    let batchCode = `\n    let batchItems = [];
+    try {
+        batchItems = JSON.parse(JSON.stringify(${itemsVar})); // Deep clone to avoid mutation
+    } catch (e) {
+        console.warn(\`Batch Process node ${currentId}: Could not parse itemsVar "\${itemsVar}". Using empty array. \`, e);
+    }`;
+
+    batchCode += `\n    const batchResults = [];`;
+
+    if (concurrency > 1) {
+      batchCode += `\n    const processPromises = batchItems.map(async (item) => {`;
+      batchCode += `\n      return await ${subWorkflowId}({ ...params, item }); // Pass item and existing params to sub-workflow`;
+      batchCode += `\n    });`;
+      batchCode += `\n    const itemResults = await Promise.all(processPromises);`;
+      batchCode += `\n    batchResults.push(...itemResults);`;
+    } else {
+      batchCode += `\n    for (const item of batchItems) {`;
+      batchCode += `\n      const itemResult = await ${subWorkflowId}({ ...params, item }); // Pass item and existing params`;
+      batchCode += `\n      batchResults.push(itemResult);`;
+      batchCode += `\n    }`;
+    }
+
+    // Handle output aggregation
+    batchCode += `\n    let aggregatedBatchResult;`;
+    batchCode += `\n    switch ('${outputAggregation}') {`;
+    batchCode += `\n      case 'sum':`;
+    batchCode += `\n        aggregatedBatchResult = batchResults.reduce((acc, curr) => acc + (typeof curr === 'number' ? curr : 0), 0);`; // Basic sum, needs refinement for complex results
+    batchCode += `\n        break;`;
+    batchCode += `\n      case 'object':`;
+    batchCode += `\n        aggregatedBatchResult = Object.assign({}, ...batchResults.filter(r => typeof r === 'object' && r !== null));`; // Merge objects
+    batchCode += `\n        break;`;
+    batchCode += `\n      case 'none':`;
+    batchCode += `\n        aggregatedBatchResult = undefined;`;
+    batchCode += `\n        break;`;
+    batchCode += `\n      case 'array':`;
+    batchCode += `\n      default:`;
+    batchCode += `\n        aggregatedBatchResult = batchResults;`;
+    batchCode += `\n        break;`;
+    batchCode += `\n    }`;
+
+    // Make the aggregated result available in the workflow context for subsequent nodes
+    batchCode += `\n    Object.assign(params, { batchProcessResults: aggregatedBatchResult });`;
+
+
+    const doneNode = nodes.find(n => n.id === doneEdge?.target);
+    const doneCode = doneEdge && doneNode ? generateNodeCall(doneNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(doneEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
+
+    return `${batchCode}\n    // Continue after batch processing\n    ${doneCode}`;
+  }
+
+  // Handle Data Validation Node
+  if (currentNode.type === 'dataValidation') {
+    usedStepFunctions.add('validateData'); // Mark validateData as used
+    usedImports.add(`import Ajv from 'ajv';`); // Mark Ajv import as used
+
+    const config = (currentNode.data as any);
+    const schema = (config.schema || '{}').replace(/`/g, '\\`'); // Escape backticks
+    const dataPath = config.dataPath || 'params';
+    const onFailure = config.onFailure || 'failWorkflow';
+
+    const successEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'onSuccess');
+    const failureEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'onFailure');
+
+    const successNode = nodes.find(n => n.id === successEdge?.target);
+    const failureNode = nodes.find(n => n.id === failureEdge?.target);
+
+    const successCode = successEdge && successNode ? generateNodeCall(successNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(successEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
+    const failureCode = failureEdge && failureNode ? generateNodeCall(failureNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(failureEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
+
+    return `\n    const validationResult = await validateData({
+            schema: \`${schema}\`,
+            dataPath: "${dataPath}",
+            onFailure: "${onFailure}",
+            workflowParams: params // Pass the entire workflow params
+        });
+
+        if (validationResult.isValid) {
+            ${successCode}
+        } else {
+            console.warn("[Data Validation] Validation failed. Errors:", validationResult.errors);
+            if (validationResult.onFailureStrategy === 'failWorkflow') {
+                throw new Error("Data validation failed: " + JSON.stringify(validationResult.errors));
+            } else if (validationResult.onFailureStrategy === 'routeToError') {
+                ${failureCode}
+            }
+            // If 'passThrough' or no failure code, continue as success
+            // Note: If passThrough, we still continue on the success path
+            ${onFailure === 'passThrough' ? successCode : ''}
+        }`;
+  }
+
+  // Handle Twilio Message Node
+  if (currentNode.type === 'twilioMessage') {
+    usedStepFunctions.add('sendTwilioMessage'); // Mark sendTwilioMessage as used
+    usedImports.add(`import twilio from 'twilio';`); // Mark twilio import as used
+
+    const config = (currentNode.data as any);
+    const fromPhoneNumber = config.fromPhoneNumber || '';
+    const toPhoneNumber = config.toPhoneNumber || '';
+    const messageBody = config.messageBody || '';
+    const accountSidSecretName = config.accountSidSecretName || 'TWILIO_ACCOUNT_SID';
+    const authTokenSecretName = config.authTokenSecretName || 'TWILIO_AUTH_TOKEN';
+
+    const nextEdge = edges.find(e => e.source === currentId);
+    const nextNode = nodes.find(n => n.id === nextEdge?.target);
+    const nextCode = nextEdge && nextNode ? generateNodeCall(nextNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(nextEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
+
+    return `\n    const twilioResult = await sendTwilioMessage({
+        fromPhoneNumber: \`${processString(fromPhoneNumber)}\`,
+        toPhoneNumber: \`${processString(toPhoneNumber)}\`,
+        messageBody: \`${processString(messageBody)}\`,
+        accountSidSecretName: "${accountSidSecretName}",
+        authTokenSecretName: "${authTokenSecretName}",
+    });\n    ${nextCode}`;
+  }
+
+
+
+
   // Handle Approval Node
   if (currentNode.type === 'approval') {
+    usedStepFunctions.add('waitForApproval'); // Mark waitForApproval as used
+
     const approverEmail = (currentNode.data as any).approverEmail || 'manager@example.com';
     const timeout = (currentNode.data as any).timeout || '24h';
 
     // Find Next node
     const nextEdge = edges.find(e => e.source === currentId);
-    const nextCode = nextEdge ? generateNodeCall(nodes.find(n => n.id === nextEdge.target)!, runId) + traverseGraph(nextEdge.target, nodes, edges, visited, runId) : ''; // UPDATED CALL
+    const nextNode = nodes.find(n => n.id === nextEdge?.target);
+    const nextCode = nextEdge && nextNode ? generateNodeCall(nextNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(nextEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
 
     return `\n    const approvalResult = await waitForApproval({ approverEmail: "${approverEmail}", timeout: "${timeout}" });\n    ${nextCode}`;
   }
 
   // Handle AI Node
   if (currentNode.type === 'ai') {
+    usedStepFunctions.add('generateContent'); // Mark generateContent as used
+
     const config = (currentNode.data as any).aiConfig || {};
     const prompt = config.promptTemplate || (currentNode.data as any).prompt || '';
     const model = config.model || (currentNode.data as any).model || 'gpt-4o';
@@ -955,7 +1339,8 @@ function traverseGraph(
     const thinkingLevel = (currentNode.data as any).thinkingLevel;
 
     const nextEdge = edges.find(e => e.source === currentId);
-    const nextCode = nextEdge ? generateNodeCall(nodes.find(n => n.id === nextEdge.target)!, runId) + traverseGraph(nextEdge.target, nodes, edges, visited, runId) : ''; // UPDATED CALL
+    const nextNode = nodes.find(n => n.id === nextEdge?.target);
+    const nextCode = nextEdge && nextNode ? generateNodeCall(nextNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(nextEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
 
     return `\n    const aiResult = await generateContent({
         prompt: \`${prompt.replace(/`/g, '\\`')}\`,
@@ -967,13 +1352,25 @@ function traverseGraph(
 
   // Handle Transform Node
   if (currentNode.type === 'transform') {
+    usedStepFunctions.add('transformData'); // Mark transformData as used
+    // If transformType is jsonata, add jsonata import
     const config = (currentNode.data as any).transformConfig || {};
+    const transformType = config.transformType || (currentNode.data as any).transformType || 'javascript';
+    if (transformType === 'jsonata') {
+      usedImports.add(`import jsonata from 'jsonata';`);
+    }
+
     const mapping = config.expression || (currentNode.data as any).mapping || 'return params;';
 
     const nextEdge = edges.find(e => e.source === currentId);
-    const nextCode = nextEdge ? generateNodeCall(nodes.find(n => n.id === nextEdge.target)!, runId) + traverseGraph(nextEdge.target, nodes, edges, visited, runId) : ''; // UPDATED CALL
+    const nextNode = nodes.find(n => n.id === nextEdge?.target);
+    const nextCode = nextEdge && nextNode ? generateNodeCall(nextNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(nextEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
 
-    return `\n    const transformResult = await transformData({ mapping: \`${mapping.replace(/`/g, '\\`')}\`, data: params });\n    ${nextCode}`;
+    return `\n    const transformResult = await transformData({
+        mapping: \`${mapping.replace(/`/g, '\\`')}\`,
+        transformType: "${transformType}", // Pass transformType
+        data: params
+    });\n    ${nextCode}`;
   }
 
   const outgoingEdges = edges.filter((e) => e.source === currentId);
@@ -990,8 +1387,8 @@ function traverseGraph(
     const targetNode = nodes.find((n) => n.id === targetId);
 
     if (targetNode) {
-      code += generateNodeCall(targetNode, runId); // UPDATED CALL
-      code += traverseGraph(targetId, nodes, edges, visited, runId); // UPDATED CALL
+      code += generateNodeCall(targetNode, runId, usedStepFunctions, usedImports, usedHelperFunctions);
+      code += traverseGraph(targetId, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions);
     }
   } else {
     // Parallel (Promise.all)
@@ -1000,7 +1397,7 @@ function traverseGraph(
       const targetNode = nodes.find((n) => n.id === targetId);
       if (!targetNode) return '';
 
-      const branchCode = generateNodeCall(targetNode, runId) + traverseGraph(targetId, nodes, edges, new Set(visited), runId); // UPDATED CALL
+      const branchCode = generateNodeCall(targetNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(targetId, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions);
       return `(async () => { ${branchCode} })()`;
     });
 
@@ -1010,15 +1407,19 @@ function traverseGraph(
   return code;
 }
 
-function generateNodeCall(node: Node, runId: string): string {
+function generateNodeCall(node: Node, runId: string, usedStepFunctions: Set<string>, usedImports: Set<string>, usedHelperFunctions: Set<string>): string {
   // Handle Sleep nodes specifically
   if (node.data.label === 'Sleep') {
+    usedStepFunctions.add('sleep'); // Mark sleep as used
     const duration = (node.data as any).config?.timeout || (node.data as any).duration || '5s';
     return `\n    await sleep("${duration}");`;
   }
 
   // Handle HTTP Request nodes
   if (node.data.label === 'HTTP Request') {
+    usedStepFunctions.add('makeHttpRequest'); // Mark makeHttpRequest as used
+    usedHelperFunctions.add('wrapWithRetry'); // Mark wrapWithRetry as used
+
     const config = (node.data as any).httpRequest || {};
     const method = config.method || 'GET';
     const url = config.url || 'https://api.example.com';
@@ -1039,6 +1440,9 @@ function generateNodeCall(node: Node, runId: string): string {
 
   // Handle Send Email nodes
   if (node.data.label === 'Send Email') {
+    usedStepFunctions.add('sendEmail'); // Mark sendEmail as used
+    usedHelperFunctions.add('wrapWithRetry'); // Mark wrapWithRetry as used
+
     const config = (node.data as any).emailConfig || {};
     const recipient = config.recipient || 'user@example.com';
     const subject = config.subject || 'Subject';
@@ -1057,6 +1461,8 @@ function generateNodeCall(node: Node, runId: string): string {
 
   // Handle Database Query nodes
   if (node.data.label === 'Database Query') {
+    usedHelperFunctions.add('wrapWithRetry'); // Mark wrapWithRetry as used
+
     const config = (node.data as any).dbConfig || {};
     const dbType = config.dbType || 'postgres'; // Default to postgres for backward compatibility
     const connectionString = config.connectionString || '';
@@ -1075,6 +1481,7 @@ function generateNodeCall(node: Node, runId: string): string {
     } else if (dbType === 'generic') {
       functionName = 'queryGeneric';
     }
+    usedStepFunctions.add(functionName); // Mark the specific database query function as used
 
     const stepCode = `await ${functionName}({ 
         connectionString: ${processString(connectionString)}, 
@@ -1087,6 +1494,9 @@ function generateNodeCall(node: Node, runId: string): string {
 
   // Handle Run Script nodes
   if (node.data.label === 'Run Script') {
+    usedStepFunctions.add('runScript'); // Mark runScript as used
+    usedHelperFunctions.add('wrapWithRetry'); // Mark wrapWithRetry as used
+
     const config = (node.data as any).scriptConfig || {};
     // Escape backticks in user code to prevent template literal breakage
     const code = (config.code || 'return "Hello World";').replace(/`/g, '\\`');
@@ -1102,6 +1512,9 @@ function generateNodeCall(node: Node, runId: string): string {
 
   // Handle Slack Message nodes
   if (node.data.label === 'Slack Message') {
+    usedStepFunctions.add('sendSlackMessage'); // Mark sendSlackMessage as used
+    usedHelperFunctions.add('wrapWithRetry'); // Mark wrapWithRetry as used
+
     const config = (node.data as any).slackConfig || {};
     const webhookUrl = config.webhookUrl || '';
     const channel = config.channel || '';
@@ -1120,6 +1533,9 @@ function generateNodeCall(node: Node, runId: string): string {
 
   // Handle Stream nodes
   if (node.data.label === 'Stream') {
+    usedStepFunctions.add('streamUpdate'); // Mark streamUpdate as used
+    usedHelperFunctions.add('wrapWithRetry'); // Mark wrapWithRetry as used
+
     const config = (node.data as any).streamConfig || {};
     const message = config.message || 'Update';
     const errorConfig = (node.data as any).errorConfig;
@@ -1133,6 +1549,9 @@ function generateNodeCall(node: Node, runId: string): string {
 
   // Handle Wait for Event nodes
   if (node.data.label === 'Wait for Event') {
+    usedStepFunctions.add('waitForEvent'); // Mark waitForEvent as used
+    usedHelperFunctions.add('wrapWithRetry'); // Mark wrapWithRetry as used
+
     const config = (node.data as any).waitConfig || {};
     const event = config.event || 'my-event';
     const timeout = config.timeout;
@@ -1149,6 +1568,9 @@ function generateNodeCall(node: Node, runId: string): string {
   // Handle Sub-Workflow nodes
   if (node.data.label === 'Sub-Workflow') {
     const workflowId = (node.data as any).workflowId || 'leadQualification';
+    usedStepFunctions.add(workflowId); // Mark the specific sub-workflow as used
+    usedHelperFunctions.add('wrapWithRetry'); // Mark wrapWithRetry as used
+
     const params = (node.data as any).params || '{}';
     const errorConfig = (node.data as any).errorConfig;
 
@@ -1159,9 +1581,33 @@ function generateNodeCall(node: Node, runId: string): string {
     return wrapWithRetry(stepCode, 'Sub-Workflow', errorConfig, node.id, runId);
   }
 
+  // Handle Custom Code nodes
+  if (node.type === 'customCode') {
+    usedStepFunctions.add('executeCustomCode'); // Mark executeCustomCode as used
+    usedHelperFunctions.add('wrapWithRetry'); // Mark wrapWithRetry as used
+
+    const config = (node.data as any);
+    const code = (config.code || '').replace(/`/g, '\\`'); // Escape backticks
+    const errorConfig = (node.data as any).errorConfig;
+
+    const stepCode = `await executeCustomCode({
+        language: "${config.language || 'javascript'}",
+        code: \`${code}\`,
+        entrypoint: "${config.entrypoint || 'handler'}",
+        input: ${config.inputMapping || 'params'}, // Pass mapped input
+        timeoutMs: ${config.timeoutMs || 10000},
+        dependencies: ${processString(config.dependencies || '[]')},
+        envVars: ${processString(config.envVars || '{}')}
+    }, params.runId, "${node.id}", "${config.outputMapping || 'scriptResult'}")`;
+
+    return wrapWithRetry(stepCode, 'Custom Code', errorConfig, node.id, runId);
+  }
+
   // Handle regular step nodes
   if (node.type === 'step') {
     const functionName = toCamelCase(node.data.label as string);
+    usedGenericStepFunctions.add(functionName); // Mark the specific custom step function as used for generic definition generation
+    usedStepFunctions.add(functionName); // Also add to the main usedStepFunctions set
     return `\n    await ${functionName}({});`;
   }
 
@@ -1279,12 +1725,15 @@ function wrapWithRetry(stepCode: string, stepName: string, errorConfig: any, nod
 }
 
 function processString(str: string): string {
-  // Replace {{SECRET_NAME}} with ${getSecret("SECRET_NAME")}
-  // And wrap in backticks
-  const processed = str.replace(/\{\{([^}]+)\}\}/g, (_, secretName) => {
-    return `\${getSecret("${secretName.trim()}")}`;
-  });
-  return `\`${processed}\``;
+  // If string contains a secret placeholder, replace it with ${getSecret} call
+  if (str.includes('{{') && str.includes('}}')) {
+    const processed = str.replace(/\{\{([^}]+)\}\}/g, (_, secretName) => {
+      return `\${getSecret("${secretName.trim()}")}`;
+    });
+    return `\`${processed}\``; // Return as a template literal string
+  }
+  // If no secrets, return as a regular string literal
+  return JSON.stringify(str); // Safely quote the string
 }
 
 // NEW: Helper to emit node output
@@ -1351,3 +1800,30 @@ export const { POST } = serve({
   }
 });`;
 }
+
+export async function saveAndVersionWorkflow(workflowId: string, nodes: Node[], edges: Edge[]): Promise<string> {
+  const generatedCode = generateWorkflowCode(workflowId, nodes, edges);
+  const versionId = generateVersionId();
+
+  // Save the generated code
+  await saveWorkflowVersion(workflowId, versionId, generatedCode);
+
+  // Update metadata and set as active version
+  await updateWorkflowMetadata(workflowId, versionId, true);
+
+  return versionId;
+}
+
+export async function saveAndVersionWorkflow(workflowId: string, nodes: Node[], edges: Edge[]): Promise<string> {
+  const generatedCode = generateWorkflowCode(workflowId, nodes, edges);
+  const versionId = generateVersionId();
+
+  // Save the generated code
+  await saveWorkflowVersion(workflowId, versionId, generatedCode);
+
+  // Update metadata and set as active version
+  await updateWorkflowMetadata(workflowId, versionId, true);
+
+  return versionId;
+}
+

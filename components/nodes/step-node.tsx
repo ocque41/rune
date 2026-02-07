@@ -75,9 +75,11 @@ export type StepNodeData = {
 export type CustomNode = Node<StepNodeData>;
 
 import { NodeWrapper } from './node-wrapper';
+import ApiConnectorWizard from '../api-connector-wizard'; // Import the wizard component
 
 export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
     const [showConfig, setShowConfig] = useState(false);
+    const [showApiWizard, setShowApiWizard] = useState(false); // New state for API Wizard visibility
     // ... (rest of state definitions remain the same)
     const [duration, setDuration] = useState<string>(data.duration || '5s');
     const [httpRequest, setHttpRequest] = useState<NonNullable<StepNodeData['httpRequest']>>(data.httpRequest || {
@@ -234,66 +236,13 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                         {/* HTTP Request Configuration */}
                         {data.label === 'HTTP Request' && (
                             <div className="space-y-3">
-                                <div className="grid grid-cols-[80px_1fr] gap-2">
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Method</label>
-                                        <select
-                                            className="w-full rounded-lg bg-[#222222] border-none px-2 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
-                                            value={httpRequest.method}
-                                            onChange={(e) => {
-                                                const newVal = { ...httpRequest, method: e.target.value as any };
-                                                setHttpRequest(newVal);
-                                                data.httpRequest = newVal;
-                                            }}
-                                        >
-                                            {['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map(m => (
-                                                <option key={m} value={m}>{m}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">URL</label>
-                                        <input
-                                            type="text"
-                                            placeholder="https://api..."
-                                            className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
-                                            value={httpRequest.url}
-                                            onChange={(e) => {
-                                                const newVal = { ...httpRequest, url: e.target.value };
-                                                setHttpRequest(newVal);
-                                                data.httpRequest = newVal;
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Headers</label>
-                                    <textarea
-                                        className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs font-mono text-white/80 placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
-                                        rows={2}
-                                        placeholder='{"Content-Type": "application/json"}'
-                                        value={httpRequest.headers}
-                                        onChange={(e) => {
-                                            const newVal = { ...httpRequest, headers: e.target.value };
-                                            setHttpRequest(newVal);
-                                            data.httpRequest = newVal;
-                                        }}
-                                    />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] uppercase tracking-wider font-bold text-white/30">Body</label>
-                                    <textarea
-                                        className="w-full rounded-lg bg-[#222222] border-none px-3 py-2 text-xs font-mono text-white/80 placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-colors"
-                                        rows={3}
-                                        placeholder='{"key": "value"}'
-                                        value={httpRequest.body}
-                                        onChange={(e) => {
-                                            const newVal = { ...httpRequest, body: e.target.value };
-                                            setHttpRequest(newVal);
-                                            data.httpRequest = newVal;
-                                        }}
-                                    />
-                                </div>
+                                <p className="text-xs text-white/50 mb-2">Configure your HTTP request using the API Connector Wizard.</p>
+                                <button
+                                    className="w-full text-sm font-medium transition-all bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 py-2 px-4 rounded-lg flex items-center justify-center gap-2"
+                                    onClick={() => setShowApiWizard(true)}
+                                >
+                                    <Plus size={16} /> Configure API Request
+                                </button>
                             </div>
                         )}
 
@@ -560,6 +509,16 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                 onSenderVerified={() => {
                     fetchVerifiedSenders();
                     // Optionally auto-select the new one? Simple refresh is enough for now.
+                }}
+            />
+
+            <ApiConnectorWizard
+                isOpen={showApiWizard}
+                onOpenChange={setShowApiWizard}
+                initialHttpRequest={httpRequest}
+                onSave={(updatedHttpRequest) => {
+                    setHttpRequest(updatedHttpRequest);
+                    data.httpRequest = updatedHttpRequest;
                 }}
             />
         </NodeWrapper >

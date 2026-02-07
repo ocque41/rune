@@ -3,6 +3,7 @@ import { Node, Edge } from '@xyflow/react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { saveRun, updateRunStatus, updateStepExecution, setRunWaiting, WorkflowRun, StepExecution, appendLog } from './run-store';
 import { ingestAutonomyEvent } from '@/lib/autonomy/events';
+import jsonata from 'jsonata';
 
 type ExecutionContext = {
     runId: string;
@@ -237,6 +238,14 @@ export class WorkflowEngine {
                 case 'AI Generate':
                     result = await this.executeAiGenerate(data, input);
                     break;
+                
+                case 'Data Validation': // New case
+                    result = await this.executeDataValidation(data, input);
+                    break;
+
+                case 'Send SMS (Twilio)': // New case
+                    result = await this.executeTwilioMessage(data, input);
+                    break;
 
                 case 'If / Else':
                 case 'if': // handle type check for newer nodes
@@ -442,10 +451,24 @@ export class WorkflowEngine {
     }
 
     private async executeTransform(data: any, input: any) {
-        const expr = data.transformConfig?.expression;
+        const expr = data.transformConfig?.expression || data.mapping; // Use mapping from node.data directly
+        const transformType = data.transformConfig?.transformType || data.transformType || 'javascript'; // Get transformType
         if (!expr) return input;
-        const fn = new Function('params', expr);
-        const res = fn(input);
+
+        let res;
+        try {
+            if (transformType === 'jsonata') {
+                const expression = jsonata(expr);
+                res = await expression.evaluate(input);
+            } else { // 'javascript'
+                const fn = new Function('params', expr);
+                res = fn(input);
+            }
+        } catch (error: any) {
+            console.error("[WorkflowEngine] Transform execution failed:", error.message);
+            throw error;
+        }
+
         return {
             status: 'success',
             result: res
@@ -597,6 +620,89 @@ export class WorkflowEngine {
                 metadata: { error: e.message }
             });
             throw e;
+        }
+    }
+
+    private async executeDataValidation(data: any, input: any) {
+        const schema = data.schema;
+        const dataPath = data.dataPath;
+        const onFailure = data.onFailure;
+
+        if (!schema) throw new Error('Missing validation schema');
+
+        try {
+            const ajv = new (await import('ajv')).default(); // Dynamic import to avoid top-level issues if not always needed
+            const validate = ajv.compile(JSON.parse(schema));
+
+            let dataToValidate = input; // Start with the input to the node
+            // Traverse dataPath to get the target data if specified
+            if (dataPath && dataPath !== 'params') {
+                try {
+                    const dataPathSegments = dataPath.split('.');
+                    for (const segment of dataPathSegments) {
+                        if (dataToValidate && typeof dataToValidate === 'object' && segment in dataToValidate) {
+                            dataToValidate = dataToValidate[segment];
+                        } else {
+                            dataToValidate = undefined; // Path not found
+                            break;
+                        }
+                    }
+                } catch (e) {
+                    console.warn("[WorkflowEngine] Error traversing dataPath:", e);
+                    dataToValidate = undefined; // Treat as not found
+                }
+            }
+            
+            const isValid = validate(dataToValidate);
+
+            if (!isValid && onFailure === 'failWorkflow') {
+                throw new Error("Data validation failed: " + JSON.stringify(validate.errors));
+            }
+
+            return {
+                status: isValid ? 'success' : 'failed',
+                isValid: isValid,
+                errors: validate.errors || [],
+                validatedData: dataToValidate,
+                onFailureStrategy: onFailure
+            };
+        } catch (error: any) {
+            console.error("[WorkflowEngine] Error during data validation:", error.message);
+            throw error;
+        }
+    }
+
+    private async executeTwilioMessage(data: any, input: any) {
+        const fromPhoneNumber = data.fromPhoneNumber;
+        const toPhoneNumber = data.toPhoneNumber;
+        const messageBody = data.messageBody;
+        const accountSidSecretName = data.accountSidSecretName;
+        const authTokenSecretName = data.authTokenSecretName;
+
+        // Get secrets from secrets manager (which will resolve via provider)
+        const secretsManager = await import('@/lib/secrets-manager');
+        const accountSid = await secretsManager.getSecret(accountSidSecretName);
+        const authToken = await secretsManager.getSecret(authTokenSecretName);
+
+        if (!accountSid || !authToken) {
+            throw new Error("Twilio Account SID or Auth Token secret not found.");
+        }
+
+        try {
+            const twilioClient = (await import('twilio')).default(accountSid, authToken); // Dynamic import for twilio
+            const message = await twilioClient.messages.create({
+                to: toPhoneNumber,
+                from: fromPhoneNumber,
+                body: messageBody,
+            });
+            console.log("[WorkflowEngine] SMS sent successfully:", message.sid);
+            return {
+                status: 'sent',
+                messageSid: message.sid,
+            };
+        } catch (error: any) {
+            console.error("[WorkflowEngine] Failed to send SMS via Twilio:", error.message);
+            throw error;
         }
     }
 
