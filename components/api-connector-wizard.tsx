@@ -13,7 +13,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { StepNodeData } from './step-node'; // Assuming StepNodeData is exported from step-node
+import { StepNodeData } from './nodes/step-node'; // Assuming StepNodeData is exported from step-node
 
 interface ApiConnectorWizardProps {
     isOpen: boolean;
