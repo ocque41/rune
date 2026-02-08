@@ -28,18 +28,43 @@ const ApiConnectorWizard: React.FC<ApiConnectorWizardProps> = ({
     initialHttpRequest,
     onSave,
 }) => {
+    // Helper for safe parsing
+    const safeParseHeaders = (jsonString: string | undefined): Array<{ key: string; value: string }> => {
+        if (!jsonString) return [{ key: '', value: '' }];
+        try {
+            const parsed = JSON.parse(jsonString);
+            if (Array.isArray(parsed)) {
+                return parsed.map((h: any) => {
+                    // Handle ["key", "value"] format
+                    if (Array.isArray(h) && h.length >= 2) {
+                        return { key: String(h[0]), value: String(h[1]) };
+                    }
+                    // Handle { key: "key", value: "value" } format (just in case)
+                    if (typeof h === 'object' && h !== null && 'key' in h && 'value' in h) {
+                        return { key: String(h.key), value: String(h.value) };
+                    }
+                    return { key: '', value: '' };
+                });
+            }
+            return [{ key: '', value: '' }];
+        } catch (e) {
+            console.warn('Failed to parse headers JSON:', e);
+            return [{ key: '', value: '' }];
+        }
+    };
+
     const [currentStep, setCurrentStep] = useState(1);
     const [method, setMethod] = useState(initialHttpRequest?.method || 'GET');
     const [url, setUrl] = useState(initialHttpRequest?.url || '');
     const [headers, setHeaders] = useState<Array<{ key: string; value: string }>>(
-        initialHttpRequest?.headers ? JSON.parse(initialHttpRequest.headers).map((h:any) => ({key: h[0], value: h[1]})) : [{ key: '', value: '' }]
+        safeParseHeaders(initialHttpRequest?.headers)
     );
     const [body, setBody] = useState(initialHttpRequest?.body || '');
 
     useEffect(() => {
         setMethod(initialHttpRequest?.method || 'GET');
         setUrl(initialHttpRequest?.url || '');
-        setHeaders(initialHttpRequest?.headers ? JSON.parse(initialHttpRequest.headers) : [{ key: '', value: '' }]);
+        setHeaders(safeParseHeaders(initialHttpRequest?.headers));
         setBody(initialHttpRequest?.body || '');
         setCurrentStep(1); // Reset step when new initial data comes in
     }, [initialHttpRequest]);
@@ -62,7 +87,7 @@ const ApiConnectorWizard: React.FC<ApiConnectorWizardProps> = ({
 
     const handleSave = () => {
         const cleanedHeaders = headers.filter(h => h.key.trim() !== '' && h.value.trim() !== '');
-        
+
         const finalHttpRequest: StepNodeData['httpRequest'] = {
             method,
             url,
