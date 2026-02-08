@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { listSecretKeys, createSecret, updateSecret, deleteSecret } from '@/lib/secrets-manager';
 
 // Helper function to get the authenticated user's ID
-async function getUserId(supabase: ReturnType<typeof createClient>): Promise<string> {
+async function getUserId(supabase: Awaited<ReturnType<typeof createClient>>): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     throw new Error('User not authenticated.');
@@ -14,7 +14,7 @@ async function getUserId(supabase: ReturnType<typeof createClient>): Promise<str
 
 export async function GET(request: Request) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = await getUserId(supabase);
 
     const secretKeys = await listSecretKeys(userId);
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = await getUserId(supabase);
     const { name, value } = await request.json();
 
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = await getUserId(supabase);
     const { name, value } = await request.json();
 
@@ -63,7 +63,7 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = await getUserId(supabase);
     const { name } = await request.json(); // Assuming name is sent in body for DELETE
 
