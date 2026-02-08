@@ -1,14 +1,22 @@
 import { Node, Edge } from '@xyflow/react';
 import { generateWorkflowCode } from './workflow-generator';
 
-export type SimulationLogEntry = {
-  stepId: string;
-  stepLabel: string;
-  message: string;
-  timestamp: number;
-  type: 'info' | 'error' | 'success' | 'warning';
-  data?: any;
-};
+export type SimulationLogEntry =
+  | {
+    type: 'info' | 'error' | 'success' | 'warning';
+    stepId: string;
+    stepLabel: string;
+    message: string;
+    timestamp: number;
+    data?: any;
+  }
+  | {
+    type: 'nodeOutput';
+    nodeId: string;
+    output: any;
+    runId: string;
+    timestamp: number;
+  };
 
 export type SimulationResult = {
   success: boolean;

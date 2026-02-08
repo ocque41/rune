@@ -36,7 +36,7 @@ import { TransformNode } from './nodes/transform-node';
 import WebhookNode from './nodes/webhook-node';
 import { generateWorkflowCode } from '@/lib/workflow-generator';
 import { validateGraph, ValidationResult } from '@/lib/workflow-validator';
-import { LayoutTemplate, AlertCircle, X, Download, Upload, Trash2, HelpCircle, Play, FolderOpen, Loader2, FileCode, Plus, Save, Undo2, Redo2 } from 'lucide-react';
+import { LayoutTemplate, AlertCircle, X, Download, Upload, Trash2, HelpCircle, Play, FolderOpen, Loader2, FileCode, Plus, Save, Undo2, Redo2, Lock } from 'lucide-react';
 import { templates, Template } from '@/lib/templates';
 import { ExportedWorkflow } from '@/lib/types/export';
 import { toast } from 'sonner';
@@ -113,7 +113,7 @@ const FlowBuilderContent = ({
     const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
     const { getNodes, getEdges } = useReactFlow();
     // const { undo, redo, canUndo, canRedo } = useUndoRedo(); // New: Undo/Redo hook
-    const { undo, redo, canUndo, canRedo } = { undo: () => {}, redo: () => {}, canUndo: false, canRedo: false };
+    const { undo, redo, canUndo, canRedo } = { undo: () => { }, redo: () => { }, canUndo: false, canRedo: false };
     const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
     const [showValidation, setShowValidation] = useState(false);
     const [showTemplates, setShowTemplates] = useState(false);
@@ -423,7 +423,7 @@ const FlowBuilderContent = ({
                     let updatedNode = { ...node, data: updatedData };
 
                     if (isCollapsed) {
-                         // When collapsing, store current dimensions if not already stored
+                        // When collapsing, store current dimensions if not already stored
                         if (!node.data.originalWidth || !node.data.originalHeight) {
                             updatedData.originalWidth = node.width;
                             updatedData.originalHeight = node.height;
@@ -442,7 +442,7 @@ const FlowBuilderContent = ({
                 }
 
                 // Update child nodes' visibility
-                if (node.parentNode === groupId) {
+                if (node.parentId === groupId) {
                     return { ...node, hidden: isCollapsed };
                 }
                 return node;
@@ -506,7 +506,7 @@ const FlowBuilderContent = ({
                 // Ensure it's a nodeOutput type, as other events might stream
                 if (data.type === 'nodeOutput') {
                     setExecutionLogs((prevLogs) => [...prevLogs, { type: 'nodeOutput', nodeId: data.nodeId, output: data.output, runId: data.runId, timestamp: data.timestamp }]);
-                } 
+                }
                 // Handle nodeStatus events
                 else if (data.type === 'nodeStatus') {
                     setNodeStatuses((prevStatuses) => ({
@@ -661,7 +661,7 @@ const FlowBuilderContent = ({
 
         const finalName = name || workflowName;
         setIsSaving(true);
-        const code = generateWorkflowCode(nodes, edges);
+        const code = generateWorkflowCode(workflowId || '', nodes, edges);
 
         try {
             // Retrieve user_id separately in a real app, e.g. from context
@@ -700,7 +700,7 @@ const FlowBuilderContent = ({
     const onSaveDraft = useCallback(async () => {
         if (!nodes.length) return;
 
-        const code = generateWorkflowCode(nodes, edges);
+        const code = generateWorkflowCode(workflowId || '', nodes, edges);
         // Use a default filename/slug for now
         const filename = 'my-workflow.ts';
 
@@ -734,7 +734,7 @@ const FlowBuilderContent = ({
             let currentName = workflowName;
 
             // Generate code once for use in saving and modal
-            const code = generateWorkflowCode(nodes, edges);
+            const code = generateWorkflowCode(workflowId || '', nodes, edges);
 
             if (!currentWorkflowId) {
                 const name = prompt("Enter workflow name to deploy:", workflowName);
@@ -831,7 +831,7 @@ const FlowBuilderContent = ({
     const onExport = useCallback(() => {
         try {
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-            const code = generateWorkflowCode(nodes, edges);
+            const code = generateWorkflowCode(workflowId || '', nodes, edges);
 
             const exportData: ExportedWorkflow = {
                 id: workflowId || crypto.randomUUID(),
@@ -1124,7 +1124,7 @@ const FlowBuilderContent = ({
                         </button>
                         <button
                             onClick={onSimulate}
-                            disabled={isSimulating}
+                            disabled={isExecuting}
                             className="flex items-center gap-2 rounded px-4 py-2 text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50"
                             style={{
                                 backgroundColor: 'var(--accent-bg)',
@@ -1133,7 +1133,7 @@ const FlowBuilderContent = ({
                             }}
                         >
                             <Play size={14} />
-                            {isSimulating ? 'Simulating...' : 'Simulate'}
+                            {isExecuting ? 'Simulating...' : 'Simulate'}
                         </button>
 
                         <button
@@ -1419,7 +1419,7 @@ const FlowBuilderContent = ({
                                 <div
                                     className="p-2 rounded-lg"
                                     style={{
-                                        background: isSimulating
+                                        background: isExecuting
                                             ? 'rgba(0, 255, 255, 0.15)'
                                             : 'rgba(255, 255, 255, 0.05)',
                                         border: '1px solid rgba(0, 255, 255, 0.3)'
@@ -1427,7 +1427,7 @@ const FlowBuilderContent = ({
                                 >
                                     <Activity
                                         size={16}
-                                        className={isSimulating ? 'animate-pulse' : ''}
+                                        className={isExecuting ? 'animate-pulse' : ''}
                                         style={{ color: '#00FFFF' }}
                                     />
                                 </div>
@@ -1440,7 +1440,7 @@ const FlowBuilderContent = ({
                                     </span>
                                     <div className="flex items-center gap-2 mt-0.5">
                                         {/* Status Badge */}
-                                        {isSimulating ? (
+                                        {isExecuting ? (
                                             <span
                                                 className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider"
                                                 style={{
@@ -1505,7 +1505,7 @@ const FlowBuilderContent = ({
                                     <Trash2 size={16} />
                                 </button>
                                 <button
-                                    onClick={() => setShowSimulationPanel(false)}
+                                    onClick={() => setShowExecutionLogPanel(false)}
                                     title="Close Panel"
                                     className="p-2 rounded-lg transition-all duration-200 hover:bg-white/10"
                                     style={{ color: '#A0A0A0' }}
@@ -1522,7 +1522,7 @@ const FlowBuilderContent = ({
                         >
                             {executionLogs.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center h-full gap-4 py-8">
-                                    {isSimulating ? (
+                                    {isExecuting ? (
                                         <>
                                             <div className="flex gap-1.5">
                                                 <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -1569,7 +1569,7 @@ const FlowBuilderContent = ({
                                                             'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.5)]'
                                                     }`}
                                             />
-                                            {i < simulationLogs.length - 1 && (
+                                            {i < executionLogs.length - 1 && (
                                                 <div
                                                     className="w-px flex-1 min-h-[20px]"
                                                     style={{ background: 'rgba(255, 255, 255, 0.1)' }}
@@ -1610,7 +1610,7 @@ const FlowBuilderContent = ({
                                                 {log.type === 'nodeOutput' ? `Output from node '${log.nodeId}'` : log.message} {/* Custom message for nodeOutput */}
                                             </div>
 
-                                            {(log.data && Object.keys(log.data).length > 0) || (log.type === 'nodeOutput' && log.output) ? ( // Conditional for nodeOutput
+                                            {(log.type !== 'nodeOutput' && log.data && Object.keys(log.data).length > 0) || (log.type === 'nodeOutput' && log.output) ? ( // Conditional for nodeOutput
                                                 <pre
                                                     className="mt-3 block overflow-x-auto rounded-lg p-3 text-[11px] leading-relaxed"
                                                     style={{
