@@ -988,7 +988,7 @@ export const sendTwilioMessage = async (params: {
         console.error("[Twilio] Failed to send SMS:", error.message);
         throw error;
     }
-};`;`;
+};
 
 
   // 2. Build Workflow Logic
