@@ -1175,6 +1175,7 @@ function traverseGraph(
     const mergeNode = nodes.find(n => n.id === mergeEdge?.target);
     const mergeCode = mergeEdge && mergeNode
       ? generateNodeCall(mergeNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(mergeEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+      : '';
 
     return `\n    await Promise.all([\n      ${branchPromises.join(',\n      ')}\n    ]);\n    ${mergeCode}`;
   }
