@@ -517,8 +517,14 @@ export default function StepNode({ data, selected }: NodeProps<CustomNode>) {
                 onOpenChange={setShowApiWizard}
                 initialHttpRequest={httpRequest}
                 onSave={(updatedHttpRequest) => {
-                    setHttpRequest(updatedHttpRequest);
-                    data.httpRequest = updatedHttpRequest;
+                    const newValue = updatedHttpRequest || {
+                        method: 'GET',
+                        url: '',
+                        headers: '{}',
+                        body: '{}'
+                    };
+                    setHttpRequest(newValue);
+                    data.httpRequest = newValue;
                 }}
             />
         </NodeWrapper >

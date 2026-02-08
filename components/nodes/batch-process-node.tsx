@@ -133,7 +133,7 @@ const BatchProcessNode = ({ data, selected }: NodeProps<CustomBatchProcessNode>)
                                 className="w-full rounded-lg bg-[#222222] border-none px-2 py-1.5 text-xs font-mono text-white focus:outline-none focus:ring-1 focus:ring-white/30"
                                 value={outputAggregation}
                                 onChange={(e) => {
-                                    const val = e.target.value as BatchProcessNodeData['outputAggregation'];
+                                    const val = e.target.value as NonNullable<BatchProcessNodeData['outputAggregation']>;
                                     setOutputAggregation(val);
                                     data.outputAggregation = val;
                                 }}

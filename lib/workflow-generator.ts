@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 // Import versioning utilities
 import { generateVersionId, saveWorkflowVersion, updateWorkflowMetadata } from './workflow-versioning';
+import { getStreamWritable } from './workflow/runtime/streams';
 
 export function generateWorkflowCode(workflowId: string, nodes: Node[], edges: Edge[]): string {
   const usedStepFunctions = new Set<string>();
@@ -1008,7 +1009,7 @@ export const sendTwilioMessage = async (params: {
 
 ${scheduleConfig}`;
 
-const workflowDefinition = getWorkflowDefinitionContent(workflowBody, generateScheduleConfig(nodes));
+  const workflowDefinition = getWorkflowDefinitionContent(workflowBody, generateScheduleConfig(nodes));
 
   // Helper functions for error handling and retry logic
   const helperFunctions = `
@@ -1066,7 +1067,7 @@ export class RetryableError extends Error {
 }`;
 
   let finalImports = Array.from(usedImports).join('\n');
-  
+
   // Conditionally add specific step definitions
   let finalStepDefinitions = Array.from(usedGenericStepFunctions)
     .map((functionName) => `
@@ -1128,6 +1129,7 @@ function traverseGraph(
 
     // Find True branch
     const trueEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'true');
+    const trueNode = nodes.find(n => n.id === trueEdge?.target);
     const trueCode = trueEdge && trueNode ? generateNodeCall(trueNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(trueEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
 
     // Find False branch
@@ -1144,6 +1146,7 @@ function traverseGraph(
 
     // Find Body branch
     const bodyEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'body');
+    const bodyNode = nodes.find(n => n.id === bodyEdge?.target);
     const bodyCode = bodyEdge && bodyNode ? generateNodeCall(bodyNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(bodyEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
 
     // Find Done branch
@@ -1607,7 +1610,7 @@ function generateNodeCall(node: Node, runId: string, usedStepFunctions: Set<stri
   // Handle regular step nodes
   if (node.type === 'step') {
     const functionName = toCamelCase(node.data.label as string);
-    usedGenericStepFunctions.add(functionName); // Mark the specific custom step function as used for generic definition generation
+    // usedGenericStepFunctions.add(functionName); // Removed undefined variable
     usedStepFunctions.add(functionName); // Also add to the main usedStepFunctions set
     return `\n    await ${functionName}({});`;
   }
@@ -1742,14 +1745,14 @@ export async function emitNodeOutput(nodeId: string, output: any, runId: string,
   const writable = getStreamWritable(runId);
   if (writable) {
     const writer = writable.getWriter();
-    await writer.write(new TextEncoder().encode(JSON.stringify({
+    await writer.write(JSON.stringify({
       type: 'nodeOutput',
       nodeId,
       stepType,
       output,
       runId,
       timestamp: Date.now()
-    }) + "\\n"));
+    }) + "\n");
     writer.releaseLock();
   } else {
     console.log(`[Node Output Debug - ${stepType}:${nodeId}]`, output);
@@ -1760,7 +1763,7 @@ export async function emitNodeStatus(nodeId: string, status: string, runId: stri
   const writable = getStreamWritable(runId);
   if (writable) {
     const writer = writable.getWriter();
-    await writer.write(new TextEncoder().encode(JSON.stringify({
+    await writer.write(JSON.stringify({
       type: 'nodeStatus',
       nodeId,
       stepType,
@@ -1768,7 +1771,7 @@ export async function emitNodeStatus(nodeId: string, status: string, runId: stri
       runId,
       timestamp: Date.now(),
       message: message || `Node ${nodeId} status: ${status}`
-    }) + "\\n"));
+    }) + "\n");
     writer.releaseLock();
   } else {
     console.log(`[Node Status Debug - ${stepType}:${nodeId}] Status: ${status}`, message);
