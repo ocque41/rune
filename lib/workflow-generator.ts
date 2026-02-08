@@ -1815,16 +1815,3 @@ export async function saveAndVersionWorkflow(workflowId: string, nodes: Node[], 
   return versionId;
 }
 
-export async function saveAndVersionWorkflow(workflowId: string, nodes: Node[], edges: Edge[]): Promise<string> {
-  const generatedCode = generateWorkflowCode(workflowId, nodes, edges);
-  const versionId = generateVersionId();
-
-  // Save the generated code
-  await saveWorkflowVersion(workflowId, versionId, generatedCode);
-
-  // Update metadata and set as active version
-  await updateWorkflowMetadata(workflowId, versionId, true);
-
-  return versionId;
-}
-
