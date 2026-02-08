@@ -42,7 +42,7 @@ function getConfig(): SecretsConfig {
  */
 export async function listSecretKeys(userId: string): Promise<string[]> {
     const config = getConfig();
-    const supabase = createClient(); // Create Supabase client once per request
+    const supabase = await createClient(); // Create Supabase client once per request
 
     switch (config.provider) {
         case 'env':
@@ -68,7 +68,7 @@ export async function listSecretKeys(userId: string): Promise<string[]> {
  */
 export async function getSecret(key: string, userId?: string): Promise<string | null> {
     const config = getConfig();
-    const supabase = createClient(); // Create Supabase client
+    const supabase = await createClient(); // Create Supabase client
 
     switch (config.provider) {
         case 'env':
@@ -97,7 +97,7 @@ export async function getSecret(key: string, userId?: string): Promise<string | 
  */
 export async function createSecret(userId: string, name: string, value: string): Promise<void> {
     const config = getConfig();
-    const supabase = createClient();
+    const supabase = await createClient();
 
     switch (config.provider) {
         case 'supabase':
@@ -113,7 +113,7 @@ export async function createSecret(userId: string, name: string, value: string):
  */
 export async function updateSecret(userId: string, name: string, value: string): Promise<void> {
     const config = getConfig();
-    const supabase = createClient();
+    const supabase = await createClient();
 
     switch (config.provider) {
         case 'supabase':
@@ -129,7 +129,7 @@ export async function updateSecret(userId: string, name: string, value: string):
  */
 export async function deleteSecret(userId: string, name: string): Promise<void> {
     const config = getConfig();
-    const supabase = createClient();
+    const supabase = await createClient();
 
     switch (config.provider) {
         case 'supabase':
