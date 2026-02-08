@@ -56,6 +56,16 @@ import SecretsManagerDrawer from './secrets-manager-drawer'; // Import the new c
 import GroupNode from './nodes/group-node';
 import TwilioMessageNode from './nodes/twilio-message-node';
 
+// Define a type for the data property of a node, extending ReactFlow's default Node data
+interface RuneNodeData {
+    label?: string;
+    description?: string;
+    isCollapsed?: boolean;
+    originalWidth?: number;
+    originalHeight?: number;
+    [key: string]: any; // Allows for other dynamic properties that might be added to node.data
+}
+
 const nodeTypes = {
     step: StepNode,
     if: IfNode,
@@ -75,7 +85,7 @@ const nodeTypes = {
     twilioMessage: TwilioMessageNode,
 } as any;
 
-const initialNodes: Node[] = [
+const initialNodes: Node<RuneNodeData>[] = [
     {
         id: '1',
         type: 'step',
@@ -98,7 +108,7 @@ const FlowBuilderContent = ({
     initialWorkflowId?: string | null;
 }) => {
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
-    const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+    const [nodes, setNodes, onNodesChange] = useNodesState<Node<RuneNodeData>[]>(initialNodes);
     const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[]);
     const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
     const { getNodes, getEdges } = useReactFlow();
