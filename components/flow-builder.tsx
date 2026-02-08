@@ -108,7 +108,7 @@ const FlowBuilderContent = ({
     initialWorkflowId?: string | null;
 }) => {
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
-    const [nodes, setNodes, onNodesChange] = useNodesState<Node<RuneNodeData>[]>(initialNodes);
+    const [nodes, setNodes, onNodesChange] = useNodesState<Node<RuneNodeData>>(initialNodes);
     const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[]);
     const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
     const { getNodes, getEdges } = useReactFlow();
