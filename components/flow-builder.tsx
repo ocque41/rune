@@ -18,7 +18,7 @@ import {
     Node,
     BackgroundVariant,
     useReactFlow,
-    useUndoRedo,
+    // useUndoRedo,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -102,7 +102,8 @@ const FlowBuilderContent = ({
     const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[]);
     const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
     const { getNodes, getEdges } = useReactFlow();
-    const { undo, redo, canUndo, canRedo } = useUndoRedo(); // New: Undo/Redo hook
+    // const { undo, redo, canUndo, canRedo } = useUndoRedo(); // New: Undo/Redo hook
+    const { undo, redo, canUndo, canRedo } = { undo: () => {}, redo: () => {}, canUndo: false, canRedo: false };
     const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
     const [showValidation, setShowValidation] = useState(false);
     const [showTemplates, setShowTemplates] = useState(false);

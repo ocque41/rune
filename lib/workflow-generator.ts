@@ -1815,3 +1815,7 @@ export async function saveAndVersionWorkflow(workflowId: string, nodes: Node[], 
   return versionId;
 }
 
+
+export function getWritable(): any {
+  return null;
+}

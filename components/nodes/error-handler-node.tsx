@@ -64,7 +64,6 @@ export default memo(function ErrorHandlerNode({ data, id, selected }: NodeProps<
 
     return (
         <div className="relative group">
-        <div className="relative group">
             {/* Status Indicator */}
             {data.status && data.status !== 'idle' && (
                 <div className="absolute top-0 right-0 p-2 z-10"> {/* Added z-10 to ensure it's on top */}
