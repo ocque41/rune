@@ -1,12 +1,13 @@
 // lib/supabase-secrets.ts
 import { SupabaseClient } from '@supabase/supabase-js';
+import { encrypt, decrypt } from '@/lib/encryption';
 
 // Define the structure of a secret in the database
 interface DbSecret {
     id: string;
     user_id: string;
     name: string;
-    value: string; // Stored encrypted at rest via Supabase RLS policies
+    value: string; // Stored encrypted
     created_at: string;
     updated_at: string;
 }
@@ -24,9 +25,11 @@ export async function createSupabaseSecret(
     name: string,
     value: string
 ): Promise<void> {
+    const encryptedValue = encrypt(value);
+
     const { error } = await supabase
         .from('user_secrets')
-        .insert({ user_id: userId, name, value });
+        .insert({ user_id: userId, name, value: encryptedValue });
 
     if (error) {
         if (error.code === '23505') { // Unique constraint violation
@@ -55,11 +58,14 @@ export async function getSupabaseSecret(
         .eq('name', name)
         .single();
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows found"
+    if (error) {
+        if (error.code === 'PGRST116') return null; // "no rows found"
         throw new Error(`Failed to retrieve secret: ${error.message}`);
     }
 
-    return data ? data.value : null;
+    if (!data) return null;
+
+    return decrypt(data.value);
 }
 
 /**
@@ -75,9 +81,11 @@ export async function updateSupabaseSecret(
     name: string,
     newValue: string
 ): Promise<void> {
+    const encryptedValue = encrypt(newValue);
+
     const { error } = await supabase
         .from('user_secrets')
-        .update({ value: newValue, updated_at: new Date().toISOString() })
+        .update({ value: encryptedValue, updated_at: new Date().toISOString() })
         .eq('user_id', userId)
         .eq('name', name);
 

@@ -26,7 +26,8 @@ export interface SecretsConfig {
  * Get secrets configuration from environment variables
  */
 function getConfig(): SecretsConfig {
-    const provider = (process.env.SECRETS_PROVIDER || 'env') as SecretsProvider;
+    // Default to 'supabase' if not set, as 'env' is read-only
+    const provider = (process.env.SECRETS_PROVIDER || 'supabase') as SecretsProvider;
 
     return {
         provider,
