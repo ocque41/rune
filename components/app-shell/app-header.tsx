@@ -47,6 +47,13 @@ export function AppHeader() {
             </Link>
           );
         })}
+        <a
+          href="https://cumulush.com/dashboard"
+          className="flex items-center gap-2 rounded-full border border-white/10 px-3 py-1.5 text-[10px] uppercase tracking-[0.28em] text-white/50 transition hover:bg-white/5 hover:text-white"
+        >
+          <LayoutDashboard className="h-4 w-4" />
+          Back to Dashboard
+        </a>
       </div>
     </header>
   );

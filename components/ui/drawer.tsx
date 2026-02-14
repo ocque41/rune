@@ -118,30 +118,30 @@ export {
 
 // Keep RuneDrawer for backward compatibility if used
 interface RuneDrawerProps {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    children: React.ReactNode;
-    direction?: 'bottom' | 'right';
-    className?: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: React.ReactNode;
+  direction?: 'bottom' | 'right';
+  className?: string;
 }
 
 export function RuneDrawer({ open, onOpenChange, children, direction = 'bottom', className }: RuneDrawerProps) {
-    return (
-        <Drawer open={open} onOpenChange={onOpenChange} direction={direction}>
-            <DrawerPortal>
-                <DrawerOverlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" />
-                <DrawerContent
-                    className={cn(
-                        "fixed z-50 flex flex-col bg-[#000000] shadow-2xl focus:outline-none",
-                        direction === 'bottom' ? "bottom-0 left-0 right-0 h-[85vh]" : "right-0 top-0 bottom-0 w-[400px] h-full",
-                        className
-                    )}
-                >
-                    <div className="flex-1 overflow-auto">
-                        {children}
-                    </div>
-                </DrawerContent>
-            </DrawerPortal>
-        </Drawer>
-    );
+  return (
+    <Drawer open={open} onOpenChange={onOpenChange} direction={direction}>
+      <DrawerPortal>
+        <DrawerOverlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" />
+        <DrawerContent
+          className={cn(
+            "fixed z-50 flex flex-col bg-[#000000] shadow-2xl focus:outline-none border-none",
+            direction === 'bottom' ? "bottom-0 left-0 right-0 h-[85vh]" : "right-0 top-0 bottom-0 w-[400px] h-full",
+            className
+          )}
+        >
+          <div className="flex-1 overflow-auto">
+            {children}
+          </div>
+        </DrawerContent>
+      </DrawerPortal>
+    </Drawer>
+  );
 }
