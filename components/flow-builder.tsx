@@ -1,7 +1,7 @@
 'use client';
 
 import "@/lib/react-shim";
-import React, { useCallback, useRef, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Cloud } from 'lucide-react';
 import {
@@ -94,6 +94,16 @@ const initialNodes: Node<RuneNodeData>[] = [
     },
 ];
 
+const LOG_FILTERS = {
+    all: { label: 'All logs' },
+    system: { label: 'System Logs', types: ['info', 'success', 'warning', 'error'] },
+    nodeOutput: { label: 'Node Output', types: ['nodeOutput'] },
+    nodeStatus: { label: 'Node Status', types: ['nodeStatus'] },
+    errors: { label: 'Errors', types: ['error'] },
+} as const;
+
+type LogFilterKey = keyof typeof LOG_FILTERS;
+
 const getId = () => `dndnode_${crypto.randomUUID()}`;
 
 const FlowBuilderContent = ({
@@ -124,12 +134,33 @@ const FlowBuilderContent = ({
 
     // Simulation State
     const [executionLogs, setExecutionLogs] = useState<SimulationLogEntry[]>([]);
+    const [activeLogFilter, setActiveLogFilter] = useState<LogFilterKey>('all');
+    const [expandedLogKey, setExpandedLogKey] = useState<string | null>(null);
     const [nodeStatuses, setNodeStatuses] = useState<Record<string, { status: string; message?: string; timestamp: number }>>({});
     const [isExecuting, setIsExecuting] = useState(false);
     const [showExecutionLogPanel, setShowExecutionLogPanel] = useState(false);
     const executionLogPanelRef = useRef<HTMLDivElement>(null);
     const logsContainerRef = useRef<HTMLDivElement>(null);
     const prevLogsLengthRef = useRef(0);
+
+    const filteredLogs = useMemo(() => {
+        const filter = LOG_FILTERS[activeLogFilter];
+        if (!filter.types) return executionLogs;
+        return executionLogs.filter((log) => filter.types.includes(log.type));
+    }, [activeLogFilter, executionLogs]);
+
+    const logCounts = useMemo(() => {
+        const counts = {} as Record<LogFilterKey, number>;
+        (Object.keys(LOG_FILTERS) as LogFilterKey[]).forEach((key) => {
+            const config = LOG_FILTERS[key];
+            if (!config.types) {
+                counts[key] = executionLogs.length;
+            } else {
+                counts[key] = executionLogs.filter((log) => config.types.includes(log.type)).length;
+            }
+        });
+        return counts;
+    }, [executionLogs]);
 
     // NEW: Real-time Node Output State
     // The outputs are now directly merged into executionLogs
@@ -509,9 +540,20 @@ const FlowBuilderContent = ({
                 }
                 // Handle nodeStatus events
                 else if (data.type === 'nodeStatus') {
+                    const statusTimestamp = typeof data.timestamp === 'number' ? data.timestamp : Date.now();
+                    setExecutionLogs((prevLogs) => [
+                        ...prevLogs,
+                        {
+                            type: 'nodeStatus',
+                            nodeId: data.nodeId,
+                            status: data.status,
+                            message: data.message,
+                            timestamp: statusTimestamp,
+                        },
+                    ]);
                     setNodeStatuses((prevStatuses) => ({
                         ...prevStatuses,
-                        [data.nodeId]: { status: data.status, message: data.message, timestamp: data.timestamp },
+                        [data.nodeId]: { status: data.status, message: data.message, timestamp: statusTimestamp },
                     }));
                 }
             } catch (error) {
@@ -612,6 +654,15 @@ const FlowBuilderContent = ({
         }
         prevLogsLengthRef.current = executionLogs.length;
     }, [executionLogs]);
+
+    useEffect(() => {
+        if (!logsContainerRef.current) return;
+        const container = logsContainerRef.current;
+        container.scrollTo({
+            top: container.scrollHeight,
+            behavior: 'smooth',
+        });
+    }, [filteredLogs.length]);
 
     const onConnect = useCallback(
         (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -1515,118 +1566,180 @@ const FlowBuilderContent = ({
                             </div>
                         </div>
 
+                        {/* Filter Tabs */}
+                        <div
+                            className="flex flex-wrap items-center gap-2 px-5 py-2"
+                            style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}
+                        >
+                            {(Object.keys(LOG_FILTERS) as LogFilterKey[]).map((key) => {
+                                const filter = LOG_FILTERS[key];
+                                const count = logCounts[key] ?? 0;
+                                const isActive = activeLogFilter === key;
+                                return (
+                                    <button
+                                        key={key}
+                                        onClick={() => setActiveLogFilter(key)}
+                                        className={`flex items-center gap-2 rounded-full px-3 py-1 text-[11px] tracking-wide transition-all duration-200 ${isActive ? 'bg-cyan-500/20 border border-cyan-400/60 text-white' : 'bg-white/5 border border-white/10 text-white/70 hover:bg-white/10'}`}
+                                    >
+                                        {filter.label}
+                                        <span className="text-[10px] rounded-full bg-white/10 px-2 py-0.5 text-white/70">
+                                            {count}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
                         {/* Logs Container */}
                         <div
                             ref={logsContainerRef}
                             className="flex-1 overflow-y-auto px-5 py-4 space-y-3 font-mono text-xs scrollbar-hide"
                         >
-                            {executionLogs.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center h-full gap-4 py-8">
-                                    {isExecuting ? (
-                                        <>
-                                            <div className="flex gap-1.5">
-                                                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                                                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                                                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-                                            </div>
-                                            <span className="text-sm" style={{ color: '#00FFFF' }}>Executing workflow...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <div
-                                                className="p-4 rounded-xl"
-                                                style={{
-                                                    background: 'rgba(255, 255, 255, 0.03)',
-                                                    border: '1px solid rgba(255, 255, 255, 0.08)'
-                                                }}
-                                            >
-                                                <Play size={24} style={{ color: '#555555' }} />
-                                            </div>
-                                            <div className="text-center">
-                                                <span className="block text-sm" style={{ color: '#A0A0A0' }}>Ready to simulate</span>
-                                                <span className="block text-xs mt-1" style={{ color: '#555555' }}>Click "Simulate" to run your workflow</span>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            ) : (
-                                executionLogs.map((log, i) => (
-                                    <div
-                                        key={i}
-                                        data-log-entry
-                                        className="flex gap-4 group rounded-lg p-3 transition-all duration-200 hover:bg-white/5"
-                                        style={{
-                                            background: 'rgba(255, 255, 255, 0.02)',
-                                            border: '1px solid rgba(255, 255, 255, 0.05)'
-                                        }}
-                                    >
-                                        {/* Status Dot & Timeline */}
-                                        <div className="flex flex-col items-center gap-1 pt-1">
-                                            <div
-                                                className={`w-2.5 h-2.5 rounded-full shrink-0 ${log.type === 'error' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' :
-                                                    log.type === 'success' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
-                                                        log.type === 'warning' ? 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]' :
-                                                            'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.5)]'
-                                                    }`}
-                                            />
-                                            {i < executionLogs.length - 1 && (
+                            {filteredLogs.length === 0 ? (
+                                executionLogs.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center h-full gap-4 py-8">
+                                        {isExecuting ? (
+                                            <>
+                                                <div className="flex gap-1.5">
+                                                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                                                </div>
+                                                <span className="text-sm" style={{ color: '#00FFFF' }}>Executing workflow...</span>
+                                            </>
+                                        ) : (
+                                            <>
                                                 <div
-                                                    className="w-px flex-1 min-h-[20px]"
-                                                    style={{ background: 'rgba(255, 255, 255, 0.1)' }}
-                                                />
-                                            )}
-                                        </div>
-
-                                        {/* Content */}
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <span
-                                                    className={`font-bold uppercase text-[10px] px-2 py-0.5 rounded-md tracking-wider ${log.type === 'error' ? 'bg-red-500/15 text-red-400 border border-red-500/30' :
-                                                        log.type === 'success' ? 'bg-green-500/15 text-green-400 border border-green-500/30' :
-                                                            log.type === 'warning' ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30' :
-                                                                log.type === 'nodeOutput' ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30' : // New style for nodeOutput
-                                                                    'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30'
-                                                        }`}
-                                                >
-                                                    {log.type === 'nodeOutput' ? 'OUTPUT' : log.type} {/* Display 'OUTPUT' for nodeOutput */}
-                                                </span>
-                                                <span
-                                                    className="font-semibold text-sm truncate"
-                                                    style={{ color: '#FFFFFF' }}
-                                                >
-                                                    {log.type === 'nodeOutput' ? log.nodeId : log.stepLabel} {/* Display nodeId for nodeOutput */}
-                                                </span>
-                                                <span
-                                                    className="text-[10px] ml-auto shrink-0"
-                                                    style={{ color: '#555555' }}
-                                                >
-                                                    {new Date(log.timestamp).toLocaleTimeString()}
-                                                </span>
-                                            </div>
-                                            <div
-                                                className="mt-1.5 text-sm leading-relaxed"
-                                                style={{ color: '#A0A0A0' }}
-                                            >
-                                                {log.type === 'nodeOutput' ? `Output from node '${log.nodeId}'` : log.message} {/* Custom message for nodeOutput */}
-                                            </div>
-
-                                            {(log.type !== 'nodeOutput' && log.data && Object.keys(log.data).length > 0) || (log.type === 'nodeOutput' && log.output) ? ( // Conditional for nodeOutput
-                                                <pre
-                                                    className="mt-3 block overflow-x-auto rounded-lg p-3 text-[11px] leading-relaxed"
+                                                    className="p-4 rounded-xl"
                                                     style={{
-                                                        background: 'rgba(0, 0, 0, 0.4)',
-                                                        border: '1px solid rgba(255, 255, 255, 0.06)',
-                                                        color: '#E0E0E0'
+                                                        background: 'rgba(255, 255, 255, 0.03)',
+                                                        border: '1px solid rgba(255, 255, 255, 0.08)'
                                                     }}
                                                 >
-                                                    {JSON.stringify(log.type === 'nodeOutput' ? log.output : log.data, null, 2)} {/* Display log.output for nodeOutput */}
-                                                </pre>
-                                            ) : null}
-                                        </div>
+                                                    <Play size={24} style={{ color: '#555555' }} />
+                                                </div>
+                                                <div className="text-center">
+                                                    <span className="block text-sm" style={{ color: '#A0A0A0' }}>Ready to simulate</span>
+                                                    <span className="block text-xs mt-1" style={{ color: '#555555' }}>Click "Simulate" to run your workflow</span>
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
-                                ))
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center h-full gap-2 py-8">
+                                        <span className="text-sm" style={{ color: '#A0A0A0' }}>No logs match the current filter.</span>
+                                        <span className="text-[10px]" style={{ color: '#555555' }}>Switch to �All logs� or enable additional categories to see recent events.</span>
+                                    </div>
+                                )
+                            ) : (
+                                filteredLogs.map((log, index) => {
+                                    const logKey = `${log.type}-${log.timestamp}-${log.type === 'nodeOutput' ? log.nodeId : log.stepId ?? log.nodeId ?? index}`;
+                                    const isExpanded = expandedLogKey === logKey;
+                                    const detailPayload = log.type === 'nodeOutput' ? log.output : log.data;
+                                    const hasDetailPayload =
+                                        detailPayload !== undefined &&
+                                        detailPayload !== null &&
+                                        (typeof detailPayload !== 'object' || Object.keys(detailPayload).length > 0);
+                                    const dotClass = log.type === 'error'
+                                        ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
+                                        : log.type === 'success'
+                                            ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]'
+                                            : log.type === 'warning'
+                                                ? 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]'
+                                                : log.type === 'nodeStatus'
+                                                    ? 'bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.5)]'
+                                                    : log.type === 'nodeOutput'
+                                                        ? 'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]'
+                                                        : 'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.5)]';
+                                    const badgeClass = log.type === 'error'
+                                        ? 'bg-red-500/15 text-red-400 border border-red-500/30'
+                                        : log.type === 'success'
+                                            ? 'bg-green-500/15 text-green-400 border border-green-500/30'
+                                            : log.type === 'warning'
+                                                ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
+                                                : log.type === 'nodeOutput'
+                                                    ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30'
+                                                    : log.type === 'nodeStatus'
+                                                        ? 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/30'
+                                                        : 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30';
+                                    const badgeLabel = log.type === 'nodeOutput' ? 'OUTPUT' : log.type === 'nodeStatus' ? 'STATUS' : log.type.toUpperCase();
+                                    const stepTitle = log.type === 'nodeOutput' ? log.nodeId : log.stepLabel || log.nodeId || 'Step';
+                                    const descriptionText = log.type === 'nodeOutput'
+                                        ? `Output from node '${log.nodeId}'`
+                                        : log.type === 'nodeStatus'
+                                            ? log.message || `Status: ${log.status}`
+                                            : log.message;
+                                    return (
+                                        <div
+                                            key={logKey}
+                                            data-log-entry
+                                            className="flex gap-4 group rounded-lg p-3 transition-all duration-200 hover:bg-white/5"
+                                            style={{
+                                                background: 'rgba(255, 255, 255, 0.02)',
+                                                border: '1px solid rgba(255, 255, 255, 0.05)'
+                                            }}
+                                        >
+                                            <div className="flex flex-col items-center gap-1 pt-1">
+                                                <div
+                                                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${dotClass}`}
+                                                />
+                                                {index < filteredLogs.length - 1 && (
+                                                    <div
+                                                        className="w-px flex-1 min-h-[20px]"
+                                                        style={{ background: 'rgba(255, 255, 255, 0.1)' }}
+                                                    />
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span
+                                                        className={`font-bold uppercase text-[10px] px-2 py-0.5 rounded-md tracking-wider ${badgeClass}`}
+                                                    >
+                                                        {badgeLabel}
+                                                    </span>
+                                                    <span
+                                                        className="font-semibold text-sm truncate"
+                                                        style={{ color: '#FFFFFF' }}
+                                                    >
+                                                        {stepTitle}
+                                                    </span>
+                                                    <span
+                                                        className="text-[10px] ml-auto shrink-0"
+                                                        style={{ color: '#555555' }}
+                                                    >
+                                                        {new Date(log.timestamp).toLocaleTimeString()}
+                                                    </span>
+                                                </div>
+                                                <div
+                                                    className="mt-1.5 text-sm leading-relaxed"
+                                                    style={{ color: '#A0A0A0' }}
+                                                >
+                                                    {descriptionText}
+                                                </div>
+                                                {hasDetailPayload && (
+                                                    <div className="mt-3 space-y-2">
+                                                        <button
+                                                            onClick={() => setExpandedLogKey(isExpanded ? null : logKey)}
+                                                            className="text-[11px] font-semibold tracking-wide text-cyan-300 transition-colors duration-200 hover:text-cyan-100"
+                                                        >
+                                                            {isExpanded ? 'Hide details' : 'Show details'}
+                                                        </button>
+                                                        {isExpanded && (
+                                                            <pre
+                                                                className="overflow-x-auto rounded-lg border border-white/10 bg-black/60 p-3 text-[11px] leading-relaxed text-white"
+                                                            >
+                                                                {JSON.stringify(detailPayload, null, 2)}
+                                                            </pre>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })
                             )}
                         </div>
+
                     </div>
                 )}
 

@@ -16,6 +16,13 @@ export type SimulationLogEntry =
     output: any;
     runId: string;
     timestamp: number;
+  }
+  | {
+    type: 'nodeStatus';
+    nodeId: string;
+    status: string;
+    message?: string;
+    timestamp: number;
   };
 
 export type SimulationResult = {
