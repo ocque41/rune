@@ -145,18 +145,18 @@ const FlowBuilderContent = ({
 
     const filteredLogs = useMemo(() => {
         const filter = LOG_FILTERS[activeLogFilter];
-        if (!filter.types) return executionLogs;
-        return executionLogs.filter((log) => filter.types.includes(log.type));
+        if (!('types' in filter)) return executionLogs;
+        return executionLogs.filter((log) => (filter.types as readonly string[]).includes(log.type));
     }, [activeLogFilter, executionLogs]);
 
     const logCounts = useMemo(() => {
         const counts = {} as Record<LogFilterKey, number>;
         (Object.keys(LOG_FILTERS) as LogFilterKey[]).forEach((key) => {
             const config = LOG_FILTERS[key];
-            if (!config.types) {
+            if (!('types' in config)) {
                 counts[key] = executionLogs.length;
             } else {
-                counts[key] = executionLogs.filter((log) => config.types.includes(log.type)).length;
+                counts[key] = executionLogs.filter((log) => (config.types as readonly string[]).includes(log.type)).length;
             }
         });
         return counts;
@@ -1633,9 +1633,29 @@ const FlowBuilderContent = ({
                                 )
                             ) : (
                                 filteredLogs.map((log, index) => {
-                                    const logKey = `${log.type}-${log.timestamp}-${log.type === 'nodeOutput' ? log.nodeId : log.stepId ?? log.nodeId ?? index}`;
+                                    let logKey: string;
+                                    let detailPayload: any;
+                                    let stepTitle: string;
+                                    let descriptionText: string;
+
+                                    if (log.type === 'nodeOutput') {
+                                        logKey = `${log.type}-${log.timestamp}-${log.nodeId}`;
+                                        detailPayload = log.output;
+                                        stepTitle = log.nodeId;
+                                        descriptionText = `Output from node '${log.nodeId}'`;
+                                    } else if (log.type === 'nodeStatus') {
+                                        logKey = `${log.type}-${log.timestamp}-${log.nodeId}`;
+                                        detailPayload = null;
+                                        stepTitle = log.nodeId;
+                                        descriptionText = log.message || `Status: ${log.status}`;
+                                    } else {
+                                        logKey = `${log.type}-${log.timestamp}-${log.stepId}`;
+                                        detailPayload = log.data;
+                                        stepTitle = log.stepLabel;
+                                        descriptionText = log.message;
+                                    }
+
                                     const isExpanded = expandedLogKey === logKey;
-                                    const detailPayload = log.type === 'nodeOutput' ? log.output : log.data;
                                     const hasDetailPayload =
                                         detailPayload !== undefined &&
                                         detailPayload !== null &&
@@ -1663,12 +1683,6 @@ const FlowBuilderContent = ({
                                                         ? 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/30'
                                                         : 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30';
                                     const badgeLabel = log.type === 'nodeOutput' ? 'OUTPUT' : log.type === 'nodeStatus' ? 'STATUS' : log.type.toUpperCase();
-                                    const stepTitle = log.type === 'nodeOutput' ? log.nodeId : log.stepLabel || log.nodeId || 'Step';
-                                    const descriptionText = log.type === 'nodeOutput'
-                                        ? `Output from node '${log.nodeId}'`
-                                        : log.type === 'nodeStatus'
-                                            ? log.message || `Status: ${log.status}`
-                                            : log.message;
                                     return (
                                         <div
                                             key={logKey}
