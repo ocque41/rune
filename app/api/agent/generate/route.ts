@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildAgentContext } from '@/lib/agent-context';
-import { TOOLS_DEFINITION, getActiveContext, listWorkflows, getRecentRuns, runWorkflow, runNode, configureNode, scheduleMessage, validateNodeConfig, markNodeFailed, createWorkflow, inspectWorkflow, editWorkflow, validateWorkflow, publishWorkflow, deleteWorkflow, runWorkflowPlan } from '@/lib/agent-tools';
+import { TOOLS_DEFINITION, executeTool } from '@/lib/agent-tools';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, FunctionDeclaration, FunctionDeclarationSchema } from '@google/generative-ai';
 import { AgentConfig } from '@/lib/agent/types';
 import { isHighImpactTool } from '@/lib/agent/tools-metadata';
@@ -204,7 +204,7 @@ export async function POST(req: NextRequest) {
         // ... (existing OpenAI logic above)
 
         if (config.model.startsWith('gemini')) {
-            const { GeminiAgentRuntime } = await import('@/lib/agent/runtimes/gemini-runtime');
+import { GeminiAgentRuntime } from '@/lib/agent/runtimes/gemini';
             const apiKey = process.env.GOOGLE_API_KEY;
 
             if (!apiKey) return NextResponse.json({ error: "Missing GOOGLE_API_KEY" }, { status: 500 });
