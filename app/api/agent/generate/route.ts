@@ -209,7 +209,15 @@ import { GeminiAgentRuntime } from '@/lib/agent/runtimes/gemini';
 
             if (!apiKey) return NextResponse.json({ error: "Missing GOOGLE_API_KEY" }, { status: 500 });
 
-            const runtime = new GeminiAgentRuntime(supabase, user.id, apiKey);
+            const runtime = new GeminiAgentRuntime(supabase, user.id, apiKey, {
+                model: config.model,
+                tools: toolsDefinitions, // Pass tools definitions from here
+                temperature: config.temperature,
+                systemPrompt: systemPromptWithContext || config.systemPrompt,
+                maxTokens: config.maxTokens || 2000,
+                topP: config.topP,
+                thinking: config.thinking || { enabled: false }
+            });
 
             // Format messages for Runtime: { role, content }
             const runtimeMessages = messages.map(m => ({
