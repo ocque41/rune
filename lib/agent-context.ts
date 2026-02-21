@@ -173,17 +173,17 @@ async function getWorkflowData(supabase: SupabaseClient, workflowId: string, tra
     // Fetch stats
     // ... (Simplified logic from generic route)
     const { count: totalRuns } = await supabase
-        .from('rune_runs')
+        .from('rune_workflow_runs')
         .select('*', { count: 'exact', head: true })
         .eq('workflow_id', workflowId)
-        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+        .gte('start_time', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
 
     const { data: completedRuns } = await supabase
-        .from('rune_runs')
-        .select('created_at, completed_at')
+        .from('rune_workflow_runs')
+        .select('start_time, end_time')
         .eq('workflow_id', workflowId)
         .eq('status', 'completed')
-        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+        .gte('start_time', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
 
     let successRate = 'N/A';
     let avgDuration = 'N/A';
@@ -192,8 +192,8 @@ async function getWorkflowData(supabase: SupabaseClient, workflowId: string, tra
     if (total > 0 && completedRuns) {
         successRate = `${Math.round((completedRuns.length / total) * 100)}%`;
         const durations = completedRuns.map((r: any) => {
-            const start = new Date(r.created_at).getTime();
-            const end = new Date(r.completed_at).getTime();
+            const start = new Date(r.start_time).getTime();
+            const end = new Date(r.end_time).getTime();
             return end - start;
         }).filter((d: number) => !isNaN(d) && d > 0);
         if (durations.length > 0) {
@@ -227,10 +227,10 @@ async function getWorkflowData(supabase: SupabaseClient, workflowId: string, tra
 
 async function getRecentRuns(supabase: SupabaseClient, userId: string, workflowId?: string) {
     let query = supabase
-        .from('rune_runs')
-        .select('id, status, created_at, completed_at, error_message')
+        .from('rune_workflow_runs')
+        .select('id, status, start_time, end_time, error')
         .eq('user_id', userId)
-        .order('created_at', { ascending: false })
+        .order('start_time', { ascending: false })
         .limit(5);
 
     if (workflowId) {
@@ -241,8 +241,8 @@ async function getRecentRuns(supabase: SupabaseClient, userId: string, workflowI
     return (data || []).map((r: any) => ({
         id: r.id,
         status: r.status,
-        startedAt: r.created_at,
-        duration: r.completed_at ? `${((new Date(r.completed_at).getTime() - new Date(r.created_at).getTime()) / 1000).toFixed(1)}s` : '...',
-        error: r.error_message
+        startedAt: r.start_time,
+        duration: r.end_time ? `${((new Date(r.end_time).getTime() - new Date(r.start_time).getTime()) / 1000).toFixed(1)}s` : '...',
+        error: r.error
     }));
 }

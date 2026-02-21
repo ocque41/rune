@@ -136,8 +136,29 @@ export async function GET(req: Request) {
             const today = new Date().toISOString().split('T')[0];
             const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
 
-            await supabase.rpc('rollup_daily_usage', { target_day: yesterday });
-            await supabase.rpc('rollup_daily_usage', { target_day: today });
+            const runRollupForDay = async (day: string) => {
+                const { error: aggregateError } = await supabase.rpc('aggregate_daily_usage', {
+                    target_date: day
+                });
+
+                if (!aggregateError) {
+                    return;
+                }
+
+                // Backward-compatible fallback for older deployments.
+                const { error: legacyError } = await supabase.rpc('rollup_daily_usage', {
+                    target_day: day
+                });
+
+                if (legacyError) {
+                    throw new Error(
+                        `aggregate_daily_usage failed: ${aggregateError.message}; rollup_daily_usage failed: ${legacyError.message}`
+                    );
+                }
+            };
+
+            await runRollupForDay(yesterday);
+            await runRollupForDay(today);
 
             console.log('[Cron] Usage rollup completed');
         } catch (e) {

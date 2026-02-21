@@ -1,51 +1,75 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getWritable } from '@/lib/workflow-generator';
+import { createStreamReadable } from '@/lib/workflow/runtime/streams';
 
 export async function GET(req: NextRequest) {
-  // Set up headers for Server-Sent Events (SSE)
-  const headers = {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache, no-transform',
-    'Connection': 'keep-alive',
-  };
+    const runId = req.nextUrl.searchParams.get('runId');
+    if (!runId) {
+        return NextResponse.json({ error: 'Missing runId query parameter' }, { status: 400 });
+    }
 
-  // Create a ReadableStream for SSE
-  const readableStream = new ReadableStream({
-    async start(controller) {
-      const writable = getWritable();
+    const source = createStreamReadable(runId);
+    if (!source) {
+        return NextResponse.json({ error: 'Unable to create run stream' }, { status: 500 });
+    }
 
-      // Listen for data from the workflow generator's writable stream
-      // and push it to the controller for the SSE stream
-      writable.on('data', (chunk: Buffer) => {
-        const message = chunk.toString();
-        // SSE format: data: [JSON payload]\n\n
-        controller.enqueue(`data: ${message}\n\n`);
-      });
+    const encoder = new TextEncoder();
+    const headers = {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive'
+    };
 
-      // Handle stream end or error
-      writable.on('end', () => {
-        controller.close();
-      });
+    const readableStream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+            const reader = source.getReader();
+            let buffer = '';
+            const keepAliveInterval = setInterval(() => {
+                controller.enqueue(encoder.encode(':\n\n'));
+            }, 30000);
 
-      writable.on('error', (error: Error) => {
-        console.error('Workflow stream error:', error);
-        controller.error(error);
-      });
+            const abortHandler = async () => {
+                try {
+                    await reader.cancel('client disconnected');
+                } catch (error) {
+                    console.warn('[workflow/stream-output] Failed to cancel reader on abort:', error);
+                }
+            };
 
-      // Optionally, add a keep-alive mechanism to prevent timeouts
-      const keepAliveInterval = setInterval(() => {
-        controller.enqueue(':\n\n'); // SSE comment to keep connection alive
-      }, 30000); // Send a heartbeat every 30 seconds
+            req.signal.addEventListener('abort', abortHandler);
 
-      // Clean up when the client disconnects
-      req.signal.onabort = () => {
-        clearInterval(keepAliveInterval);
-        writable.destroy(); // Ensure the underlying writable is closed
-        console.log('Client disconnected from workflow stream.');
-      };
-    },
-  });
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    if (!value) continue;
 
-  return new NextResponse(readableStream, { headers });
+                    buffer += value;
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        const payload = line.trim();
+                        if (!payload) continue;
+                        controller.enqueue(encoder.encode(`data: ${payload}\n\n`));
+                    }
+                }
+
+                const finalPayload = buffer.trim();
+                if (finalPayload) {
+                    controller.enqueue(encoder.encode(`data: ${finalPayload}\n\n`));
+                }
+                controller.close();
+            } catch (error) {
+                console.error('[workflow/stream-output] Stream error:', error);
+                controller.error(error);
+            } finally {
+                clearInterval(keepAliveInterval);
+                req.signal.removeEventListener('abort', abortHandler);
+                reader.releaseLock();
+            }
+        }
+    });
+
+    return new NextResponse(readableStream, { headers });
 }

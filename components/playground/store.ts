@@ -8,6 +8,7 @@ export interface ChatMessage {
     role: 'user' | 'assistant' | 'system' | 'tool';
     content: string;
     toolCalls?: any;
+    approval_status?: 'pending' | 'approved' | 'rejected' | 'auto_approved' | null;
     createdAt?: string;
     usageMetadata?: {
         promptTokenCount?: number;
@@ -188,4 +189,3 @@ export const useAgentStore = create<AgentState>()(
         }
     )
 );
-

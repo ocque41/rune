@@ -3,7 +3,6 @@
 // and will serve as the central definition and execution point for agent tools.
 
 import { SupabaseClient } from '@supabase/supabase-js'; // Assuming SupabaseClient is available
-import { createClient } from '@/lib/supabase/server'; // Needed for MCP tools
 
 // --- INTERFACES AND TYPES ---
 export interface ToolFunction {
@@ -15,6 +14,17 @@ export interface ToolFunction {
 export interface ToolDefinition {
     type: 'function';
     function: ToolFunction;
+}
+
+type WorkflowNode = { id: string; [key: string]: any };
+type WorkflowEdge = { source: string; target: string; [key: string]: any };
+
+interface SubgraphOptions {
+    nodeIds?: string[];
+    startNodes?: string[];
+    endNodes?: string[];
+    includeDependencies?: boolean;
+    inputOverrides?: Record<string, unknown>;
 }
 
 // --- TOOL HANDLERS ---
@@ -497,6 +507,177 @@ export async function executeTool(supabase: SupabaseClient, userId: string, tool
         console.error(`[lib/agent-tools.ts] Error in ${toolName}:`, e);
         return { error: e.message || 'Failed to execute tool' };
     }
+}
+
+export async function executeToolCall(
+    supabase: SupabaseClient,
+    userId: string,
+    toolName: string,
+    args: any
+): Promise<any> {
+    return executeTool(supabase, userId, toolName, args);
+}
+
+export function findTool(toolName: string) {
+    const definition = TOOLS_DEFINITION.find((tool) => tool.function.name === toolName);
+
+    if (!definition) {
+        return null;
+    }
+
+    // Legacy runtime compatibility: this variant has no request context, so it returns a clear error payload.
+    return {
+        name: definition.function.name,
+        description: definition.function.description,
+        handler: async (_args: any) => ({
+            error: `Tool '${toolName}' cannot execute from the legacy runtime without user context.`
+        })
+    };
+}
+
+export function buildSubgraph(
+    graph: { nodes?: WorkflowNode[]; edges?: WorkflowEdge[] },
+    options: SubgraphOptions = {}
+): { nodes: WorkflowNode[]; edges: WorkflowEdge[]; startNodes: string[] } {
+    const nodes = Array.isArray(graph?.nodes) ? graph.nodes.filter((n) => typeof n?.id === 'string') : [];
+    const edges = Array.isArray(graph?.edges)
+        ? graph.edges.filter((e) => typeof e?.source === 'string' && typeof e?.target === 'string')
+        : [];
+
+    if (nodes.length === 0) {
+        return { nodes: [], edges: [], startNodes: [] };
+    }
+
+    const nodeMap = new Map(nodes.map((node) => [node.id, node] as const));
+    const outgoing = new Map<string, Set<string>>();
+    const incoming = new Map<string, Set<string>>();
+
+    for (const node of nodes) {
+        outgoing.set(node.id, new Set());
+        incoming.set(node.id, new Set());
+    }
+
+    for (const edge of edges) {
+        if (!nodeMap.has(edge.source) || !nodeMap.has(edge.target)) {
+            continue;
+        }
+        outgoing.get(edge.source)!.add(edge.target);
+        incoming.get(edge.target)!.add(edge.source);
+    }
+
+    const normalizeIds = (ids?: string[]) =>
+        (ids || []).filter((id, idx, all) => typeof id === 'string' && nodeMap.has(id) && all.indexOf(id) === idx);
+
+    const explicitNodeIds = normalizeIds(options.nodeIds);
+    const explicitStartNodes = normalizeIds(options.startNodes);
+    const explicitEndNodes = normalizeIds(options.endNodes);
+    const includeDependencies = options.includeDependencies ?? true;
+    const hasFilter = explicitNodeIds.length > 0 || explicitStartNodes.length > 0 || explicitEndNodes.length > 0;
+
+    const selected = new Set<string>();
+    const endNodeSet = new Set(explicitEndNodes);
+
+    const traverseForward = (seedId: string) => {
+        const stack = [seedId];
+        while (stack.length > 0) {
+            const current = stack.pop()!;
+            if (selected.has(current)) {
+                continue;
+            }
+            selected.add(current);
+            if (endNodeSet.has(current)) {
+                continue;
+            }
+            for (const nextId of outgoing.get(current) || []) {
+                if (!selected.has(nextId)) {
+                    stack.push(nextId);
+                }
+            }
+        }
+    };
+
+    const collectAncestors = (seedId: string) => {
+        const stack = [seedId];
+        while (stack.length > 0) {
+            const current = stack.pop()!;
+            if (!selected.has(current)) {
+                selected.add(current);
+            }
+            for (const parentId of incoming.get(current) || []) {
+                if (!selected.has(parentId)) {
+                    stack.push(parentId);
+                }
+            }
+        }
+    };
+
+    if (!hasFilter) {
+        for (const node of nodes) {
+            selected.add(node.id);
+        }
+    } else {
+        for (const nodeId of explicitNodeIds) {
+            selected.add(nodeId);
+        }
+        for (const startNodeId of explicitStartNodes) {
+            traverseForward(startNodeId);
+        }
+        for (const endNodeId of explicitEndNodes) {
+            selected.add(endNodeId);
+        }
+
+        if (explicitEndNodes.length > 0 && explicitStartNodes.length === 0) {
+            for (const endNodeId of explicitEndNodes) {
+                collectAncestors(endNodeId);
+            }
+        }
+    }
+
+    if (includeDependencies) {
+        for (const nodeId of Array.from(selected)) {
+            collectAncestors(nodeId);
+        }
+    }
+
+    if (selected.size === 0) {
+        for (const node of nodes) {
+            selected.add(node.id);
+        }
+    }
+
+    const selectedNodes = nodes.filter((node) => selected.has(node.id));
+    const selectedNodeIdSet = new Set(selectedNodes.map((node) => node.id));
+    const selectedEdges = edges.filter((edge) => selectedNodeIdSet.has(edge.source) && selectedNodeIdSet.has(edge.target));
+
+    let startNodes: string[] = explicitStartNodes.filter((nodeId) => selectedNodeIdSet.has(nodeId));
+
+    if (startNodes.length === 0 && explicitNodeIds.length > 0 && !includeDependencies) {
+        startNodes = explicitNodeIds.filter((nodeId) => selectedNodeIdSet.has(nodeId));
+    }
+
+    if (startNodes.length === 0) {
+        const incomingCount = new Map<string, number>();
+        for (const node of selectedNodes) {
+            incomingCount.set(node.id, 0);
+        }
+        for (const edge of selectedEdges) {
+            incomingCount.set(edge.target, (incomingCount.get(edge.target) || 0) + 1);
+        }
+
+        startNodes = selectedNodes
+            .map((node) => node.id)
+            .filter((nodeId) => (incomingCount.get(nodeId) || 0) === 0);
+    }
+
+    if (startNodes.length === 0 && selectedNodes.length > 0) {
+        startNodes = [selectedNodes[0].id];
+    }
+
+    return {
+        nodes: selectedNodes,
+        edges: selectedEdges,
+        startNodes
+    };
 }
 
 async function executeMcpTool(supabase: SupabaseClient, userId: string, namespacedName: string, args: any): Promise<any> {

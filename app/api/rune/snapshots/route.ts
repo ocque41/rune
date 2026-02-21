@@ -1,20 +1,21 @@
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { PlaygroundSnapshot } from '@/lib/types/agent';
 
 export async function POST(req: NextRequest) {
     try {
         const snapshot: PlaygroundSnapshot = await req.json();
-        const supabase = createAdminClient();
+        const supabase = await createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
         // Basic validation
         if (!snapshot.config || !snapshot.messages) {
             return NextResponse.json({ error: 'Invalid snapshot data' }, { status: 400 });
         }
-
-        // In a real app we'd get the user from the session
-        // const { data: { user } } = await supabase.auth.getUser();
-        // const userId = user?.id;
 
         const { data, error } = await supabase
             .from('rune_playground_snapshots')
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
                 config: snapshot.config,
                 messages: snapshot.messages,
                 graph_state: snapshot.graphState,
-                // user_id: userId // if auth is working
+                user_id: user.id
             })
             .select()
             .single();

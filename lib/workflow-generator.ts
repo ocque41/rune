@@ -830,6 +830,7 @@ export const executeCustomCode = async (params: {
                 'Content-Type': 'application/json',
                 'X-Rune-Run-Id': runId,
                 'X-Rune-Node-Id': nodeId,
+                ...(process.env.RUNE_INTERNAL_API_TOKEN ? { 'X-Rune-Internal-Token': process.env.RUNE_INTERNAL_API_TOKEN } : {}),
             },
             body: JSON.stringify({
                 language: params.language,

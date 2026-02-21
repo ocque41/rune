@@ -46,10 +46,10 @@ export async function GET(req: NextRequest) {
 
         // 4. Recent Runs
         const { data: recentRuns } = await supabase
-            .from('rune_runs')
-            .select('id, workflow_id, status, created_at, completed_at, error_message')
+            .from('rune_workflow_runs')
+            .select('id, workflow_id, status, start_time, end_time, error')
             .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
+            .order('start_time', { ascending: false })
             .limit(5);
 
         return NextResponse.json({
@@ -69,9 +69,9 @@ export async function GET(req: NextRequest) {
                 id: r.id,
                 workflowId: r.workflow_id,
                 status: r.status,
-                startedAt: r.created_at, // Mapping created_at to startedAt as implicit start
-                finishedAt: r.completed_at,
-                error: r.error_message
+                startedAt: r.start_time,
+                finishedAt: r.end_time,
+                error: r.error
             })) || [],
             limits
         });

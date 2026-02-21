@@ -33,6 +33,7 @@ export async function GET(
                 content,
                 tool_calls,
                 tool_call_id,
+                approval_status,
                 created_at
             )
         `)
@@ -53,6 +54,7 @@ export async function GET(
         content: msg.content,
         toolCalls: msg.tool_calls,
         toolCallId: msg.tool_call_id,
+        approval_status: msg.approval_status,
         createdAt: msg.created_at
     })) || [];
 

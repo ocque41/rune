@@ -1,20 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 
 export async function DELETE(
-    req: NextRequest,
+    _req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const { id } = await params;
-        const supabase = createAdminClient();
+        const supabase = await createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-        const { error } = await supabase
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { data, error } = await supabase
             .from('rune_user_templates')
             .delete()
-            .eq('id', id);
+            .eq('user_id', user.id)
+            .eq('id', id)
+            .select('id');
 
         if (error) throw error;
+        if (!data || data.length === 0) {
+            return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {

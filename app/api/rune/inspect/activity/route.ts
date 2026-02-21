@@ -12,17 +12,30 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
     const cursor = searchParams.get('cursor'); // Timestamp for keyset pagination
+    const range = searchParams.get('range'); // 24h, 7d, 30d
 
-    // Fetch LLM Calls
+    let fromDate: string | null = null;
+    if (range) {
+        const start = new Date();
+        if (range === '24h') start.setDate(start.getDate() - 1);
+        if (range === '7d') start.setDate(start.getDate() - 7);
+        if (range === '30d') start.setDate(start.getDate() - 30);
+        fromDate = start.toISOString();
+    }
+
+    // Fetch usage events
     let query = supabase
-        .from('rune_llm_calls')
-        .select('id, created_at, model, total_tokens, estimated_cost_usd, latency_ms, status, request_metadata')
+        .from('rune_agent_usage_events')
+        .select('id, created_at, model, total_tokens, estimated_cost_usd, latency_ms, status, source')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(limit);
 
     if (cursor) {
         query = query.lt('created_at', cursor);
+    }
+    if (fromDate) {
+        query = query.gte('created_at', fromDate);
     }
 
     const { data, error } = await query;
@@ -32,7 +45,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Map to unified "Activity" format
-    const items = data.map(item => ({
+    const items = (data || []).map(item => ({
         id: item.id,
         type: 'llm_call',
         timestamp: item.created_at,
@@ -42,7 +55,7 @@ export async function GET(request: NextRequest) {
             cost: item.estimated_cost_usd,
             latency: item.latency_ms,
             status: item.status,
-            source: item.request_metadata?.source
+            source: item.source
         }
     }));
 

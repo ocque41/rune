@@ -1,55 +1,51 @@
-# TASK.md - Current Objective: Develop a Real-time Event Log Viewer for Workflow Runs
+# TASK.md - Current Objective: Verification of Gemini 3 Agent Runtime
 
 ## Project: `/Users/miguel/Documents/cumulus/rune`
 
-## Status: Pending
+## Status: In Progress
 
 ## Objective:
 
-To develop a real-time event log viewer within the Flow Builder UI that displays granular log entries and node outputs as a workflow executes. This will provide users with immediate feedback and detailed insights into workflow execution.
+To thoroughly verify the functionality and stability of the Gemini 3 Agent Runtime within the `/Users/miguel/Documents/cumulus/rune` project. This includes testing basic chat interactions, tool usage, and multi-step agent operations to ensure proper integration and performance.
 
 ## Description:
 
-The current `FlowBuilder.tsx` already streams `nodeOutput` and `nodeStatus` events. This task focuses on enhancing the existing "Execution Logs Panel" to effectively display these events in a user-friendly, real-time manner, distinguishing between different event types (e.g., general logs, node outputs, node status changes).
+The Gemini 3 Agent Runtime has been refactored to support server-side tool execution with "Thought Signature" preservation and is integrated into the Agent Playground. This task focuses on a "Soak Test" approach to validate its behavior under various conditions. The soak test will initially be manual and then transition to an automated script.
 
 ## Sub-tasks:
 
-1.  **Refine Event Stream Handling in `FlowBuilder.tsx`:**
-    *   Ensure all relevant event types (`nodeOutput`, `nodeStatus`, and any future generic `log` events) are correctly parsed and added to the `executionLogs` state.
-    *   Potentially introduce a more structured log entry type (`SimulationLogEntry`) that can differentiate and store metadata for various event kinds.
-    *   Consider debouncing/throttling state updates if high-volume streams cause performance issues.
-2.  **Enhance Execution Logs Panel UI:**
-    *   **Categorize and Filter Logs:** Implement UI elements (e.g., tabs, checkboxes) to allow users to filter logs by type (e.g., all, node output, status changes, errors).
-    *   **Visual Distinction for Log Types:** Use distinct styling (colors, icons) for different log entry types (e.g., `running`, `success`, `failure` statuses, `nodeOutput` data).
-    *   **Expandable Log Details:** For `nodeOutput` entries, allow users to expand/collapse the JSON data for detailed inspection.
-    *   **Timestamp and Node ID Display:** Clearly display the timestamp and the associated `nodeId` for each log entry.
-    *   **Auto-scroll to Bottom:** Maintain auto-scrolling behavior to the newest log entry.
-3.  **Integrate Animated Feedback:**
-    *   Leverage existing `anime.js` setup to add subtle animations for new log entries, improving the perception of real-time updates.
-4.  **Implement Unit and Integration Tests:**
-    *   **Unit Tests:** Create unit tests for any new helper functions or data structures introduced for log management.
-    *   **Integration Tests:** Extend existing integration tests (e.g., `workflow-output-stream.test.ts`) to verify correct display and filtering of different log types in the simulated environment.
+1.  **Understand Agent Playground Interaction:**
+    *   Identify the primary interface for interacting with the Gemini 3 Agent Runtime within the Agent Playground.
+    *   Determine how to submit prompts and observe responses, including tool execution logs and thought processes.
+2.  **Manual Soak Test Execution:**
+    *   Confirmed the `ai_node_debug.test.ts` passes, verifying core AI node execution within the WorkflowEngine.
+    *   Manual execution of test cases (Simple chat, Tool usage, Multi-step) is currently pending as the `rune` application needs to be running.
+
+3.  **Document Manual Test Results:**
+    *   Record observations, successful outputs, and any issues encountered during the manual tests.
+    *   Note down the expected behavior versus actual behavior.
+4.  **Develop Automated Soak Test Script (Future Step):**
+    *   (Once manual testing confirms basic functionality) Design and implement an automated script to repeatedly run the identified test cases.
+    *   The script should capture agent responses and tool interactions for automated assertion.
 
 ## Expected Outcome:
 
-*   A functional, real-time event log viewer integrated into the Flow Builder.
-*   Clear visual differentiation and filtering capabilities for log types.
-*   Smooth user experience with animated log entries and auto-scrolling.
-*   Robust test coverage ensuring the reliability of the log viewer.
+*   A clear understanding of how to interact with the Gemini 3 Agent Runtime via the Agent Playground.
+*   Confirmation that the agent can handle simple chat, tool usage, and multi-step commands as expected.
+*   Detailed documentation of manual test results, identifying any areas requiring further attention.
+*   (Eventually) An automated soak test script for continuous validation.
 
 ## Definition of Done
 
-*   `FlowBuilder.tsx` effectively processes and stores all event stream types.
-*   The Execution Logs Panel visibly distinguishes between node status updates, node outputs, and generic log entries.
-*   Users can filter log entries by type.
-*   Detailed `nodeOutput` data is inspectable.
-*   Log entries animate on appearance, and the panel auto-scrolls.
-*   New helper functions have unit tests.
-*   Integration tests verify the end-to-end log viewing experience.
-*   All new code adheres to `Development Rules`.
-*   The project builds and runs without errors, and the new feature is functional.
+*   The Gemini 3 Agent Runtime is accessible and interactive within the Agent Playground.
+*   Manual execution of Test Case 1 ("Simple chat") is successful.
+*   Manual execution of Test Case 2 ("Tool usage") is successful, with tool invocation and output processed correctly.
+*   Manual execution of Test Case 3 ("Multi-step") is successful, demonstrating multi-step reasoning and execution.
+*   All observations and results from manual tests are documented.
+*   All new code (for automated script, if developed in this task) adheres to `Development Rules`.
+*   The project builds and runs without errors, and the agent runtime functions as verified.
 
 ## Next Steps (after completion):
 
--   Update `TASKS.md` to mark this task as complete.
+-   Update `TASKS.md` to mark "Verification of Gemini 3 Agent Runtime" as complete.
 -   Update `TASK.md` with the next objective.

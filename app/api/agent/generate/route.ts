@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildAgentContext } from '@/lib/agent-context';
 import { TOOLS_DEFINITION, executeTool } from '@/lib/agent-tools';
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, FunctionDeclaration, FunctionDeclarationSchema } from '@google/generative-ai';
 import { AgentConfig } from '@/lib/agent/types';
 import { isHighImpactTool } from '@/lib/agent/tools-metadata';
+import { GeminiAgentRuntime } from '@/lib/agent/runtimes/gemini-runtime';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60; // Set max duration to 60 seconds (Hobby limit)
@@ -192,32 +192,14 @@ export async function POST(req: NextRequest) {
         }
 
         // --- Agent Runtime Integration ---
-
-        // Prepare Tools
         const allowedToolNames = config.tools || [];
-        const systemTools = TOOLS_DEFINITION.filter(t => allowedToolNames.includes(t.function.name));
-
-        // TODO: MCP Tools Fetching (Same logic as before, just cleaner)
-        // For V1, let's just use system tools for the runtime test
-        const allTools = [...systemTools];
-
-        // ... (existing OpenAI logic above)
 
         if (config.model.startsWith('gemini')) {
-import { GeminiAgentRuntime } from '@/lib/agent/runtimes/gemini';
-            const apiKey = process.env.GOOGLE_API_KEY;
+            const googleApiKey = process.env.GOOGLE_API_KEY;
 
-            if (!apiKey) return NextResponse.json({ error: "Missing GOOGLE_API_KEY" }, { status: 500 });
-
-            const runtime = new GeminiAgentRuntime(supabase, user.id, apiKey, {
-                model: config.model,
-                tools: toolsDefinitions, // Pass tools definitions from here
-                temperature: config.temperature,
-                systemPrompt: systemPromptWithContext || config.systemPrompt,
-                maxTokens: config.maxTokens || 2000,
-                topP: config.topP,
-                thinking: config.thinking || { enabled: false }
-            });
+            if (!googleApiKey) {
+                return NextResponse.json({ error: 'Missing GOOGLE_API_KEY' }, { status: 500 });
+            }
 
             // Format messages for Runtime: { role, content }
             const runtimeMessages = messages.map(m => ({
@@ -227,6 +209,7 @@ import { GeminiAgentRuntime } from '@/lib/agent/runtimes/gemini';
 
             // Convert system tools to definitions
             const toolsDefinitions = TOOLS_DEFINITION.filter(t => allowedToolNames.includes(t.function.name));
+            const runtime = new GeminiAgentRuntime(supabase, user.id, googleApiKey);
 
             // TODO: Add MCP tools if needed
 
@@ -239,7 +222,7 @@ import { GeminiAgentRuntime } from '@/lib/agent/runtimes/gemini';
                     systemPrompt: systemPromptWithContext || config.systemPrompt,
                     maxTokens: config.maxTokens || 2000,
                     topP: config.topP,
-                    apiKey: apiKey,
+                    apiKey: googleApiKey,
                     tools: allowedToolNames,
                     thinking: config.thinking || { enabled: false } // Pass thinking config if present in request
                 },
@@ -338,96 +321,11 @@ import { GeminiAgentRuntime } from '@/lib/agent/runtimes/gemini';
         async function executeToolCall(supabase: any, userId: string, toolName: string, args: any) {
             console.log(`[ToolExec] Executing ${toolName} for ${userId}`, args);
             try {
-                switch (toolName) {
-                    case 'get_active_context':
-                        return await getActiveContext(supabase, userId);
-                    case 'list_workflows':
-                        return await listWorkflows(supabase, userId, args.limit);
-                    case 'workflow_inspect':
-                        return await inspectWorkflow(supabase, userId, args.workflowId);
-                    case 'workflow_create':
-                        return await createWorkflow(supabase, userId, { name: args.name, description: args.description });
-                    case 'workflow_edit':
-                        return await editWorkflow(supabase, userId, args.workflowId, args.ops || []);
-                    case 'workflow_validate':
-                        return await validateWorkflow(supabase, userId, args.workflowId);
-                    case 'workflow_publish':
-                        return await publishWorkflow(supabase, userId, args.workflowId, args.commitMessage);
-                    case 'workflow_delete':
-                        return await deleteWorkflow(supabase, userId, args.workflowId);
-                    case 'workflow_run_plan':
-                        return await runWorkflowPlan(supabase, userId, {
-                            workflowId: args.workflowId,
-                            nodeIds: args.nodeIds,
-                            startNodes: args.startNodes,
-                            endNodes: args.endNodes,
-                            includeDependencies: args.includeDependencies,
-                            inputOverrides: args.inputOverrides
-                        });
-                    case 'get_recent_runs':
-                        return await getRecentRuns(supabase, userId, args.workflowId, args.limit);
-                    case 'run_workflow':
-                        return await runWorkflow(supabase, userId, args.payload);
-                    case 'run_node':
-                        return await runNode(supabase, userId, args.nodeIdentifier, args.input);
-                    case 'configure_node':
-                        return await configureNode(supabase, userId, args.nodeIdentifier, args.config);
-                    case 'schedule_message':
-                        return await scheduleMessage(supabase, userId, {
-                            message: args.message,
-                            delayMinutes: args.delayMinutes,
-                            priority: args.priority,
-                            chatId: undefined, // Only available if we passed it in context, but for now undefined is fine (will be null in DB)
-                            workflowId: undefined
-                        });
-                    case 'validate_node_config':
-                        return await validateNodeConfig(args);
-                    case 'mark_node_failed':
-                        return await markNodeFailed(supabase, userId, args.nodeIdentifier, args.reason);
-                    default:
-                        // Check if it's an MCP tool (prefixed with mcp__)
-                        if (toolName.startsWith('mcp__')) {
-                            return await executeMcpTool(supabase, userId, toolName, args);
-                        }
-                        return { error: `Unknown tool: ${toolName}` };
-                }
+                return await executeTool(supabase, userId, toolName, args || {});
             } catch (e: any) {
                 console.error(`[ToolExec] Error in ${toolName}:`, e);
                 return { error: e.message };
             }
-        }
-
-        async function executeMcpTool(supabase: any, userId: string, namespacedName: string, args: any) {
-            // Format: mcp__SERVER__TOOL
-            const parts = namespacedName.split('__');
-            if (parts.length < 3) return { error: "Invalid MCP tool name format" };
-
-            // const serverName = parts[1]; // Not strictly needed if we look up by name, but good for verify
-            const toolName = parts.slice(2).join('__'); // Rejoin in case tool name had __ (unlikely but safe)
-
-            // In a real implementation, we would call the persistent MCP client here.
-            // For now, checks if the tool exists in DB and log execution.
-            // TODO: Connect to actual MCP Runtime / Bridge
-
-            const { data: tool } = await supabase
-                .from('rune_mcp_tools')
-                .select('*')
-                .eq('tool_name', toolName)
-                // .eq('user_id', userId) // optional depending on RLS
-                .single();
-
-            if (!tool) {
-                return { error: `MCP tool not found: ${toolName}` };
-            }
-
-            console.log(`[MCP] Executing ${toolName} on server... (Simulation)`);
-            // Here we would dispatch to the MCP server.
-            // Return a mock success for now to ensure the loop works.
-            return {
-                status: "success",
-                output: `Executed ${toolName} successfully. (MCP Integration Pending)`,
-                args_received: args
-            };
         }
 
         async function streamOpenAI(apiKey: string, config: any, messages: any[], supabase: any, userId: string, chatId?: string | null, autonomousMode?: boolean, sessionId?: string, workflowId?: string | null) {

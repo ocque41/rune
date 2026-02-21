@@ -12,13 +12,23 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const from = searchParams.get('from'); // ISO string
     const to = searchParams.get('to');     // ISO string
+    const range = searchParams.get('range'); // 24h, 7d, 30d
+
+    let normalizedFrom = from;
+    if (!normalizedFrom && range) {
+        const start = new Date();
+        if (range === '24h') start.setDate(start.getDate() - 1);
+        if (range === '7d') start.setDate(start.getDate() - 7);
+        if (range === '30d') start.setDate(start.getDate() - 30);
+        normalizedFrom = start.toISOString();
+    }
 
     let query = supabase
-        .from('rune_llm_calls')
-        .select('model, total_tokens, estimated_cost_usd, status, prompt_tokens, output_tokens')
+        .from('rune_agent_usage_events')
+        .select('model, total_tokens, estimated_cost_usd, status, input_tokens, output_tokens, tool_calls_count')
         .eq('user_id', user.id);
 
-    if (from) query = query.gte('created_at', from);
+    if (normalizedFrom) query = query.gte('created_at', normalizedFrom);
     if (to) query = query.lte('created_at', to);
 
     const { data, error } = await query;
@@ -34,38 +44,25 @@ export async function GET(request: NextRequest) {
     let completionTokens = 0;
     let totalCost = 0;
     let totalCalls = 0;
+    let toolCount = 0;
     const models: Record<string, number> = {};
 
     if (data) {
         data.forEach(call => {
             totalCalls++;
-            const pt = call.prompt_tokens || 0;
+            const pt = call.input_tokens || 0;
             const ot = call.output_tokens || 0;
 
             promptTokens += pt;
             completionTokens += ot;
             totalTokens += (call.total_tokens || (pt + ot));
             totalCost += (call.estimated_cost_usd || 0);
+            toolCount += (call.tool_calls_count || 0);
 
             if (call.model) {
                 models[call.model] = (models[call.model] || 0) + 1;
             }
         });
-    }
-
-    // Fetch Tool Invocations Count
-    let toolCount = 0;
-    let toolQuery = supabase
-        .from('rune_tool_invocations')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id);
-
-    if (from) toolQuery = toolQuery.gte('created_at', from);
-    if (to) toolQuery = toolQuery.lte('created_at', to);
-
-    const { count, error: toolError } = await toolQuery;
-    if (!toolError && count !== null) {
-        toolCount = count;
     }
 
     return NextResponse.json({

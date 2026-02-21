@@ -1,8 +1,31 @@
 // app/api/rune/execute-custom-code/route.ts
 import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+
+function isInternalRequest(request: Request): boolean {
+  const expectedToken = process.env.RUNE_INTERNAL_API_TOKEN;
+  if (!expectedToken) {
+    return false;
+  }
+
+  const providedToken = request.headers.get('x-rune-internal-token');
+  return !!providedToken && providedToken === expectedToken;
+}
 
 export async function POST(request: Request) {
   try {
+    if (!isInternalRequest(request)) {
+      const supabase = await createClient();
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        return NextResponse.json(
+          { status: 'error', message: 'Unauthorized' },
+          { status: 401 }
+        );
+      }
+    }
+
     const { language, code, entrypoint, input, timeoutMs, dependencies, envVars } = await request.json();
 
     const isSandbox = process.env.RUNE_WORKFLOW_MODE === 'sandbox' || (process.env.NODE_ENV !== 'production' && !process.env.RUNE_WORKFLOW_MODE);

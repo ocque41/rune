@@ -17,17 +17,39 @@ export async function GET(req: NextRequest) {
             const url = new URL(req.url);
             const from = url.searchParams.get('from');
             const to = url.searchParams.get('to');
-            // optional filters: workflowId, model
+            const range = url.searchParams.get('range');
+            let normalizedFrom = from;
+            if (!normalizedFrom && range) {
+                const start = new Date();
+                if (range === '24h') start.setDate(start.getDate() - 1);
+                if (range === '7d') start.setDate(start.getDate() - 7);
+                if (range === '30d') start.setDate(start.getDate() - 30);
+                normalizedFrom = start.toISOString().split('T')[0];
+            }
 
             let query = supabase
-                .from('rune_usage_rollups_daily')
+                .from('rune_agent_usage_daily_rollup')
                 .select('*')
                 .eq('user_id', user.id);
 
-            if (from) query = query.gte('day', from);
+            if (normalizedFrom) query = query.gte('day', normalizedFrom);
             if (to) query = query.lte('day', to);
 
-            const { data, error } = await query;
+            let { data, error } = await query;
+
+            if (error) {
+                // Backward-compatible fallback for older table name.
+                let fallbackQuery = supabase
+                    .from('rune_usage_rollups_daily')
+                    .select('*')
+                    .eq('user_id', user.id);
+                if (normalizedFrom) fallbackQuery = fallbackQuery.gte('day', normalizedFrom);
+                if (to) fallbackQuery = fallbackQuery.lte('day', to);
+
+                const fallback = await fallbackQuery;
+                data = fallback.data;
+                error = fallback.error;
+            }
 
             if (error) throw error;
 

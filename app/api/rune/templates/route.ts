@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
     try {
-        const supabase = createAdminClient();
-        // In a real app we'd filter by authenticated user
+        const supabase = await createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const { data, error } = await supabase
             .from('rune_user_templates')
             .select('*')
+            .eq('user_id', user.id)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -21,7 +27,13 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     try {
-        const supabase = createAdminClient();
+        const supabase = await createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const body = await req.json();
         const { name, description, graph_json } = body;
 
@@ -38,7 +50,7 @@ export async function POST(req: NextRequest) {
                 name,
                 description,
                 graph_json,
-                user_id: '00000000-0000-0000-0000-000000000000' // Dummy user
+                user_id: user.id
             }])
             .select()
             .single();

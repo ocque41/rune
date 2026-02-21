@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSecret } from '@/lib/secrets-manager';
+import { createClient } from '@/lib/supabase/server';
 
 /**
  * GET /api/secrets/[key]
@@ -14,10 +15,20 @@ import { getSecret } from '@/lib/secrets-manager';
  * For now, we'll implement basic protection by checking if request is server-side
  */
 export async function GET(
-    request: NextRequest,
+    _request: NextRequest,
     { params }: { params: Promise<{ key: string }> }
 ) {
     try {
+        const supabase = await createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+            return NextResponse.json(
+                { success: false, error: 'Unauthorized' },
+                { status: 401 }
+            );
+        }
+
         const { key } = await params;
 
         if (!key) {
@@ -27,11 +38,7 @@ export async function GET(
             );
         }
 
-        // In production, add authentication check here:
-        // const session = await getServerSession();
-        // if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-        const value = await getSecret(key);
+        const value = await getSecret(key, user.id);
 
         if (value === null) {
             return NextResponse.json(

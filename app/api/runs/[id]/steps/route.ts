@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
 
         // Verify run ownership first
         const { data: run, error: runError } = await supabase
-            .from('rune_runs')
+            .from('rune_workflow_runs')
             .select('id')
             .eq('id', runId)
             .eq('user_id', user.id)

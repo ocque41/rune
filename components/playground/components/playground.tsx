@@ -436,7 +436,11 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
             // Get headers for session status
             const responseChatId = response.headers.get('X-Chat-Id');
             const sessionStatus = response.headers.get('X-Session-Status');
-            const sessionId = response.headers.get('X-Session-Id');
+            const responseSessionId = response.headers.get('X-Session-Id');
+
+            if (responseSessionId) {
+                setSessionId(responseSessionId);
+            }
 
             if (responseChatId && !currentChatId) {
                 // IMPORTANT: Update store immediately so subsequent requests use this ID
@@ -472,11 +476,11 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
             }
 
             // Check if we need to auto-continue
-            if (sessionStatus === 'paused' && sessionId && autonomousMode) {
-                setActiveSessionId(sessionId);
+            if (sessionStatus === 'paused' && responseSessionId && autonomousMode) {
+                setActiveSessionId(responseSessionId);
                 setOutput(prev => prev + '\n[Auto-continuing...]\n');
                 // Auto-trigger next batch after a small delay
-                setTimeout(() => handleSubmit(sessionId), 500);
+                setTimeout(() => handleSubmit(responseSessionId), 500);
                 return; // Don't clear state yet
             }
 
@@ -844,17 +848,23 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                                 {msg.role === 'assistant' && msg.id && msg.toolCalls && (
                                                     <div className="flex gap-3 self-start max-w-[85%] pl-3">
                                                         {/* Check if approval is needed (e.g. status='pending' or just present) */}
-                                                        {(msg as any).approval_status && (
+                                                        {msg.approval_status && (
                                                             <ApprovalCard
                                                                 messageId={msg.id!}
                                                                 toolCalls={msg.toolCalls}
-                                                                status={(msg as any).approval_status}
+                                                                status={msg.approval_status}
                                                                 onAction={(decision) => {
-                                                                    // Optimistic update
-                                                                    (msg as any).approval_status = decision;
+                                                                    setMessages(messages.map((m) =>
+                                                                        m.id === msg.id ? { ...m, approval_status: decision } : m
+                                                                    ));
                                                                     // Trigger re-run if approved
                                                                     if (decision === 'approved') {
-                                                                        handleSubmit(msg.id!);
+                                                                        const resumeId = activeSessionId || sessionId;
+                                                                        if (resumeId) {
+                                                                            handleSubmit(resumeId);
+                                                                        } else {
+                                                                            toast.info('Approval saved. Send a follow-up message to continue.');
+                                                                        }
                                                                     }
                                                                 }}
                                                             />
@@ -1318,4 +1328,3 @@ function ToolItem({ tool, active, onToggle }: { tool: AgentToolDef, active: bool
         </div>
     );
 }
-
