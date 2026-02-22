@@ -29,6 +29,8 @@ export default function TwilioMessageNode({ id, data, selected }: NodeProps<Cust
       subtitle="Twilio message"
       icon={<MessageSquareText size={16} />}
       status={data.status}
+      tone="integration"
+      categoryLabel="Messaging"
       summary={summary}
       onOpenSettings={() => openNodeConfig(id)}
       className="min-w-[300px]"

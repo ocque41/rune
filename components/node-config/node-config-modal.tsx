@@ -118,7 +118,7 @@ export function NodeConfigModal() {
       <DialogContent
         ref={panelRef}
         showCloseButton={false}
-        className="w-screen h-[100dvh] max-w-none rounded-none p-0 border-0 bg-[color:var(--bg)] text-[color:var(--text)]"
+        className="left-0 top-0 h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 rounded-none border-0 p-0 bg-[color:var(--bg)] text-[color:var(--text)]"
         onEscapeKeyDown={(event) => {
           event.preventDefault();
           closeNodeConfig(false);
@@ -221,7 +221,7 @@ export function NodeConfigModal() {
             </ScrollArea>
           </div>
 
-          <footer className="sticky bottom-0 border-t border-[color:var(--border-color)] bg-[color:var(--bg)]/95 backdrop-blur px-6 py-4">
+          <footer className="mt-auto border-t border-[color:var(--border-color)] bg-[color:var(--bg)]/95 px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
             <div className="flex items-center justify-between gap-3">
               <div className="text-xs text-[color:var(--muted)]">
                 {modalState.isDirty ? 'Unsaved changes' : 'No pending changes'}

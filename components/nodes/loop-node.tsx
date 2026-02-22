@@ -24,6 +24,8 @@ export default function LoopNode({ id, data, selected }: NodeProps<CustomLoopNod
       subtitle="Iterate over a collection"
       icon={<Repeat size={16} />}
       status={data.status}
+      tone="logic"
+      categoryLabel="Logic"
       summary={data.items ? `Items: ${data.items}` : 'No items expression configured'}
       onOpenSettings={() => openNodeConfig(id)}
       className="min-w-[280px]"

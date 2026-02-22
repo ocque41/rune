@@ -38,6 +38,8 @@ export default function GroupNode({ id, data, selected }: NodeProps<CustomGroupN
         subtitle={isCollapsed ? 'Collapsed group' : 'Expanded group'}
         icon={<Group size={16} />}
         status={data.status}
+        tone="group"
+        categoryLabel="Container"
         summary={isCollapsed ? 'Click chevron to expand group nodes.' : 'Use group to organize related steps.'}
         onOpenSettings={() => openNodeConfig(id)}
         className="min-w-[280px]"

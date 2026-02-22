@@ -31,6 +31,8 @@ export default function CustomCodeNode({ id, data, selected }: NodeProps<CustomC
       subtitle={`${data.language || 'javascript'} · ${data.entrypoint || 'handler'}`}
       icon={<Code size={16} />}
       status={data.status}
+      tone="logic"
+      categoryLabel="Compute"
       summary={data.code ? `Code configured (${data.code.length} chars)` : 'No code configured'}
       onOpenSettings={() => openNodeConfig(id)}
       className="min-w-[300px]"

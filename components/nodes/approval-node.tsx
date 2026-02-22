@@ -25,6 +25,8 @@ export const ApprovalNode = ({ id, data, selected }: NodeProps<CustomApprovalNod
       subtitle="Human-in-the-loop gate"
       icon={<UserCheck size={16} />}
       status={data.status}
+      tone="safety"
+      categoryLabel="Approval"
       summary={`Approver: ${data.approverEmail || 'Not set'}${data.timeout ? ` · Timeout: ${data.timeout}` : ''}`}
       onOpenSettings={() => openNodeConfig(id)}
       className="min-w-[280px]"

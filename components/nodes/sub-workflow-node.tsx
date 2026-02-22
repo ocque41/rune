@@ -28,6 +28,8 @@ const SubWorkflowNode = ({ id, data, selected }: NodeProps<CustomSubWorkflowNode
       subtitle="Invoke another workflow"
       icon={<Workflow size={16} />}
       status={data.status}
+      tone="data"
+      categoryLabel="Orchestration"
       summary={summary}
       onOpenSettings={() => openNodeConfig(id)}
       className="min-w-[280px]"

@@ -24,6 +24,8 @@ export const AINode = ({ id, data, selected }: NodeProps<any>) => {
       subtitle={data.model || 'Model not selected'}
       icon={<Sparkles size={16} />}
       status={data.status}
+      tone="ai"
+      categoryLabel="AI"
       summary={data.prompt ? `Prompt configured (${String(data.prompt).length} chars)` : 'Prompt not configured'}
       onOpenSettings={() => openNodeConfig(id)}
       className="min-w-[300px]"

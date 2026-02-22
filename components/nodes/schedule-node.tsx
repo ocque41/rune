@@ -24,6 +24,8 @@ export const ScheduleNode = ({ id, data, selected }: NodeProps<any>) => {
       subtitle="Time-based trigger"
       icon={<Clock size={16} />}
       status={data.status}
+      tone="trigger"
+      categoryLabel="Trigger"
       summary={summary}
       onOpenSettings={() => openNodeConfig(id)}
       className="min-w-[280px]"

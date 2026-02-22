@@ -25,6 +25,8 @@ const ParallelNode = ({ id, data, selected }: NodeProps<CustomParallelNode>) => 
       subtitle="Run branches concurrently"
       icon={<GitMerge size={16} className="rotate-90" />}
       status={data.status}
+      tone="logic"
+      categoryLabel="Parallel"
       summary={`Branches: ${branches}`}
       onOpenSettings={() => openNodeConfig(id)}
       className="min-w-[280px]"

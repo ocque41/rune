@@ -24,6 +24,8 @@ export const TransformNode = ({ id, data, selected }: NodeProps<any>) => {
       subtitle={`${type.toUpperCase()} mapping`}
       icon={<Code size={16} />}
       status={data.status}
+      tone="data"
+      categoryLabel="Transform"
       summary={data.mapping ? `Expression configured` : 'No transform expression configured'}
       onOpenSettings={() => openNodeConfig(id)}
       className="min-w-[280px]"

@@ -27,6 +27,8 @@ export default function BatchProcessNode({ id, data, selected }: NodeProps<Custo
       subtitle="Run sub-workflow per item"
       icon={<Package size={16} />}
       status={data.status}
+      tone="data"
+      categoryLabel="Batch"
       summary={`Workflow: ${data.workflowId || 'Not set'} · Concurrency: ${data.concurrency || 1}`}
       onOpenSettings={() => openNodeConfig(id)}
       className="min-w-[300px]"

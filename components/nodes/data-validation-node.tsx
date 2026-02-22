@@ -26,6 +26,8 @@ export default function DataValidationNode({ id, data, selected }: NodeProps<Cus
       subtitle="Validate payload against schema"
       icon={<CheckSquare size={16} />}
       status={data.status}
+      tone="safety"
+      categoryLabel="Guard"
       summary={`Path: ${data.dataPath || 'params'} · Failure: ${data.onFailure || 'failWorkflow'}`}
       onOpenSettings={() => openNodeConfig(id)}
       className="min-w-[300px]"

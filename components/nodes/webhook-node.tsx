@@ -37,6 +37,8 @@ export default function WebhookNode({ id, data, selected }: NodeProps<CustomNode
       subtitle={`Method: ${data.method || 'POST'}`}
       icon={<Globe size={16} />}
       status={data.status}
+      tone="trigger"
+      categoryLabel="Trigger"
       summary={webhookUrl}
       onOpenSettings={() => openNodeConfig(id)}
       className="min-w-[320px]"

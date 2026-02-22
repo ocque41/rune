@@ -24,6 +24,8 @@ export default function IfNode({ id, data, selected }: NodeProps<CustomIfNode>) 
       subtitle="Conditional routing"
       icon={<Split size={16} />}
       status={data.status}
+      tone="logic"
+      categoryLabel="Logic"
       summary={data.condition ? `Condition: ${data.condition}` : 'No condition configured'}
       onOpenSettings={() => openNodeConfig(id)}
       className="min-w-[280px]"

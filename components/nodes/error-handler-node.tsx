@@ -32,9 +32,11 @@ export default function ErrorHandlerNode({ id, data, selected }: NodeProps<any>)
       subtitle="Failure routing"
       icon={<AlertTriangle size={16} />}
       status={data.status}
+      tone="safety"
+      categoryLabel="Recovery"
       summary={`Action: ${data.actionType || 'email'}`}
       onOpenSettings={() => openNodeConfig(id)}
-      className="min-w-[280px] border-red-500/40"
+      className="min-w-[280px]"
       handles={[
         { type: 'target', position: Position.Top },
         { type: 'source', position: Position.Bottom },
