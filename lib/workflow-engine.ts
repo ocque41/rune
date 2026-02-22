@@ -4,6 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { saveRun, updateRunStatus, updateStepExecution, setRunWaiting, WorkflowRun, StepExecution, appendLog } from './run-store';
 import { ingestAutonomyEvent } from '@/lib/autonomy/events';
 import jsonata from 'jsonata';
+import { getNodeKindDisplayName, resolveNodeKind } from './workflow/node-catalog';
 
 type ExecutionContext = {
     runId: string;
@@ -53,11 +54,10 @@ export class WorkflowEngine {
             }
         } else {
             // 2. Auto-detect triggers if no specific ID provided
-            const triggerNodes = this.nodes.filter(n =>
-                (n.type === 'step' && n.data.label === 'Start Workflow') ||
-                n.type === 'webhook' ||
-                n.type === 'schedule'
-            );
+            const triggerNodes = this.nodes.filter((node) => {
+                const kind = resolveNodeKind(node as any);
+                return kind === 'startWorkflow' || kind === 'webhook' || kind === 'schedule';
+            });
 
             if (triggerNodes.length === 0) {
                 throw new Error('No valid Trigger node found (Start, Webhook, or Schedule)');
@@ -66,10 +66,10 @@ export class WorkflowEngine {
             if (triggerNodes.length === 1) {
                 startNode = triggerNodes[0];
             } else {
-                startNode = triggerNodes.find(n => n.data.label === 'Start Workflow');
+                startNode = triggerNodes.find((node) => resolveNodeKind(node as any) === 'startWorkflow');
                 if (!startNode) {
                     startNode = triggerNodes[0];
-                    this.log('warn', `Multiple triggers found. Defaulting to ${startNode.data.label || startNode.id}`);
+                    this.log('warn', `Multiple triggers found. Defaulting to ${this.getNodeLabel(startNode)}`);
                 }
             }
         }
@@ -196,8 +196,9 @@ export class WorkflowEngine {
      */
     private async executeNode(nodeId: string, input: any, queue: { nodeId: string; input: any }[]) {
         const node = this.nodes.find(n => n.id === nodeId)!;
+        const nodeKind = resolveNodeKind(node as any);
         const data = node.data as any;
-        const label = data.label;
+        const label = this.getNodeLabel(node);
 
         const startTime = new Date().toISOString();
         const stepId = crypto.randomUUID();
@@ -210,56 +211,59 @@ export class WorkflowEngine {
         let errorMsg: string | undefined;
 
         try {
-            switch (label) {
-                case 'Start Workflow':
+            switch (nodeKind) {
+                case 'startWorkflow':
                     result = input;
                     break;
 
-                case 'HTTP Request':
+                case 'httpRequest':
                     result = await this.executeHttpRequest(data, input);
                     break;
 
-                case 'Send Email':
+                case 'sendEmail':
                     result = await this.executeSendEmail(data, input);
                     break;
 
-                case 'Run Script':
+                case 'runScript':
                     result = await this.executeScript(data, input);
                     break;
 
-                case 'Transform':
+                case 'transform':
                     result = await this.executeTransform(data, input);
                     break;
 
-                case 'error':
+                case 'errorHandler':
                     result = await this.executeErrorHandler(data, input);
                     break;
 
-                case 'AI Generate':
+                case 'ai':
                     result = await this.executeAiGenerate(data, input);
                     break;
                 
-                case 'Data Validation': // New case
+                case 'dataValidation':
                     result = await this.executeDataValidation(data, input);
                     break;
 
-                case 'Send SMS (Twilio)': // New case
+                case 'twilioMessage':
                     result = await this.executeTwilioMessage(data, input);
                     break;
 
-                case 'If / Else':
-                case 'if': // handle type check for newer nodes
+                case 'ifElse':
                     const conditionResult = await this.evaluateCondition(data, input);
                     result = { condition: conditionResult };
                     // Special handling for edge traversal
                     this.handleIfElseTraversal(node, conditionResult, input, queue);
                     return; // Return early, handled traversal manually
 
-                // TODO: Add more steps (DB, AI, etc.)
-
                 default:
-                    // Pass through for now
-                    result = { ...input, message: 'Step not implemented in runner yet' };
+                    if (node.type === 'if') {
+                        const conditionResult = await this.evaluateCondition(data, input);
+                        result = { condition: conditionResult };
+                        this.handleIfElseTraversal(node, conditionResult, input, queue);
+                        return;
+                    }
+                    // Pass through for unsupported kinds for backward compatibility.
+                    result = { ...input, message: `Step ${label} not implemented in runner yet` };
                     break;
             }
         } catch (err: any) {
@@ -482,6 +486,14 @@ export class WorkflowEngine {
     }
 
     // --- Helpers ---
+
+    private getNodeLabel(node: Node): string {
+        const label = (node.data as any)?.label;
+        if (typeof label === 'string' && label.trim().length > 0) {
+            return label;
+        }
+        return getNodeKindDisplayName(resolveNodeKind(node as any));
+    }
 
     async executeErrorHandler(data: any, input: any) {
         const { actionType, config } = data;

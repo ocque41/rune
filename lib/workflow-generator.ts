@@ -4,11 +4,23 @@ import path from 'path';
 // Import versioning utilities
 import { generateVersionId, saveWorkflowVersion, updateWorkflowMetadata } from './workflow-versioning';
 import { getStreamWritable } from './workflow/runtime/streams';
+import { getNodeKindDisplayName, resolveNodeKind } from './workflow/node-catalog';
 
-export function generateWorkflowCode(workflowId: string, nodes: Node[], edges: Edge[]): string {
+export function generateWorkflowCode(workflowId: string, nodes: Node[], edges: Edge[]): string;
+export function generateWorkflowCode(nodes: Node[], edges: Edge[]): string;
+export function generateWorkflowCode(
+  workflowIdOrNodes: string | Node[],
+  nodesOrEdges: Node[] | Edge[],
+  maybeEdges?: Edge[],
+): string {
+  const workflowId = typeof workflowIdOrNodes === 'string' ? workflowIdOrNodes : 'workflow';
+  const nodes = ((typeof workflowIdOrNodes === 'string' ? nodesOrEdges : workflowIdOrNodes) ?? []) as Node[];
+  const edges = ((typeof workflowIdOrNodes === 'string' ? maybeEdges : nodesOrEdges) ?? []) as Edge[];
+
   const usedStepFunctions = new Set<string>();
   const usedImports = new Set<string>();
   const usedHelperFunctions = new Set<string>();
+  usedHelperFunctions.add('wrapWithRetry');
 
   usedImports.add(`import { sleep, resumeHook, createHook, getSecret } from "workflow";`);
   usedImports.add(`import { getStreamWritable } from '@/lib/workflow/runtime/streams';`);
@@ -16,7 +28,7 @@ export function generateWorkflowCode(workflowId: string, nodes: Node[], edges: E
   // Collect unique Sub-Workflow IDs
   const subWorkflowIds = Array.from(new Set(
     nodes
-      .filter(n => n.data.label === 'Sub-Workflow' || n.type === 'subWorkflow' || n.type === 'batchProcess') // Added n.type === 'batchProcess'
+      .filter(n => resolveNodeKind(n as any) === 'subWorkflow' || n.type === 'batchProcess')
       .map(n => (n.data as any).workflowId)
       .filter(Boolean)
   ));
@@ -994,7 +1006,7 @@ export const sendTwilioMessage = async (params: {
 
 
   // 2. Build Workflow Logic
-  const startNode = nodes.find((n) => n.data.label === 'Start Workflow');
+  const startNode = nodes.find((n) => resolveNodeKind(n as any) === 'startWorkflow');
   let workflowBody = '';
 
   if (startNode) {
@@ -1413,15 +1425,17 @@ function traverseGraph(
 }
 
 function generateNodeCall(node: Node, runId: string, usedStepFunctions: Set<string>, usedImports: Set<string>, usedHelperFunctions: Set<string>): string {
+  const nodeKind = resolveNodeKind(node as any);
+
   // Handle Sleep nodes specifically
-  if (node.data.label === 'Sleep') {
+  if (nodeKind === 'sleep') {
     usedStepFunctions.add('sleep'); // Mark sleep as used
     const duration = (node.data as any).config?.timeout || (node.data as any).duration || '5s';
     return `\n    await sleep("${duration}");`;
   }
 
   // Handle HTTP Request nodes
-  if (node.data.label === 'HTTP Request') {
+  if (nodeKind === 'httpRequest') {
     usedStepFunctions.add('makeHttpRequest'); // Mark makeHttpRequest as used
     usedHelperFunctions.add('wrapWithRetry'); // Mark wrapWithRetry as used
 
@@ -1444,7 +1458,7 @@ function generateNodeCall(node: Node, runId: string, usedStepFunctions: Set<stri
   }
 
   // Handle Send Email nodes
-  if (node.data.label === 'Send Email') {
+  if (nodeKind === 'sendEmail') {
     usedStepFunctions.add('sendEmail'); // Mark sendEmail as used
     usedHelperFunctions.add('wrapWithRetry'); // Mark wrapWithRetry as used
 
@@ -1465,7 +1479,7 @@ function generateNodeCall(node: Node, runId: string, usedStepFunctions: Set<stri
   }
 
   // Handle Database Query nodes
-  if (node.data.label === 'Database Query') {
+  if (nodeKind === 'databaseQuery') {
     usedHelperFunctions.add('wrapWithRetry'); // Mark wrapWithRetry as used
 
     const config = (node.data as any).dbConfig || {};
@@ -1498,7 +1512,7 @@ function generateNodeCall(node: Node, runId: string, usedStepFunctions: Set<stri
   }
 
   // Handle Run Script nodes
-  if (node.data.label === 'Run Script') {
+  if (nodeKind === 'runScript') {
     usedStepFunctions.add('runScript'); // Mark runScript as used
     usedHelperFunctions.add('wrapWithRetry'); // Mark wrapWithRetry as used
 
@@ -1516,7 +1530,7 @@ function generateNodeCall(node: Node, runId: string, usedStepFunctions: Set<stri
   }
 
   // Handle Slack Message nodes
-  if (node.data.label === 'Slack Message') {
+  if (nodeKind === 'slackMessage') {
     usedStepFunctions.add('sendSlackMessage'); // Mark sendSlackMessage as used
     usedHelperFunctions.add('wrapWithRetry'); // Mark wrapWithRetry as used
 
@@ -1537,7 +1551,7 @@ function generateNodeCall(node: Node, runId: string, usedStepFunctions: Set<stri
   }
 
   // Handle Stream nodes
-  if (node.data.label === 'Stream') {
+  if (nodeKind === 'stream') {
     usedStepFunctions.add('streamUpdate'); // Mark streamUpdate as used
     usedHelperFunctions.add('wrapWithRetry'); // Mark wrapWithRetry as used
 
@@ -1553,7 +1567,7 @@ function generateNodeCall(node: Node, runId: string, usedStepFunctions: Set<stri
   }
 
   // Handle Wait for Event nodes
-  if (node.data.label === 'Wait for Event') {
+  if (nodeKind === 'waitForEvent') {
     usedStepFunctions.add('waitForEvent'); // Mark waitForEvent as used
     usedHelperFunctions.add('wrapWithRetry'); // Mark wrapWithRetry as used
 
@@ -1571,7 +1585,7 @@ function generateNodeCall(node: Node, runId: string, usedStepFunctions: Set<stri
   }
 
   // Handle Sub-Workflow nodes
-  if (node.data.label === 'Sub-Workflow') {
+  if (nodeKind === 'subWorkflow') {
     const workflowId = (node.data as any).workflowId || 'leadQualification';
     usedStepFunctions.add(workflowId); // Mark the specific sub-workflow as used
     usedHelperFunctions.add('wrapWithRetry'); // Mark wrapWithRetry as used
@@ -1587,7 +1601,7 @@ function generateNodeCall(node: Node, runId: string, usedStepFunctions: Set<stri
   }
 
   // Handle Custom Code nodes
-  if (node.type === 'customCode') {
+  if (nodeKind === 'customCode') {
     usedStepFunctions.add('executeCustomCode'); // Mark executeCustomCode as used
     usedHelperFunctions.add('wrapWithRetry'); // Mark wrapWithRetry as used
 
@@ -1610,7 +1624,11 @@ function generateNodeCall(node: Node, runId: string, usedStepFunctions: Set<stri
 
   // Handle regular step nodes
   if (node.type === 'step') {
-    const functionName = toCamelCase(node.data.label as string);
+    const rawLabel = (node.data as any).label;
+    const label = typeof rawLabel === 'string' && rawLabel.trim().length > 0
+      ? rawLabel
+      : getNodeKindDisplayName(nodeKind);
+    const functionName = toCamelCase(label);
     // usedGenericStepFunctions.add(functionName); // Removed undefined variable
     usedStepFunctions.add(functionName); // Also add to the main usedStepFunctions set
     return `\n    await ${functionName}({});`;
@@ -1780,7 +1798,7 @@ export async function emitNodeStatus(nodeId: string, status: string, runId: stri
 }
 
 function generateScheduleConfig(nodes: Node[]): string {
-  const scheduleNode = nodes.find(n => n.type === 'schedule' || n.data.label === 'Schedule');
+  const scheduleNode = nodes.find(n => resolveNodeKind(n as any) === 'schedule');
   if (scheduleNode) {
     const config = (scheduleNode.data as any).scheduleConfig || {};
     const cron = config.cronExpression || '*/5 * * * *';

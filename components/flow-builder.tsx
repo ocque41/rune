@@ -55,6 +55,9 @@ import DataValidationNode from './nodes/data-validation-node';
 import SecretsManagerDrawer from './secrets-manager-drawer'; // Import the new component
 import GroupNode from './nodes/group-node';
 import TwilioMessageNode from './nodes/twilio-message-node';
+import { NodeConfigProvider } from '@/components/node-config/node-config-context';
+import { NodeConfigModal } from '@/components/node-config/node-config-modal';
+import { inferKindFromLegacyLabel, resolveNodeKind } from '@/lib/workflow/node-catalog';
 
 // Define a type for the data property of a node, extending ReactFlow's default Node data
 interface RuneNodeData {
@@ -90,7 +93,7 @@ const initialNodes: Node<RuneNodeData>[] = [
         id: '1',
         type: 'step',
         position: { x: 250, y: 50 },
-        data: { label: 'Start Workflow', description: 'Triggered manually' },
+        data: { label: 'Start Workflow', description: 'Triggered manually', kind: 'startWorkflow' },
     },
 ];
 
@@ -680,6 +683,7 @@ const FlowBuilderContent = ({
 
             const type = event.dataTransfer.getData('application/reactflow');
             const label = event.dataTransfer.getData('application/reactflow/label');
+            const draggedKind = event.dataTransfer.getData('application/reactflow/kind');
 
             // check if the dropped element is valid
             if (typeof type === 'undefined' || !type) {
@@ -695,7 +699,10 @@ const FlowBuilderContent = ({
                 id: getId(),
                 type,
                 position,
-                data: { label: label || `${type} node` },
+                data: {
+                    label: label || `${type} node`,
+                    kind: draggedKind || inferKindFromLegacyLabel(label || `${type} node`, type),
+                },
             };
 
             setNodes((nds) => nds.concat(newNode));
@@ -962,12 +969,13 @@ const FlowBuilderContent = ({
     }, [setNodes, setEdges]);
 
     // Check if start node exists
-    const hasStartNode = nodes.some(n => n.data.label === 'Start Workflow');
+    const hasStartNode = nodes.some((n) => resolveNodeKind(n as any) === 'startWorkflow');
 
     return (
-        <div className="flex h-[calc(100vh-64px)] w-full flex-row overflow-hidden relative" style={{
-            backgroundColor: '#000000'
-        }}>
+        <NodeConfigProvider nodes={nodes} setNodes={setNodes}>
+            <div className="flex h-[calc(100vh-64px)] w-full flex-row overflow-hidden relative" style={{
+                backgroundColor: '#000000'
+            }}>
             <Sidebar
                 hasStartNode={hasStartNode}
                 workflowId={workflowId}
@@ -1823,7 +1831,9 @@ const FlowBuilderContent = ({
                     <AutoPilotContainer workflowId={workflowId} />
                 </RuneDrawer>
             </div>
-        </div>
+            <NodeConfigModal />
+            </div>
+        </NodeConfigProvider>
     );
 };
 
@@ -1892,4 +1902,3 @@ export const FlowBuilder = ({ initialWorkflowId }: { initialWorkflowId?: string 
         </ReactFlowProvider>
     );
 };
-

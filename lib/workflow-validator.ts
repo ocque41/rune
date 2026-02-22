@@ -1,4 +1,5 @@
 import { Node, Edge } from '@xyflow/react';
+import { resolveNodeKind } from './workflow/node-catalog';
 
 export type ValidationError = {
     type: 'error' | 'warning';
@@ -13,6 +14,14 @@ export type ValidationResult = {
     warnings: ValidationError[];
 };
 
+function getNodeLabel(node: Node): string {
+    const label = (node.data as any)?.label;
+    if (typeof label === 'string' && label.trim().length > 0) {
+        return label;
+    }
+    return node.id;
+}
+
 /**
  * Main validation function for workflow graphs
  */
@@ -21,11 +30,10 @@ export function validateGraph(nodes: Node[], edges: Edge[]): ValidationResult {
     const warnings: ValidationError[] = [];
 
     // Find trigger node(s)
-    const triggerNodes = nodes.filter(n =>
-        (n.type === 'step' && n.data.label === 'Start Workflow') ||
-        n.type === 'webhook' ||
-        n.type === 'schedule'
-    );
+    const triggerNodes = nodes.filter((node) => {
+        const kind = resolveNodeKind(node as any);
+        return kind === 'startWorkflow' || kind === 'webhook' || kind === 'schedule';
+    });
 
     if (triggerNodes.length === 0) {
         errors.push({
@@ -46,7 +54,7 @@ export function validateGraph(nodes: Node[], edges: Edge[]): ValidationResult {
         const node = nodes.find(n => n.id === nodeId);
         warnings.push({
             type: 'warning',
-            message: `Node "${node?.data.label || nodeId}" is not connected to the workflow`,
+            message: `Node "${node ? getNodeLabel(node) : nodeId}" is not connected to the workflow`,
             nodeId,
             code: 'DISCONNECTED_NODE'
         });
@@ -156,33 +164,35 @@ function detectCycles(nodes: Node[], edges: Edge[], startNodeId: string): string
  */
 function validateNodeConfiguration(node: Node): ValidationError[] {
     const errors: ValidationError[] = [];
+    const nodeKind = resolveNodeKind(node as any);
+    const nodeLabel = getNodeLabel(node);
 
     // Check for required fields based on node type
-    if (node.data.label === 'HTTP Request') {
+    if (nodeKind === 'httpRequest') {
         const config = (node.data as any).httpRequest;
         if (!config?.url) {
             errors.push({
                 type: 'error',
-                message: `HTTP Request node "${node.data.label}" is missing URL`,
+                message: `HTTP Request node "${nodeLabel}" is missing URL`,
                 nodeId: node.id,
                 code: 'MISSING_REQUIRED_FIELD'
             });
         }
     }
 
-    if (node.data.label === 'Send Email') {
+    if (nodeKind === 'sendEmail') {
         const config = (node.data as any).emailConfig;
         if (!config?.recipient) {
             errors.push({
                 type: 'warning',
-                message: `Email node "${node.data.label}" is missing recipient`,
+                message: `Email node "${nodeLabel}" is missing recipient`,
                 nodeId: node.id,
                 code: 'MISSING_RECOMMENDED_FIELD'
             });
         }
     }
 
-    if (node.data.label === 'Database Query') {
+    if (nodeKind === 'databaseQuery') {
         const config = (node.data as any).dbConfig;
         const dbType = config?.dbType || 'postgres';
 
@@ -237,7 +247,7 @@ function validateNodeConfiguration(node: Node): ValidationError[] {
         }
     }
 
-    if (node.data.label === 'Sub-Workflow') {
+    if (nodeKind === 'subWorkflow') {
         const workflowId = (node.data as any).workflowId;
         if (!workflowId) {
             errors.push({

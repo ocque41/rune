@@ -1,5 +1,5 @@
-import { Node, Edge } from '@xyflow/react';
-import { generateWorkflowCode } from './workflow-generator';
+import { Edge, Node } from '@xyflow/react';
+import { getNodeKindDisplayName, resolveNodeKind } from './workflow/node-catalog';
 
 export type SimulationLogEntry =
   | {
@@ -37,6 +37,15 @@ export type ValidationIssue = {
   message: string;
 };
 
+function getNodeLabel(node: Node): string {
+  const label = (node.data as any)?.label;
+  if (typeof label === 'string' && label.trim().length > 0) {
+    return label;
+  }
+
+  return getNodeKindDisplayName(resolveNodeKind(node as any));
+}
+
 /**
  * Validate the workflow configuration before running
  */
@@ -45,14 +54,15 @@ export function validateWorkflowConfig(nodes: Node[], edges: Edge[]): Validation
 
   // 1. Check for isolated nodes (except Start)
   nodes.forEach(node => {
-    if (node.data.label === 'Start Workflow') return;
+    const nodeKind = resolveNodeKind(node as any);
+    if (nodeKind === 'startWorkflow') return;
 
     const hasIncoming = edges.some(e => e.target === node.id);
     if (!hasIncoming) {
       issues.push({
         nodeId: node.id,
         severity: 'warning',
-        message: `Node "${node.data.label}" is disconnected (no incoming edges).`
+        message: `Node "${getNodeLabel(node)}" is disconnected (no incoming edges).`
       });
     }
   });
@@ -60,24 +70,24 @@ export function validateWorkflowConfig(nodes: Node[], edges: Edge[]): Validation
   // 2. config checks
   nodes.forEach(node => {
     const data = node.data as any;
-    const label = data.label;
+    const nodeKind = resolveNodeKind(node as any);
 
-    if (label === 'HTTP Request') {
+    if (nodeKind === 'httpRequest') {
       if (!data.httpRequest?.url) {
         issues.push({ nodeId: node.id, severity: 'error', message: 'HTTP Request missing URL.' });
       }
     }
-    if (label === 'Send Email') {
+    if (nodeKind === 'sendEmail') {
       if (!data.emailConfig?.recipient) {
         issues.push({ nodeId: node.id, severity: 'error', message: 'Send Email missing recipient.' });
       }
     }
-    if (label === 'Database Query') {
+    if (nodeKind === 'databaseQuery') {
       if (!data.dbConfig?.connectionString && data.dbConfig?.dbType !== 'generic') {
         issues.push({ nodeId: node.id, severity: 'warning', message: 'Database Query missing connection string.' });
       }
     }
-    if (label === 'Slack Message') {
+    if (nodeKind === 'slackMessage') {
       if (!data.slackConfig?.webhookUrl) {
         issues.push({ nodeId: node.id, severity: 'error', message: 'Slack Message missing Webhook URL.' });
       }
@@ -113,15 +123,19 @@ export async function simulateWorkflow(
 
   addLog('system', 'System', 'Starting simulation...', 'info', initialInput);
 
-  // Find Start Node
-  const startNode = nodes.find(n => n.data.label === 'Start Workflow');
+  // Find Start Node (or fallback trigger if missing)
+  const startNode = nodes.find(n => resolveNodeKind(n as any) === 'startWorkflow')
+    ?? nodes.find((n) => {
+      const kind = resolveNodeKind(n as any);
+      return kind === 'webhook' || kind === 'schedule';
+    });
+
   if (!startNode) {
-    addLog('system', 'System', 'No "Start Workflow" node found.', 'error');
+    addLog('system', 'System', 'No "Start Workflow" node found (or other trigger node).', 'error');
     return { success: false, logs, outputs };
   }
 
   const queue: { nodeId: string; input: any }[] = [{ nodeId: startNode.id, input: initialInput }];
-  const visited = new Set<string>();
   const executionCounts: Record<string, number> = {}; // For loop safety
 
   while (queue.length > 0) {
@@ -137,7 +151,8 @@ export async function simulateWorkflow(
     const node = nodes.find(n => n.id === nodeId);
     if (!node) continue;
     const data = node.data as any;
-    const label = data.label;
+    const nodeKind = resolveNodeKind(node as any);
+    const label = getNodeLabel(node);
 
     addLog(nodeId, label, `Executing ${label}`, 'info', { input });
 
@@ -146,22 +161,22 @@ export async function simulateWorkflow(
 
     try {
       // --- Step Execution Logic ---
-      if (label === 'HTTP Request') {
+      if (nodeKind === 'httpRequest') {
         result = {
           status: 200,
           data: { simulated: true, message: 'Mock HTTP Response', url: data.httpRequest?.url }
         };
         addLog(nodeId, label, `Mock HTTP ${data.httpRequest?.method} to ${data.httpRequest?.url}`, 'success', result);
       }
-      else if (label === 'Send Email') {
+      else if (nodeKind === 'sendEmail') {
         result = { status: 'sent', recipient: data.emailConfig?.recipient };
         addLog(nodeId, label, `Mock Email sent to ${data.emailConfig?.recipient}`, 'success', result);
       }
-      else if (label === 'Database Query') {
+      else if (nodeKind === 'databaseQuery') {
         result = { status: 'success', rows: [{ id: 1, mock: true }], rowCount: 1 };
         addLog(nodeId, label, `Mock DB Query (${data.dbConfig?.dbType}) executed`, 'success', result);
       }
-      else if (label === 'Run Script') {
+      else if (nodeKind === 'runScript') {
         // Safe(ish) eval provided it's user's own code. 
         // We use new Function()
         const code = data.scriptConfig?.code || '';
@@ -174,7 +189,7 @@ export async function simulateWorkflow(
           throw new Error(`Script error: ${e.message}`);
         }
       }
-      else if (label === 'Transform') {
+      else if (nodeKind === 'transform') {
         const expr = data.transformConfig?.expression || 'return params;';
         try {
           const fn = new Function('params', expr);
@@ -185,7 +200,7 @@ export async function simulateWorkflow(
           throw new Error(`Transform error: ${e.message}`);
         }
       }
-      else if (label === 'If / Else' || node.type === 'if') {
+      else if (nodeKind === 'ifElse' || node.type === 'if') {
         // Condition logic
         const condition = data.condition || 'true';
         let conditionResult = false;
@@ -207,7 +222,7 @@ export async function simulateWorkflow(
         }
         result = { condition: conditionResult };
       }
-      else if (label === 'Loop' || node.type === 'loop') {
+      else if (nodeKind === 'loop' || node.type === 'loop') {
         // Simulation: We only run the body ONCE or handle items
         // For now, let's treat it as a pass-through that triggers the body once
         addLog(nodeId, label, 'Simulating loop (1 iteration)', 'info');
@@ -229,27 +244,27 @@ export async function simulateWorkflow(
         }
         result = { simulatedLoop: true };
       }
-      else if (label === 'AI Generation' || node.type === 'ai') {
+      else if (nodeKind === 'ai' || node.type === 'ai') {
         result = { status: 'success', content: 'Mock AI Content', model: data.aiConfig?.model };
         addLog(nodeId, label, `Mock AI generated content`, 'success', result);
       }
-      else if (label === 'Wait for Event') {
+      else if (nodeKind === 'waitForEvent') {
         result = { status: 'received', event: data.waitConfig?.event, data: { simulated: true } };
         addLog(nodeId, label, `Simulated event reception: ${data.waitConfig?.event}`, 'success', result);
       }
-      else if (label === 'Approval') {
+      else if (nodeKind === 'approval') {
         result = { status: 'approved', approver: data.approvalConfig?.approverEmail };
         addLog(nodeId, label, `Simulated approval from ${data.approvalConfig?.approverEmail}`, 'success', result);
       }
-      else if (label === 'Stream') {
+      else if (nodeKind === 'stream') {
         result = { status: 'streamed', message: data.streamConfig?.message };
         addLog(nodeId, label, `Streamed: ${data.streamConfig?.message}`, 'success', result);
       }
-      else if (label === 'Slack Message') {
+      else if (nodeKind === 'slackMessage') {
         result = { status: 'sent', channel: data.slackConfig?.channel };
         addLog(nodeId, label, `Simulated Slack message sent`, 'success', result);
       }
-      else if (label === 'Sleep') {
+      else if (nodeKind === 'sleep') {
         const duration = data.sleepConfig?.duration || '100ms';
         const ms = parseInt(duration) || 100;
         await new Promise(r => setTimeout(r, Math.min(ms, 100))); // Cap at 100ms for simulation
@@ -257,7 +272,7 @@ export async function simulateWorkflow(
         addLog(nodeId, label, `Sleep completed (${duration})`, 'success', result);
       }
       // ... default behavior for others
-      else if (label !== 'Start Workflow') {
+      else if (nodeKind !== 'startWorkflow') {
         // Generic step fallback
         addLog(nodeId, label, `Executed generic step`, 'success');
       }
@@ -266,7 +281,12 @@ export async function simulateWorkflow(
       outputs[nodeId] = result;
 
       // --- Traversal Logic (Standard single output) ---
-      if (node.type !== 'if' && node.type !== 'loop') {
+      const hasCustomTraversal = nodeKind === 'ifElse'
+        || nodeKind === 'loop'
+        || node.type === 'if'
+        || node.type === 'loop';
+
+      if (!hasCustomTraversal) {
         // Find all outgoing edges
         const outgoing = edges.filter(e => e.source === nodeId);
         outgoing.forEach(e => {

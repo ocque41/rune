@@ -29,57 +29,99 @@
 }
 
 :root {
-  /* Brand Spec: Monochrome, High Contrast */
-  --brand-bg: #000000;
-  --brand-fg: #AAAAAA;
+  /* Cumulus Core Brand */
+  --bg: #141414;
+  --title: #FFFFFF;
+  --fg: #F2F2F2;
+  --text: #F2F2F2;
+  --subtitle: #C0C0C0;
+  --muted: #808080;
+
+  /* Rune Surface Aliases */
+  --brand-bg: var(--bg);
+  --brand-fg: var(--fg);
 
   /* Shadcn / Tailwind Tokens */
-  --background: #000000;
-  --foreground: #AAAAAA;
+  --background: var(--bg);
+  --foreground: var(--fg);
 
-  --card: #111111;
-  --card-foreground: #AAAAAA;
+  --card: #1A1A1A;
+  --card-foreground: var(--fg);
 
-  --popover: #111111;
-  --popover-foreground: #AAAAAA;
+  --popover: #1A1A1A;
+  --popover-foreground: var(--fg);
 
-  --primary: #AAAAAA;
-  --primary-foreground: #000000;
+  --primary: #deddd9;
+  --primary-foreground: #171717;
 
-  --secondary: #141414;
-  --secondary-foreground: #AAAAAA;
+  --secondary: #202020;
+  --secondary-foreground: var(--fg);
 
-  --muted: #1F1F1F;
-  --muted-foreground: #AAAAAA;
+  --muted-foreground: var(--muted);
 
-  --accent: #1F1F1F;
-  --accent-foreground: #AAAAAA;
+  --accent: #262626;
+  --accent-foreground: var(--fg);
 
   --destructive: #990000;
-  --destructive-foreground: #AAAAAA;
+  --destructive-foreground: #F2F2F2;
 
-  --border: #1F1F1F;
-  --input: #1F1F1F;
-  --ring: #AAAAAA;
+  --border: #2A2A2A;
+  --input: #2A2A2A;
+  --ring: var(--fg);
 
   --radius: 0.5rem;
 
-  /* Legacy Rune Variables Mapping (Ensures consistent brand even on old components) */
+  /* Legacy Rune Variables */
   --rune-bg: var(--background);
   --rune-fg: var(--foreground);
-  --rune-title: var(--foreground);
+  --rune-title: var(--title);
   --rune-subtitle: var(--muted-foreground);
-  --rune-text: var(--foreground);
+  --rune-text: var(--text);
   --rune-muted: var(--muted-foreground);
 
-  /* Override Legacy Neons to be safer/monochrome if needed, or keep for graphs */
-  /* We leave them for now, but UI using standard utility classes will use the new theme automatically */
+  /* Cross-surface aliases used by docs and legacy components */
+  --foreground-title: var(--title);
+  --foreground-body: var(--text);
+  --foreground-subtitle: var(--subtitle);
+  --border-color: var(--border);
+  --accent-bg: #202020;
+  --accent-text: var(--text);
+  --node-background: var(--card);
+  --header-background: #171717;
 }
 
-/* Force dark mode */
 [data-theme="light"] {
-  --background: #000000;
-  --foreground: #AAAAAA;
+  --bg: #FFFFFF;
+  --title: #000000;
+  --fg: #000000;
+  --text: #141414;
+  --subtitle: #333333;
+  --muted: #888888;
+
+  --background: var(--bg);
+  --foreground: var(--fg);
+  --card: #F8F8F8;
+  --card-foreground: #141414;
+  --popover: #FFFFFF;
+  --popover-foreground: #141414;
+  --primary: #171717;
+  --primary-foreground: #f9f9f9;
+  --secondary: #EFEFEF;
+  --secondary-foreground: #141414;
+  --accent: #EFEFEF;
+  --accent-foreground: #141414;
+  --border: #DDDDDD;
+  --input: #DDDDDD;
+  --ring: #141414;
+
+  --foreground-title: var(--title);
+  --foreground-body: var(--text);
+  --foreground-subtitle: var(--subtitle);
+  --border-color: var(--border);
+  --accent-bg: #F1F1F1;
+  --accent-text: var(--text);
+  --node-background: var(--card);
+  --header-background: #FFFFFF;
 }
 
 html {
@@ -90,9 +132,9 @@ html,
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-anonymous), monospace;
+  font-family: var(--font-drafting), monospace;
   font-weight: 400;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   min-height: 100%;
   overflow-x: hidden;
 }

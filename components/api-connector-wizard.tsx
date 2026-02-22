@@ -16,17 +16,21 @@ import { toast } from 'sonner';
 import { StepNodeData } from './nodes/step-node'; // Assuming StepNodeData is exported from step-node
 
 interface ApiConnectorWizardProps {
-    isOpen: boolean;
-    onOpenChange: (open: boolean) => void;
+    isOpen?: boolean;
+    onOpenChange?: (open: boolean) => void;
     initialHttpRequest: StepNodeData['httpRequest'];
     onSave: (httpRequest: StepNodeData['httpRequest']) => void;
+    embedded?: boolean;
+    onCancel?: () => void;
 }
 
 const ApiConnectorWizard: React.FC<ApiConnectorWizardProps> = ({
-    isOpen,
+    isOpen = false,
     onOpenChange,
     initialHttpRequest,
     onSave,
+    embedded = false,
+    onCancel,
 }) => {
     // Helper for safe parsing
     const safeParseHeaders = (jsonString: string | undefined): Array<{ key: string; value: string }> => {
@@ -95,8 +99,18 @@ const ApiConnectorWizard: React.FC<ApiConnectorWizardProps> = ({
             body: body.trim() === '' ? undefined : body,
         };
         onSave(finalHttpRequest);
-        onOpenChange(false); // Close modal
+        if (onOpenChange) {
+            onOpenChange(false);
+        }
         toast.success('API Request configured!');
+    };
+
+    const handleCancel = () => {
+        if (embedded) {
+            onCancel?.();
+            return;
+        }
+        onOpenChange?.(false);
     };
 
     const renderStep = () => {
@@ -177,57 +191,77 @@ const ApiConnectorWizard: React.FC<ApiConnectorWizardProps> = ({
 
     const stepsTitles = ['Basic Info', 'Headers', 'Body'];
 
-    return (
-        <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-xl bg-background border-border">
+    const content = (
+        <>
+            {!embedded ? (
                 <DialogHeader>
                     <DialogTitle>API Connector Wizard</DialogTitle>
                     <DialogDescription>Configure your HTTP Request step.</DialogDescription>
                 </DialogHeader>
-                <div className="flex flex-col md:flex-row gap-4 p-4">
-                    {/* Step Navigation */}
-                    <div className="md:w-1/4">
-                        <ul className="space-y-2">
-                            {stepsTitles.map((title, index) => (
-                                <li key={title}>
-                                    <Button
-                                        variant={currentStep === index + 1 ? 'default' : 'ghost'}
-                                        onClick={() => setCurrentStep(index + 1)}
-                                        className="w-full justify-start"
-                                    >
-                                        Step {index + 1}: {title}
-                                    </Button>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-
-                    {/* Step Content */}
-                    <div className="md:w-3/4">
-                        {renderStep()}
-                    </div>
+            ) : (
+                <div>
+                    <h3 className="text-base font-semibold text-[color:var(--title)]">API Connector Wizard</h3>
+                    <p className="mt-1 text-sm text-[color:var(--subtitle)]">Guided setup for HTTP request steps.</p>
                 </div>
-                <DialogFooter className="flex-col sm:flex-row sm:justify-between px-4 pb-4">
-                    <Button
-                        variant="outline"
-                        onClick={() => setCurrentStep(currentStep - 1)}
-                        disabled={currentStep === 1}
-                    >
-                        Previous
+            )}
+            <div className={`flex flex-col md:flex-row gap-4 ${embedded ? '' : 'p-4'}`}>
+                {/* Step Navigation */}
+                <div className="md:w-1/4">
+                    <ul className="space-y-2">
+                        {stepsTitles.map((title, index) => (
+                            <li key={title}>
+                                <Button
+                                    variant={currentStep === index + 1 ? 'default' : 'ghost'}
+                                    onClick={() => setCurrentStep(index + 1)}
+                                    className="w-full justify-start"
+                                >
+                                    Step {index + 1}: {title}
+                                </Button>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+
+                {/* Step Content */}
+                <div className="md:w-3/4">
+                    {renderStep()}
+                </div>
+            </div>
+            <DialogFooter className={`flex-col sm:flex-row sm:justify-between ${embedded ? '' : 'px-4 pb-4'}`}>
+                <Button
+                    variant="outline"
+                    onClick={() => setCurrentStep(currentStep - 1)}
+                    disabled={currentStep === 1}
+                >
+                    Previous
+                </Button>
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleCancel}>
+                        {embedded ? 'Close Wizard' : 'Cancel'}
                     </Button>
-                    <div className="flex gap-2">
-                        {currentStep < stepsTitles.length && (
-                            <Button onClick={() => setCurrentStep(currentStep + 1)}>
-                                Next
-                            </Button>
-                        )}
-                        {currentStep === stepsTitles.length && (
-                            <Button onClick={handleSave} disabled={!url || (method !== 'GET' && !body)}>
-                                Save Configuration
-                            </Button>
-                        )}
-                    </div>
-                </DialogFooter>
+                    {currentStep < stepsTitles.length && (
+                        <Button onClick={() => setCurrentStep(currentStep + 1)}>
+                            Next
+                        </Button>
+                    )}
+                    {currentStep === stepsTitles.length && (
+                        <Button onClick={handleSave} disabled={!url || (method !== 'GET' && !body)}>
+                            Save Configuration
+                        </Button>
+                    )}
+                </div>
+            </DialogFooter>
+        </>
+    );
+
+    if (embedded) {
+        return <div className="space-y-4 rounded-lg border border-[color:var(--border-color)] bg-[color:var(--node-background)] p-4">{content}</div>;
+    }
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-xl bg-background border-border">
+                {content}
             </DialogContent>
         </Dialog>
     );

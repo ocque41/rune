@@ -6,6 +6,7 @@ import { MessageSquare, Mail, Database, Globe, Clock, Code, PauseCircle, Split, 
 // import { AutoPilotContainer } from '@/components/playground/auto-pilot-container'; // Removed
 import { LLMConfig } from '@/lib/types/agent';
 import { cn } from '@/lib/utils';
+import { inferKindFromLegacyLabel } from '@/lib/workflow/node-catalog';
 
 interface SidebarProps {
     hasStartNode: boolean;
@@ -20,6 +21,7 @@ export const Sidebar = ({ hasStartNode, workflowId, onAgentClick }: { hasStartNo
         if (event.dataTransfer) {
             event.dataTransfer.setData('application/reactflow', nodeType);
             event.dataTransfer.setData('application/reactflow/label', label);
+            event.dataTransfer.setData('application/reactflow/kind', inferKindFromLegacyLabel(label, nodeType));
             event.dataTransfer.effectAllowed = 'move';
         }
     };
@@ -172,4 +174,3 @@ const SidebarIconButton = ({ item, onDragStart }: { item: any, onDragStart: any 
         </div>
     );
 };
-
