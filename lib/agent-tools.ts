@@ -16,8 +16,8 @@ export interface ToolDefinition {
     function: ToolFunction;
 }
 
-type WorkflowNode = { id: string; [key: string]: any };
-type WorkflowEdge = { source: string; target: string; [key: string]: any };
+type WorkflowNodeLike = { id: string };
+type WorkflowEdgeLike = { source: string; target: string };
 
 interface SubgraphOptions {
     nodeIds?: string[];
@@ -535,10 +535,10 @@ export function findTool(toolName: string) {
     };
 }
 
-export function buildSubgraph(
-    graph: { nodes?: WorkflowNode[]; edges?: WorkflowEdge[] },
+export function buildSubgraph<N extends WorkflowNodeLike, E extends WorkflowEdgeLike>(
+    graph: { nodes?: N[]; edges?: E[] },
     options: SubgraphOptions = {}
-): { nodes: WorkflowNode[]; edges: WorkflowEdge[]; startNodes: string[] } {
+): { nodes: N[]; edges: E[]; startNodes: string[] } {
     const nodes = Array.isArray(graph?.nodes) ? graph.nodes.filter((n) => typeof n?.id === 'string') : [];
     const edges = Array.isArray(graph?.edges)
         ? graph.edges.filter((e) => typeof e?.source === 'string' && typeof e?.target === 'string')

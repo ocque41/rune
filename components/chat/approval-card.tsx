@@ -12,16 +12,18 @@ interface ToolCall {
     arguments: any;
 }
 
+type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'auto_approved';
+
 interface ApprovalCardProps {
     messageId: string;
     toolCalls: ToolCall[];
-    status?: 'pending' | 'approved' | 'rejected';
+    status?: ApprovalStatus;
     onAction?: (status: 'approved' | 'rejected') => void;
 }
 
 export function ApprovalCard({ messageId, toolCalls, status = 'pending', onAction }: ApprovalCardProps) {
     const [isLoading, setIsLoading] = useState(false);
-    const [currentStatus, setCurrentStatus] = useState(status);
+    const [currentStatus, setCurrentStatus] = useState<ApprovalStatus>(status);
 
     const handleAction = async (decision: 'approved' | 'rejected') => {
         setIsLoading(true);
@@ -52,12 +54,14 @@ export function ApprovalCard({ messageId, toolCalls, status = 'pending', onActio
     };
 
     if (currentStatus !== 'pending') {
+        const isApproved = currentStatus === 'approved' || currentStatus === 'auto_approved';
+        const statusLabel = currentStatus === 'auto_approved' ? 'auto-approved' : currentStatus;
         return (
             <div className={cn("flex items-center gap-2 p-2 text-sm rounded-md border",
-                currentStatus === 'approved' ? "bg-green-50/50 border-green-200 text-green-700" : "bg-red-50/50 border-red-200 text-red-700"
+                isApproved ? "bg-green-50/50 border-green-200 text-green-700" : "bg-red-50/50 border-red-200 text-red-700"
             )}>
-                {currentStatus === 'approved' ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                <span>Tool execution {currentStatus}.</span>
+                {isApproved ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                <span>Tool execution {statusLabel}.</span>
             </div>
         );
     }

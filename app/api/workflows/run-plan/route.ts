@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { Edge, Node } from '@xyflow/react';
 import { createAdminClient } from '@/lib/supabase/server';
 import { WorkflowEngine } from '@/lib/workflow-engine';
 import { buildSubgraph } from '@/lib/agent-tools';
@@ -61,13 +62,16 @@ async function executeRunPlanLogic(payload: any) {
         );
     }
 
-    const { nodes, edges, startNodes: planStartNodes } = buildSubgraph(graph, {
+    const { nodes, edges, startNodes: planStartNodes } = buildSubgraph<Node, Edge>(
+        graph as { nodes?: Node[]; edges?: Edge[] },
+        {
         nodeIds,
         startNodes,
         endNodes,
         includeDependencies: includeDependencies ?? true,
         inputOverrides
-    });
+        }
+    );
 
     if (!nodes.length || !planStartNodes.length) {
         return NextResponse.json(

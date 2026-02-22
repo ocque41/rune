@@ -1,7 +1,6 @@
 // lib/agent/runtimes/gemini.ts
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { streamToolCall } from '../../tool-streamer'; // Assuming a tool streamer utility
 import { findTool } from '../../agent-tools'; // Assuming an agent-tools utility
 
 const MAX_TOOL_CALL_ROUNDS = 5; // Limit to prevent infinite tool call loops
@@ -112,8 +111,9 @@ class GeminiAgentRuntime {
           finalResponseSent = true;
           writer.close();
         }
-      } catch (error) {
-        writer.write(JSON.stringify({ type: 'error', value: error.message }));
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown runtime error';
+        writer.write(JSON.stringify({ type: 'error', value: message }));
         writer.close();
       }
     };
@@ -128,4 +128,3 @@ class GeminiAgentRuntime {
 }
 
 export { GeminiAgentRuntime };
-
