@@ -70,7 +70,7 @@ export async function processPendingMessages(
                   <p style="margin: 0; white-space: pre-wrap;">${msg.message}</p>
                 </div>
                 <p style="color: #71717a; font-size: 14px;">
-                  <a href="${process.env.NEXT_PUBLIC_APP_URL}/flow-builder${msg.workflow_id ? `?id=${msg.workflow_id}` : ''}" style="color: #3b82f6;">
+                  <a href="${process.env.NEXT_PUBLIC_APP_URL}/editor${msg.workflow_id ? `?id=${msg.workflow_id}` : ''}" style="color: #3b82f6;">
                     View in Rune →
                   </a>
                 </p>
@@ -95,8 +95,8 @@ export async function processPendingMessages(
             message: msg.message.slice(0, 200) + (msg.message.length > 200 ? '...' : ''),
             type: 'agent',
             link: msg.workflow_id
-              ? `/flow-builder?id=${msg.workflow_id}`
-              : '/flow-builder'
+              ? `/editor?id=${msg.workflow_id}`
+              : '/editor'
           });
         }
 

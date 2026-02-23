@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { randomBytes, createHash } from 'crypto';
+import { executeJob } from '@/lib/autonomy/execution';
 
 export async function generateApprovalToken(jobId: string, action: 'approve' | 'reject' = 'approve'): Promise<string> {
     const supabase = createAdminClient();
@@ -61,4 +62,68 @@ export async function markTokenUsed(token: string) {
         .from('rune_approval_tokens')
         .update({ used_at: new Date().toISOString() } as any)
         .eq('token_hash', tokenHash);
+}
+
+export async function applyApprovalToken(token: string): Promise<{
+    ok: boolean;
+    alreadyUsed?: boolean;
+    error?: string;
+    jobId?: string;
+    action?: 'approve' | 'reject';
+}> {
+    const validation = await validateApprovalToken(token);
+    if (!validation.valid || !validation.jobId || !validation.action) {
+        return {
+            ok: false,
+            alreadyUsed: validation.alreadyUsed,
+            error: validation.alreadyUsed ? 'Token already used' : 'Invalid or expired token'
+        };
+    }
+
+    const supabase = createAdminClient();
+    const decision = validation.action === 'reject' ? 'rejected' : 'approved';
+    const status = decision === 'approved' ? 'pending' : 'cancelled';
+
+    const { data: job, error: jobError } = await supabase
+        .from('rune_agent_jobs')
+        .select('id, status')
+        .eq('id', validation.jobId)
+        .single();
+
+    if (jobError || !job) {
+        return { ok: false, error: 'Job not found' };
+    }
+
+    if (job.status !== 'waiting_approval') {
+        return { ok: false, error: `Job is not awaiting approval (status: ${job.status})` };
+    }
+
+    const { error: updateError } = await supabase
+        .from('rune_agent_jobs')
+        .update({
+            status,
+            approval_responded_at: new Date().toISOString(),
+            approval_response: { decision, by: 'token_link' }
+        } as any)
+        .eq('id', validation.jobId);
+
+    if (updateError) {
+        return { ok: false, error: updateError.message };
+    }
+
+    await markTokenUsed(token);
+
+    if (decision === 'approved') {
+        try {
+            await executeJob(validation.jobId, supabase as any);
+        } catch (e: any) {
+            return { ok: false, error: `Approved, but execution trigger failed: ${e.message}` };
+        }
+    }
+
+    return {
+        ok: true,
+        jobId: validation.jobId,
+        action: validation.action as 'approve' | 'reject'
+    };
 }

@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createClient as createClientJs } from '@supabase/supabase-js';
+import { applySharedCookieDomain } from './cookie-options';
 
 // Legacy admin client - keep for existing API usage, but renamed
 export function createAdminClient() {
@@ -34,10 +35,7 @@ export async function createClient() {
                 setAll(cookiesToSet) {
                     try {
                         cookiesToSet.forEach(({ name, value, options }) => {
-                            cookieStore.set(name, value, {
-                                ...options,
-                                domain: '.cumulush.com',
-                            })
+                            cookieStore.set(name, value, applySharedCookieDomain(options))
                         })
                     } catch {
                         // The `set` method was called from a Server Component.

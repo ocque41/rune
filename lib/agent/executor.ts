@@ -18,7 +18,7 @@ import {
 } from '@/lib/agent-tools';
 
 import { logUsageEvent } from '@/lib/usage/log';
-import { isHighImpactTool } from './tools-metadata';
+import { isHighImpactTool, isToolImplemented } from './tools-metadata';
 
 export interface ToolExecutionContext {
     jobId?: string;
@@ -33,6 +33,16 @@ export async function executeTool(supabase: any, userId: string, toolName: strin
     let status: 'success' | 'error' = 'success';
 
     try {
+        if (toolName.startsWith('mcp:')) {
+            const [, serverName, ...toolParts] = toolName.split(':');
+            toolName = `mcp__${serverName || 'unknown'}__${toolParts.join(':')}`;
+        }
+
+        if (!toolName.startsWith('mcp__') && !isToolImplemented(toolName)) {
+            status = 'error';
+            return { error: `Tool '${toolName}' is not enabled for production execution.` };
+        }
+
         let result;
         switch (toolName) {
             case 'get_active_context':

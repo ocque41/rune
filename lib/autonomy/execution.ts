@@ -33,7 +33,7 @@ export async function executeJob(jobId: string, supabaseClient?: SupabaseClient<
     // Mark as running if not already
     if (job.status === 'pending') {
         // @ts-ignore
-        (supabase.from('rune_agent_jobs') as any)
+        await (supabase.from('rune_agent_jobs') as any)
             .update({ status: 'running', started_at: new Date().toISOString() })
             .eq('id', jobId);
     }

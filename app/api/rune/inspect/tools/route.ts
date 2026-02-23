@@ -14,52 +14,43 @@ export async function GET(req: NextRequest) {
                 return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
             }
 
-            // Currently we pull from rune_tool_invocations for detailed stats
-            // Or we can assume usage_rollups has tool info if we populated 'tool_name'
-            // The prompt says "returns breakdown by tool".
-            // Let's query rune_tool_invocations for accuracy over a range, or rollups if possible.
-            // Since rollups might not have granular tool data fully populated yet (migration just happened), 
-            // let's query the raw invocations table but limit rows or use a groupBy query if Supabase allowed it easily.
-            // But Supabase client-side grouping is not standard.
-            // We'll stick to rollup table if we trust it, or raw table.
-            // Let's use rune_tool_invocations for raw count aggregation if the range is small, 
-            // but 'rune_usage_rollups_daily' has 'tool_name' column.
-            // Using rollups is safer for performance.
-
             const url = new URL(req.url);
             const from = url.searchParams.get('from');
             const to = url.searchParams.get('to');
 
             let query = supabase
-                .from('rune_usage_rollups_daily')
-                .select('*')
+                .from('rune_agent_usage_events')
+                .select('tool_name, tool_calls_count, status')
                 .eq('user_id', user.id)
-                .neq('tool_name', null); // Only rows where tool_name is set
+                .not('tool_name', 'is', null);
 
-            if (from) query = query.gte('day', from);
-            if (to) query = query.lte('day', to);
+            if (from) {
+                const fromValue = from.includes('T') ? from : `${from}T00:00:00.000Z`;
+                query = query.gte('created_at', fromValue);
+            }
+            if (to) {
+                const toValue = to.includes('T') ? to : `${to}T23:59:59.999Z`;
+                query = query.lte('created_at', toValue);
+            }
 
             const { data, error } = await query;
-
             if (error) throw error;
 
-            const toolsMap = new Map<string, any>();
+            const toolsMap = new Map<string, { tool_name: string; total_calls: number; error_calls: number }>();
 
-            if (data) {
-                data.forEach((row) => {
-                    const tool = row.tool_name;
-                    if (!tool) return;
+            for (const row of data || []) {
+                const tool = row.tool_name as string;
+                if (!tool) continue;
 
-                    if (!toolsMap.has(tool)) {
-                        toolsMap.set(tool, {
-                            tool_name: tool,
-                            total_calls: 0,
-                            cost: 0 // usually 0 unless tools cost money
-                        });
-                    }
-                    const entry = toolsMap.get(tool);
-                    entry.total_calls += row.tool_calls_count || 0;
-                });
+                if (!toolsMap.has(tool)) {
+                    toolsMap.set(tool, { tool_name: tool, total_calls: 0, error_calls: 0 });
+                }
+
+                const entry = toolsMap.get(tool)!;
+                entry.total_calls += row.tool_calls_count || 1;
+                if (row.status === 'error') {
+                    entry.error_calls += 1;
+                }
             }
 
             return NextResponse.json({ tools: Array.from(toolsMap.values()) });

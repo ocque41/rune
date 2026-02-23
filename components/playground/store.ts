@@ -76,7 +76,7 @@ interface AgentState {
 }
 
 const defaultConfig: LLMConfig = {
-    model: 'gemini-2.0-flash-thinking-exp-1219', // Defaulting to known working model or keep existing if preferred
+    model: 'gemini-1.5-flash',
     provider: 'google',
     temperature: 0.7,
     systemPrompt: '',

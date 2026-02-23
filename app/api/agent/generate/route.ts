@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { buildAgentContext } from '@/lib/agent-context';
 import { TOOLS_DEFINITION, executeTool } from '@/lib/agent-tools';
 import { AgentConfig } from '@/lib/agent/types';
-import { isHighImpactTool } from '@/lib/agent/tools-metadata';
+import { isHighImpactTool, isToolImplemented } from '@/lib/agent/tools-metadata';
 import { GeminiAgentRuntime } from '@/lib/agent/runtimes/gemini-runtime';
 
 export const runtime = 'nodejs';
@@ -50,22 +50,29 @@ export async function POST(req: NextRequest) {
 
         const body = await req.json() as GenerateRequest;
         const { input, config, workflowId, chatId, isTemporary, autonomousMode, sessionId } = body;
+        const normalizedInput = typeof input === 'string' ? input.trim() : '';
 
-        if (!input || !config?.model) {
+        if (!config?.model) {
+            return NextResponse.json({ error: 'Missing required field: config.model' }, { status: 400 });
+        }
+
+        if (!normalizedInput && !sessionId) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
         // --- Chat Persistence: Get or Create Chat ---
         let activeChatId = chatId;
 
-        if (!activeChatId && !isTemporary) {
+        if (!activeChatId && !isTemporary && normalizedInput) {
             // Create a new chat if none provided and not temporary
             const { data: newChat } = await supabase
                 .from('rune_chats')
                 .insert({
                     user_id: user.id,
                     workflow_id: workflowId || null,
-                    title: input.slice(0, 50) + (input.length > 50 ? '...' : ''),
+                    title: normalizedInput
+                        ? normalizedInput.slice(0, 50) + (normalizedInput.length > 50 ? '...' : '')
+                        : 'Autonomous Session',
                     is_temporary: false
                 })
                 .select('id')
@@ -75,12 +82,23 @@ export async function POST(req: NextRequest) {
         }
 
         // Save user message to chat (if not temporary)
-        if (activeChatId) {
+        if (activeChatId && normalizedInput) {
             await supabase.from('rune_chat_messages').insert({
                 chat_id: activeChatId,
                 role: 'user',
-                content: input
+                content: normalizedInput
             });
+        }
+
+        // Recover chat context from session on resume if chatId was not supplied.
+        if (!activeChatId && sessionId) {
+            const { data: resumedSession } = await supabase
+                .from('rune_agent_sessions')
+                .select('chat_id')
+                .eq('id', sessionId)
+                .eq('user_id', user.id)
+                .single();
+            activeChatId = resumedSession?.chat_id || activeChatId;
         }
 
         // Determine provider based on model
@@ -185,14 +203,22 @@ export async function POST(req: NextRequest) {
                 // We will use the history as the source of truth for the conversation.
                 // If history is empty (shouldn't be, we just inserted), we fallback to input.
             } else {
-                messages.push({ role: 'user', content: input });
+                if (normalizedInput) {
+                    messages.push({ role: 'user', content: normalizedInput });
+                }
             }
         } else {
-            messages.push({ role: 'user', content: input });
+            if (normalizedInput) {
+                messages.push({ role: 'user', content: normalizedInput });
+            }
         }
 
         // --- Agent Runtime Integration ---
-        const allowedToolNames = config.tools || [];
+        const selectedTools = config.tools || [];
+        const allowedToolNames = selectedTools.filter((toolName: string) => {
+            if (toolName.startsWith('mcp:')) return false; // MCP bridge remains disabled in this execution path
+            return isToolImplemented(toolName);
+        });
 
         if (config.model.startsWith('gemini')) {
             const googleApiKey = process.env.GOOGLE_API_KEY;
@@ -237,8 +263,7 @@ export async function POST(req: NextRequest) {
                 headers: {
                     'Content-Type': 'text/plain; charset=utf-8',
                     'X-Chat-Id': activeChatId || '',
-                    'X-Session-Status': autonomousMode ? 'active' : 'completed', // Simplified
-                    'X-Session-Id': sessionId || ''
+                    'X-Session-Status': 'completed'
                 }
             });
         }
@@ -331,7 +356,9 @@ export async function POST(req: NextRequest) {
         async function streamOpenAI(apiKey: string, config: any, messages: any[], supabase: any, userId: string, chatId?: string | null, autonomousMode?: boolean, sessionId?: string, workflowId?: string | null) {
             // Filter tools based on user config
             const allowedTools = config.tools || [];
-            const systemTools = TOOLS_DEFINITION.filter(t => allowedTools.includes(t.function.name));
+            const systemTools = TOOLS_DEFINITION.filter(t =>
+                allowedTools.includes(t.function.name) && isToolImplemented(t.function.name)
+            );
 
             // Fetch MCP tools if any selected (IDs start with mcp:)
             const mcpToolIds = allowedTools.filter((id: string) => id.startsWith('mcp:'));
@@ -341,20 +368,22 @@ export async function POST(req: NextRequest) {
                 // Parse IDs: mcp:server:tool_name
                 const mcpNames = mcpToolIds.map((id: string) => {
                     const parts = id.split(':');
-                    return parts.length >= 3 ? parts[2] : null;
+                    return parts.length >= 3 ? parts.slice(2).join(':') : null;
                 }).filter(Boolean);
 
                 if (mcpNames.length > 0) {
                     const { data: dbTools } = await supabase
                         .from('rune_mcp_tools')
-                        .select('tool_name, description, input_schema, rune_mcp_servers(name)')
-                        .in('tool_name', mcpNames);
+                        .select('server_id, tool_name, description, input_schema, rune_mcp_servers!inner(name, user_id, status)')
+                        .in('tool_name', mcpNames)
+                        .eq('rune_mcp_servers.user_id', userId)
+                        .eq('rune_mcp_servers.status', 'connected');
 
                     if (dbTools) {
                         mcpTools = dbTools.map((t: any) => ({
                             type: 'function',
                             function: {
-                                // Sanitize name for OpenAI: mcp__SERVER__TOOL
+                                // Namespaced id (sanitized for OpenAI): mcp__{serverName}__{toolName}
                                 name: `mcp__${t.rune_mcp_servers.name}__${t.tool_name}`.replace(/[^a-zA-Z0-9_]/g, '_'),
                                 description: t.description || `Tool from ${t.rune_mcp_servers.name}`,
                                 parameters: t.input_schema || { type: 'object', properties: {} }
@@ -486,36 +515,169 @@ export async function POST(req: NextRequest) {
             let totalRounds = 0;
             let completedNodes: string[] = [];
             let failedNodes: Record<string, { attempts: number; lastError: string }> = {};
+            let currentSessionId = sessionId;
+            let loadedSession: any = null;
+
+            const buildTextResponse = (text: string, extraHeaders: Record<string, string> = {}) => {
+                const encoder = new TextEncoder();
+                const stream = new ReadableStream({
+                    start(controller) {
+                        if (text) {
+                            controller.enqueue(encoder.encode(text));
+                        }
+                        controller.close();
+                    }
+                });
+
+                return new NextResponse(stream, {
+                    headers: {
+                        'Content-Type': 'text/plain; charset=utf-8',
+                        ...extraHeaders
+                    }
+                });
+            };
+
+            const upsertSession = async (status: string, overrides: Record<string, any> = {}) => {
+                const payload = {
+                    user_id: userId,
+                    workflow_id: workflowId || null,
+                    chat_id: chatId || null,
+                    status,
+                    total_rounds: totalRounds,
+                    completed_nodes: completedNodes,
+                    failed_nodes: failedNodes,
+                    messages_history: currentMessages,
+                    updated_at: new Date().toISOString(),
+                    ...overrides
+                };
+
+                if (!currentSessionId) {
+                    const { data: newSession } = await supabase
+                        .from('rune_agent_sessions')
+                        .insert(payload)
+                        .select('id')
+                        .single();
+                    currentSessionId = newSession?.id;
+                } else {
+                    await supabase
+                        .from('rune_agent_sessions')
+                        .update(payload)
+                        .eq('id', currentSessionId)
+                        .eq('user_id', userId);
+                }
+
+                return currentSessionId;
+            };
+
+            const executeOpenAIToolCalls = async (toolCalls: any[]) => {
+                return Promise.all(toolCalls.map(async (toolCall: any) => {
+                    let result;
+                    try {
+                        const args = JSON.parse(toolCall.function.arguments || '{}');
+                        result = await executeToolCall(supabase, userId, toolCall.function.name, args);
+
+                        if (toolCall.function.name === 'run_node' && result?.success) {
+                            const nodeId = args.nodeIdentifier;
+                            if (nodeId && !completedNodes.includes(nodeId)) {
+                                completedNodes.push(nodeId);
+                            }
+                        }
+                    } catch (e: any) {
+                        result = { error: e.message || 'Failed to execute tool' };
+
+                        if (toolCall.function.name === 'run_node') {
+                            const args = JSON.parse(toolCall.function.arguments || '{}');
+                            const nodeId = args.nodeIdentifier;
+                            if (nodeId) {
+                                failedNodes[nodeId] = failedNodes[nodeId] || { attempts: 0, lastError: '' };
+                                failedNodes[nodeId].attempts++;
+                                failedNodes[nodeId].lastError = e.message;
+                            }
+                        }
+                    }
+
+                    return {
+                        role: 'tool' as const,
+                        tool_call_id: toolCall.id,
+                        content: JSON.stringify(result)
+                    };
+                }));
+            };
 
             // If resuming from session, load state
-            if (sessionId) {
+            if (currentSessionId) {
                 const { data: session } = await supabase
                     .from('rune_agent_sessions')
                     .select('*')
-                    .eq('id', sessionId)
+                    .eq('id', currentSessionId)
+                    .eq('user_id', userId)
                     .single();
 
                 if (session) {
+                    loadedSession = session;
                     currentMessages = session.messages_history || currentMessages;
                     totalRounds = session.total_rounds || 0;
                     completedNodes = session.completed_nodes || [];
                     failedNodes = session.failed_nodes || {};
-                    console.log(`[OpenAI Tool Loop] Resuming session ${sessionId} at round ${totalRounds}`);
+                    console.log(`[OpenAI Tool Loop] Resuming session ${currentSessionId} at round ${totalRounds}`);
                 }
 
-                // CONTEXT FIX: Merge new user input if present
-                // initialBody.messages contains the latest state triggers (e.g. new User input)
-                // while session.messages_history contains the deep agent chain.
                 const lastIncoming = initialBody.messages[initialBody.messages.length - 1];
                 const lastHistory = currentMessages[currentMessages.length - 1];
 
-                // If the incoming message is a User message and different from history end, append it
                 if (lastIncoming && lastIncoming.role === 'user') {
-                    // Simple deduplication check
                     if (!lastHistory || lastHistory.content !== lastIncoming.content) {
                         currentMessages.push(lastIncoming);
                         console.log('[OpenAI Tool Loop] Appended new user input to resumed context');
                     }
+                }
+            }
+
+            // Resume point for waiting approval sessions
+            if (loadedSession?.status === 'waiting_approval' || loadedSession?.status === 'approved') {
+                const lastMessage = currentMessages[currentMessages.length - 1];
+                const pendingToolCalls = Array.isArray(lastMessage?.tool_calls) ? lastMessage.tool_calls : [];
+                const approvalMessageId = lastMessage?.__approvalMessageId || lastMessage?.approval_message_id || null;
+                let approvalStatus: string | null = null;
+
+                if (approvalMessageId) {
+                    const { data: approvalRow } = await supabase
+                        .from('rune_chat_messages')
+                        .select('approval_status')
+                        .eq('id', approvalMessageId)
+                        .single();
+                    approvalStatus = approvalRow?.approval_status || null;
+                }
+
+                if (approvalStatus !== 'approved') {
+                    if (approvalStatus === 'rejected') {
+                        await upsertSession('completed');
+                        return buildTextResponse(
+                            'Tool execution was rejected. Session closed.',
+                            {
+                                'X-Chat-Id': chatId || '',
+                                'X-Session-Id': currentSessionId || '',
+                                'X-Session-Status': 'completed'
+                            }
+                        );
+                    }
+
+                    return buildTextResponse(
+                        'Tool execution is paused pending approval.',
+                        {
+                            'X-Chat-Id': chatId || '',
+                            'X-Session-Id': currentSessionId || '',
+                            'X-Session-Status': 'waiting_approval',
+                            'X-Approval-Required': 'true',
+                            'X-Approval-Message-Id': approvalMessageId || ''
+                        }
+                    );
+                }
+
+                if (pendingToolCalls.length > 0) {
+                    const toolResults = await executeOpenAIToolCalls(pendingToolCalls);
+                    currentMessages = [...currentMessages, ...toolResults];
+                    await upsertSession('running', { messages_history: currentMessages });
                 }
             }
 
@@ -524,7 +686,16 @@ export async function POST(req: NextRequest) {
                 totalRounds++;
                 console.log(`[OpenAI Tool Loop] Round ${round} (Total: ${totalRounds})`);
 
-                const requestBody = { ...initialBody, messages: currentMessages, stream: false };
+                const requestMessages = currentMessages.map((message: any) => {
+                    const sanitized: any = { role: message.role };
+                    if (message.content !== undefined) sanitized.content = message.content;
+                    if (message.name !== undefined) sanitized.name = message.name;
+                    if (message.tool_calls !== undefined) sanitized.tool_calls = message.tool_calls;
+                    if (message.tool_call_id !== undefined) sanitized.tool_call_id = message.tool_call_id;
+                    return sanitized;
+                });
+
+                const requestBody = { ...initialBody, messages: requestMessages, stream: false };
 
                 const response = await fetch('https://api.openai.com/v1/chat/completions', {
                     method: 'POST',
@@ -533,7 +704,9 @@ export async function POST(req: NextRequest) {
                 });
 
                 const data = await response.json();
-                if (data.error) throw new Error(data.error.message);
+                if (!response.ok || data.error) {
+                    throw new Error(data.error?.message || `OpenAI API error (${response.status})`);
+                }
 
                 const choice = data.choices?.[0];
                 const message = choice?.message;
@@ -544,11 +717,11 @@ export async function POST(req: NextRequest) {
                     console.log(`[OpenAI Tool Loop] Completed after ${totalRounds} total rounds`);
 
                     // Clean up session if exists
-                    if (sessionId) {
+                    if (currentSessionId) {
                         await supabase.from('rune_agent_sessions').update({
                             status: 'completed',
                             updated_at: new Date().toISOString()
-                        }).eq('id', sessionId);
+                        }).eq('id', currentSessionId).eq('user_id', userId);
                     }
 
                     const content = message?.content || "";
@@ -572,6 +745,8 @@ export async function POST(req: NextRequest) {
                         headers: {
                             'Content-Type': 'text/plain; charset=utf-8',
                             'X-Chat-Id': chatId || '',
+                            'X-Session-Id': currentSessionId || '',
+                            'X-Session-Status': 'completed',
                             'X-Session-Complete': 'true'
                         }
                     });
@@ -590,85 +765,61 @@ export async function POST(req: NextRequest) {
                 });
 
                 if (requiresApproval && !autonomousMode) {
-                    // In interactive mode, we stop and ask user to confirm. 
-                    // Since we are inside a simplified loop, we just break and return the Tool Call message to the client?
-                    // The client (UI) needs to see the tool call and provide a "Run" button.
-                    // The current UI seems to handle "assistant" messages.
-                    // If we finish with `finish_reason: tool_calls` and DON'T execute them, logic flow:
-                    // 1. We return the message. 
-                    // 2. Client sees tool calls.
-                    // 3. Client must send back "Tool Outputs" in next turn.
-
-                    // So we just BREAK the loop here?
                     console.log('[OpenAI Tool Loop] Stopping for approval.');
-                    // We need to return the assistant message we just got.
-                    // It was saved to `currentMessages`.
+                    let approvalMessageId: string | null = null;
 
-                    // We need to save the message to DB so client sees it.
-                    if (chatId) {
-                        // We haven't saved the Assistant Tool Call message yet in this loop?
-                        // Loop logic: `currentMessages = [...currentMessages, message, ...toolResults]` at end.
-                        // We are before that.
-
-                        // Save the tool call message
-                        await supabase.from('rune_chat_messages').insert({
-                            chat_id: chatId,
-                            role: 'assistant',
-                            content: message.content || null,
-                            tool_calls: message.tool_calls // distinct column or inside json? 
-                            // usage_metadata?
-                        });
-                        // Note: Schema scan showed `usage_metadata`, `content`. `tool_calls` might need check.
-                        // For now we assume typical storage or text representation.
+                    if (!chatId) {
+                        await upsertSession('completed');
+                        return buildTextResponse(
+                            'Tool execution requires a persisted chat for approval. Disable temporary chat mode and retry.',
+                            {
+                                'X-Session-Id': currentSessionId || '',
+                                'X-Session-Status': 'completed'
+                            }
+                        );
                     }
 
-                    // Should we stream the tool call? 
-                    // OpenAI sends tool calls in the stream.
-                    // But here we did a non-streaming fetch.
+                    if (chatId) {
+                        const { data: approvalMessage } = await supabase
+                            .from('rune_chat_messages')
+                            .insert({
+                                chat_id: chatId,
+                                role: 'assistant',
+                                content: message.content || null,
+                                tool_calls: message.tool_calls,
+                                approval_status: 'pending',
+                                approval_metadata: {
+                                    requested_at: new Date().toISOString(),
+                                    tool_count: message.tool_calls.length
+                                }
+                            })
+                            .select('id')
+                            .single();
+                        approvalMessageId = approvalMessage?.id || null;
+                    }
 
-                    // Return simple response
-                    return NextResponse.json({
-                        role: 'assistant',
-                        content: message.content,
-                        tool_calls: message.tool_calls,
-                        finish_reason: 'tool_calls'
+                    const messageForHistory = {
+                        ...message,
+                        __approvalMessageId: approvalMessageId,
+                        approval_message_id: approvalMessageId
+                    };
+                    currentMessages = [...currentMessages, messageForHistory];
+                    await upsertSession('waiting_approval', { messages_history: currentMessages });
+
+                    const approvalText =
+                        message.content ||
+                        `Tool execution paused for approval: ${message.tool_calls.map((tc: any) => tc.function.name).join(', ')}`;
+
+                    return buildTextResponse(approvalText, {
+                        'X-Chat-Id': chatId || '',
+                        'X-Session-Id': currentSessionId || '',
+                        'X-Session-Status': 'waiting_approval',
+                        'X-Approval-Required': 'true',
+                        'X-Approval-Message-Id': approvalMessageId || ''
                     });
                 }
 
-                const toolResults = await Promise.all(message.tool_calls.map(async (toolCall: any) => {
-                    let result;
-                    try {
-                        const args = JSON.parse(toolCall.function.arguments);
-                        result = await executeToolCall(supabase, userId, toolCall.function.name, args);
-
-                        // Track completed nodes
-                        if (toolCall.function.name === 'run_node' && result?.success) {
-                            const nodeId = args.nodeIdentifier;
-                            if (nodeId && !completedNodes.includes(nodeId)) {
-                                completedNodes.push(nodeId);
-                            }
-                        }
-                    } catch (e: any) {
-                        result = { error: e.message || 'Failed to execute tool' };
-
-                        // Track failed nodes
-                        if (toolCall.function.name === 'run_node') {
-                            const args = JSON.parse(toolCall.function.arguments);
-                            const nodeId = args.nodeIdentifier;
-                            if (nodeId) {
-                                failedNodes[nodeId] = failedNodes[nodeId] || { attempts: 0, lastError: '' };
-                                failedNodes[nodeId].attempts++;
-                                failedNodes[nodeId].lastError = e.message;
-                            }
-                        }
-                    }
-
-                    return {
-                        role: "tool" as const,
-                        tool_call_id: toolCall.id,
-                        content: JSON.stringify(result)
-                    };
-                }));
+                const toolResults = await executeOpenAIToolCalls(message.tool_calls);
 
                 currentMessages = [...currentMessages, message, ...toolResults];
             }
@@ -678,39 +829,7 @@ export async function POST(req: NextRequest) {
 
             // If autonomous mode, save session and return continuation token
             if (autonomousMode && totalRounds < MAX_TOTAL_ROUNDS) {
-                let currentSessionId = sessionId;
-
-                if (!currentSessionId) {
-                    // Create new session
-                    const { data: newSession } = await supabase
-                        .from('rune_agent_sessions')
-                        .insert({
-                            user_id: userId,
-                            workflow_id: workflowId || null,
-                            chat_id: chatId || null,
-                            status: 'paused',
-                            total_rounds: totalRounds,
-                            completed_nodes: completedNodes,
-                            failed_nodes: failedNodes,
-                            messages_history: currentMessages
-                        })
-                        .select('id')
-                        .single();
-                    currentSessionId = newSession?.id;
-                } else {
-                    // Update existing session
-                    await supabase
-                        .from('rune_agent_sessions')
-                        .update({
-                            status: 'paused',
-                            total_rounds: totalRounds,
-                            completed_nodes: completedNodes,
-                            failed_nodes: failedNodes,
-                            messages_history: currentMessages,
-                            updated_at: new Date().toISOString()
-                        })
-                        .eq('id', currentSessionId);
-                }
+                await upsertSession('paused', { messages_history: currentMessages });
 
                 const encoder = new TextEncoder();
                 const progressStream = new ReadableStream({
@@ -731,14 +850,9 @@ export async function POST(req: NextRequest) {
             }
 
             // Not autonomous or hit absolute max
-            const encoder = new TextEncoder();
-            const errorStream = new ReadableStream({
-                start(controller) {
-                    controller.enqueue(encoder.encode("I've been working on this for a while. Let me summarize what I've done so far. Please try a simpler request or break this into smaller steps."));
-                    controller.close();
-                }
-            });
-            return new NextResponse(errorStream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+            return buildTextResponse(
+                "I've been working on this for a while. Let me summarize what I've done so far. Please try a simpler request or break this into smaller steps."
+            );
         }
 
         async function streamAnthropic(apiKey: string, config: any, messages: any[]) {

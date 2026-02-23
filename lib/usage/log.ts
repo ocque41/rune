@@ -37,6 +37,7 @@ export interface UsageEventPayload {
 export async function logUsageEvent(payload: UsageEventPayload) {
     try {
         const supabase = createAdminClient();
+        let estimatedCostFromTokens: number | null = null;
 
         // 1. Log LLM Call if tokens are present
         if (payload.inputTokens !== undefined || payload.outputTokens !== undefined) {
@@ -47,6 +48,7 @@ export async function logUsageEvent(payload: UsageEventPayload) {
             };
 
             const estimatedCost = estimateCost(payload.model, usage);
+            estimatedCostFromTokens = estimatedCost;
 
             // Construct metadata including source and other fields
             const requestMetadata = {
@@ -90,6 +92,31 @@ export async function logUsageEvent(payload: UsageEventPayload) {
                 args_redacted: payload.argsRedacted || {}
             });
         }
+
+        // 3. Unified usage ledger for inspect/autonomy
+        await supabase.from('rune_agent_usage_events').insert({
+            user_id: payload.userId,
+            source: payload.source,
+            workflow_id: payload.workflowId || null,
+            chat_id: payload.chatId || null,
+            job_id: payload.jobId || null,
+            step_id: payload.stepId || null,
+            request_id: payload.requestId || null,
+            provider: payload.provider || 'system',
+            model: payload.model || 'unknown',
+            input_tokens: payload.inputTokens || 0,
+            output_tokens: payload.outputTokens || 0,
+            total_tokens: payload.totalTokens || ((payload.inputTokens || 0) + (payload.outputTokens || 0)),
+            cached_tokens: payload.cachedTokens || 0,
+            latency_ms: payload.latencyMs || null,
+            tool_name: payload.toolName || null,
+            tool_calls_count: payload.toolName ? 1 : 0,
+            is_high_impact_tool: payload.isHighImpactTool || false,
+            approval_status: payload.approvalStatus || null,
+            estimated_cost_usd: estimatedCostFromTokens ?? null,
+            status: payload.status,
+            metadata: payload.metadata || {}
+        });
 
     } catch (err) {
         // Swallow errors to avoid failing the main request

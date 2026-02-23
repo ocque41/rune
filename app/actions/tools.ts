@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { TOOLS_DEFINITION } from '@/lib/agent-tools';
+import { getToolCapability, isToolImplemented } from '@/lib/agent/tools-metadata';
 
 export type AgentToolType = 'system' | 'mcp';
 
@@ -23,14 +24,17 @@ export async function getAvailableTools() {
 
     // 1. Get System Tools (hardcoded for now, but could be DB driven later)
     // Map internal function names to UI friendly objects
-    const systemTools: AgentToolDef[] = TOOLS_DEFINITION.map(tool => ({
-        id: tool.function.name,
-        label: formatToolName(tool.function.name),
-        description: tool.function.description.split('\n')[0], // First line only
-        type: 'system',
-        enabled: true, // Default enabled? Or check user pref? 
-        // For now, system tools are always "available" to be enabled
-    }));
+    const systemTools: AgentToolDef[] = TOOLS_DEFINITION.map(tool => {
+        const capability = getToolCapability(tool.function.name);
+        const baseDescription = tool.function.description.split('\n')[0];
+        return {
+            id: tool.function.name,
+            label: formatToolName(tool.function.name),
+            description: capability === 'implemented' ? baseDescription : `${baseDescription} (${capability})`,
+            type: 'system',
+            enabled: isToolImplemented(tool.function.name),
+        };
+    });
 
     // 2. Get MCP Tools from DB
     // We fetch enabled tools from servers that are connected
@@ -39,21 +43,23 @@ export async function getAvailableTools() {
         .select(`
             tool_name,
             description,
+            server_id,
             rune_mcp_servers!inner (
+                user_id,
                 name,
                 status
             )
         `)
         .eq('rune_mcp_servers.status', 'connected')
-        .eq('user_id', user.id); // Ensure RLS matches
+        .eq('rune_mcp_servers.user_id', user.id);
 
     const externalTools: AgentToolDef[] = (mcpTools || []).map((t: any) => ({
-        id: `mcp:${t.rune_mcp_servers.name}:${t.tool_name}`,
+        id: `mcp:${t.server_id}:${t.tool_name}`,
         label: t.tool_name,
         description: t.description || 'External MCP Tool',
         type: 'mcp',
         serverName: t.rune_mcp_servers.name,
-        enabled: true
+        enabled: false
     }));
 
     // Grouping happens at UI level, we just return flat list

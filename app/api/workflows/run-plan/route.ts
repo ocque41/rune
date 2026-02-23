@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { Edge, Node } from '@xyflow/react';
-import { createAdminClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { WorkflowEngine } from '@/lib/workflow-engine';
 import { buildSubgraph } from '@/lib/agent-tools';
 import { processIdempotency } from '@/lib/idempotency';
 
-async function executeRunPlanLogic(payload: any) {
+async function executeRunPlanLogic(payload: any, userId: string) {
     const {
         workflowId,
         name,
@@ -28,8 +28,8 @@ async function executeRunPlanLogic(payload: any) {
         .select('id, name, user_id');
 
     const { data: workflow, error: wfError } = workflowId
-        ? await workflowQuery.eq('id', workflowId).single()
-        : await workflowQuery.eq('name', name).single();
+        ? await workflowQuery.eq('id', workflowId).eq('user_id', userId).single()
+        : await workflowQuery.eq('name', name).eq('user_id', userId).single();
 
     if (wfError || !workflow) {
         return NextResponse.json(
@@ -108,6 +108,12 @@ async function executeRunPlanLogic(payload: any) {
 
 export async function POST(req: NextRequest) {
     try {
+        const authClient = await createClient();
+        const { data: { user }, error: authError } = await authClient.auth.getUser();
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const body = await req.json().catch(() => ({}));
         const idempotencyKey = req.headers.get('idempotency-key');
 
@@ -122,11 +128,11 @@ export async function POST(req: NextRequest) {
                         startNodeCount: Array.isArray(body?.startNodes) ? body.startNodes.length : undefined
                     }
                 },
-                () => executeRunPlanLogic(body)
+                () => executeRunPlanLogic(body, user.id)
             );
         }
 
-        return executeRunPlanLogic(body);
+        return executeRunPlanLogic(body, user.id);
     } catch (error: any) {
         console.error('Error running workflow plan:', error);
         return NextResponse.json(

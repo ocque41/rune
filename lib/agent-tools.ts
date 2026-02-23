@@ -3,6 +3,7 @@
 // and will serve as the central definition and execution point for agent tools.
 
 import { SupabaseClient } from '@supabase/supabase-js'; // Assuming SupabaseClient is available
+import { isToolImplemented } from '@/lib/agent/tools-metadata';
 
 // --- INTERFACES AND TYPES ---
 export interface ToolFunction {
@@ -32,19 +33,62 @@ interface SubgraphOptions {
 // They accept supabase, userId, and args, and return a Promise resolving to tool output.
 
 export async function getActiveContext(supabase: SupabaseClient, userId: string): Promise<any> {
-    console.log("[Tool Stub] getActiveContext called for userId:", userId);
-    // In a real scenario, this would fetch the active context from the database or other services.
-    return { status: "success", message: "Active context retrieved (stub)." };
+    const { data: session } = await supabase
+        .from('rune_agent_sessions')
+        .select('id, active_workflow_id, active_run_id, updated_at')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    return {
+        status: 'success',
+        context: session || null
+    };
 }
 
 export async function listWorkflows(supabase: SupabaseClient, userId: string, limit?: number): Promise<any> {
-    console.log(`[Tool Stub] listWorkflows called for userId: ${userId} with limit: ${limit}`);
-    return { status: "success", workflows: ["MyFirstWorkflow", "ProjectAlpha"] };
+    const max = Math.min(Math.max(limit || 20, 1), 100);
+    const { data, error } = await supabase
+        .from('rune_workflows')
+        .select('id, name, description, updated_at')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false })
+        .limit(max);
+
+    if (error) {
+        return { status: 'error', error: error.message };
+    }
+
+    return { status: 'success', workflows: data || [] };
 }
 
 export async function inspectWorkflow(supabase: SupabaseClient, userId: string, workflowId: string): Promise<any> {
-    console.log(`[Tool Stub] inspectWorkflow called for userId: ${userId}, workflowId: ${workflowId}`);
-    return { status: "success", workflow: { id: workflowId, name: "Sample Workflow", nodes: 2, edges: 1 } };
+    const { data, error } = await supabase
+        .from('rune_workflows')
+        .select('id, name, description, graph_json, updated_at')
+        .eq('id', workflowId)
+        .eq('user_id', userId)
+        .single();
+
+    if (error || !data) {
+        return { status: 'error', error: 'Workflow not found' };
+    }
+
+    const nodes = Array.isArray((data as any).graph_json?.nodes) ? (data as any).graph_json.nodes : [];
+    const edges = Array.isArray((data as any).graph_json?.edges) ? (data as any).graph_json.edges : [];
+
+    return {
+        status: 'success',
+        workflow: {
+            id: data.id,
+            name: data.name,
+            description: data.description,
+            nodes: nodes.length,
+            edges: edges.length,
+            updated_at: data.updated_at
+        }
+    };
 }
 
 export async function createWorkflow(supabase: SupabaseClient, userId: string, payload: { name: string, description?: string }): Promise<any> {
@@ -78,8 +122,24 @@ export async function runWorkflowPlan(supabase: SupabaseClient, userId: string, 
 }
 
 export async function getRecentRuns(supabase: SupabaseClient, userId: string, workflowId?: string, limit?: number): Promise<any> {
-    console.log(`[Tool Stub] getRecentRuns called for userId: ${userId}, workflowId: ${workflowId}, limit: ${limit}`);
-    return { status: "success", runs: [{ id: "run_789", status: "completed" }] };
+    const max = Math.min(Math.max(limit || 20, 1), 100);
+    let query = supabase
+        .from('rune_runs')
+        .select('id, workflow_id, status, started_at, finished_at, error')
+        .eq('user_id', userId)
+        .order('started_at', { ascending: false })
+        .limit(max);
+
+    if (workflowId) {
+        query = query.eq('workflow_id', workflowId);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+        return { status: 'error', error: error.message };
+    }
+
+    return { status: 'success', runs: data || [] };
 }
 
 export async function runWorkflow(supabase: SupabaseClient, userId: string, payload: any): Promise<any> {
@@ -98,8 +158,38 @@ export async function configureNode(supabase: SupabaseClient, userId: string, no
 }
 
 export async function scheduleMessage(supabase: SupabaseClient, userId: string, payload: any): Promise<any> {
-    console.log(`[Tool Stub] scheduleMessage called for userId: ${userId}, payload:`, payload);
-    return { status: "success", message: "Message scheduled." };
+    const message = typeof payload?.message === 'string' ? payload.message.trim() : '';
+    if (!message) {
+        return { status: 'error', error: 'Message is required' };
+    }
+
+    const delayMinutes = Number.isFinite(payload?.delayMinutes) ? Math.max(0, Number(payload.delayMinutes)) : 0;
+    const scheduledFor = new Date(Date.now() + delayMinutes * 60_000).toISOString();
+    const priority = ['low', 'normal', 'high', 'urgent'].includes(payload?.priority) ? payload.priority : 'normal';
+
+    const { data, error } = await supabase
+        .from('rune_pending_messages')
+        .insert({
+            user_id: userId,
+            chat_id: payload?.chatId || null,
+            workflow_id: payload?.workflowId || null,
+            message,
+            priority,
+            scheduled_for: scheduledFor
+        })
+        .select('id, scheduled_for')
+        .single();
+
+    if (error) {
+        return { status: 'error', error: error.message };
+    }
+
+    return {
+        status: 'success',
+        message: 'Message scheduled.',
+        pendingMessageId: data?.id,
+        scheduledFor: data?.scheduled_for
+    };
 }
 
 export async function validateNodeConfig(args: any): Promise<any> {
@@ -396,7 +486,7 @@ export const TOOLS_DEFINITION: ToolDefinition[] = [
                     },
                     delayMinutes: {
                         type: 'number',
-                        description: 'The delay in minutes before the message is sent.',
+                        description: 'Optional delay in minutes before the message is sent. Defaults to 0.',
                     },
                     priority: {
                         type: 'string',
@@ -404,7 +494,7 @@ export const TOOLS_DEFINITION: ToolDefinition[] = [
                         description: 'The priority of the scheduled message.',
                     },
                 },
-                required: ['message', 'delayMinutes'],
+                required: ['message'],
             },
         },
     },
@@ -450,6 +540,19 @@ export const TOOLS_DEFINITION: ToolDefinition[] = [
 export async function executeTool(supabase: SupabaseClient, userId: string, toolName: string, args: any): Promise<any> {
     console.log(`[lib/agent-tools.ts] Executing ${toolName} for ${userId}`, args);
     try {
+        // Normalize MCP naming variants
+        if (toolName.startsWith('mcp:')) {
+            const [, serverName, ...toolParts] = toolName.split(':');
+            toolName = `mcp__${serverName || 'unknown'}__${toolParts.join(':')}`;
+        }
+
+        if (!toolName.startsWith('mcp__') && !isToolImplemented(toolName)) {
+            return {
+                error: `Tool '${toolName}' is not enabled for production execution.`,
+                status: 'disabled'
+            };
+        }
+
         switch (toolName) {
             case 'get_active_context':
                 return await getActiveContext(supabase, userId);
@@ -489,8 +592,8 @@ export async function executeTool(supabase: SupabaseClient, userId: string, tool
                     message: args.message,
                     delayMinutes: args.delayMinutes,
                     priority: args.priority,
-                    chatId: undefined, // Will be handled by the runtime or in schedule_message if needed
-                    workflowId: undefined
+                    chatId: args.chatId,
+                    workflowId: args.workflowId
                 });
             case 'validate_node_config':
                 return await validateNodeConfig(args);
@@ -681,22 +784,42 @@ export function buildSubgraph<N extends WorkflowNodeLike, E extends WorkflowEdge
 }
 
 async function executeMcpTool(supabase: SupabaseClient, userId: string, namespacedName: string, args: any): Promise<any> {
-    // Format: mcp__SERVER__TOOL
-    const parts = namespacedName.split('__');
-    if (parts.length < 3) return { error: "Invalid MCP tool name format" };
+    // Supported formats:
+    // - mcp__SERVER__TOOL
+    // - mcp:SERVER:TOOL
+    let serverName = '';
+    let toolName = '';
 
-    const toolName = parts.slice(2).join('__'); // Rejoin in case tool name had __ (unlikely but safe)
+    if (namespacedName.startsWith('mcp__')) {
+        const parts = namespacedName.split('__');
+        if (parts.length < 3) return { error: 'Invalid MCP tool name format' };
+        serverName = parts[1];
+        toolName = parts.slice(2).join('__');
+    } else if (namespacedName.startsWith('mcp:')) {
+        const parts = namespacedName.split(':');
+        if (parts.length < 3) return { error: 'Invalid MCP tool name format' };
+        serverName = parts[1];
+        toolName = parts.slice(2).join(':');
+    } else {
+        return { error: 'Invalid MCP tool name format' };
+    }
 
-    // For now, checks if the tool exists in DB and log execution.
-    // TODO: Connect to actual MCP Runtime / Bridge
-    const { data: tool } = await supabase
+    const { data: tools } = await supabase
         .from('rune_mcp_tools')
-        .select('*')
+        .select('id, server_id, tool_name, rune_mcp_servers!inner(name, user_id, status)')
         .eq('tool_name', toolName)
-        .single();
+        .eq('rune_mcp_servers.user_id', userId)
+        .eq('rune_mcp_servers.status', 'connected')
+        .limit(25);
+
+    const tool = (tools || []).find((candidate: any) => {
+        const rawName = candidate.rune_mcp_servers?.name || '';
+        const sanitizedName = rawName.replace(/[^a-zA-Z0-9_]/g, '_');
+        return candidate.server_id === serverName || rawName === serverName || sanitizedName === serverName;
+    });
 
     if (!tool) {
-        return { error: `MCP tool not found: ${toolName}` };
+        return { error: `MCP tool not found or not connected: ${serverName}/${toolName}` };
     }
 
     console.log(`[MCP] Executing ${toolName} on server... (Simulation)`);

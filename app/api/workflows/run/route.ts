@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { WorkflowEngine } from '@/lib/workflow-engine';
 import { processIdempotency } from '@/lib/idempotency';
 
-async function executeRunLogic(name: string, args: any) {
+async function executeRunLogic(name: string, args: any, userId: string) {
     if (!name) {
         return NextResponse.json({ error: 'Missing workflow name' }, { status: 400 });
     }
@@ -15,6 +15,7 @@ async function executeRunLogic(name: string, args: any) {
         .from('rune_workflows')
         .select('id, name, user_id')
         .eq('name', name)
+        .eq('user_id', userId)
         .single();
 
     if (wfError || !workflow) {
@@ -68,6 +69,12 @@ async function executeRunLogic(name: string, args: any) {
 
 export async function POST(req: NextRequest) {
     try {
+        const authClient = await createClient();
+        const { data: { user }, error: authError } = await authClient.auth.getUser();
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const body = await req.json().catch(() => ({}));
         const { name, args } = body;
         const idempotencyKey = req.headers.get('idempotency-key');
@@ -79,11 +86,11 @@ export async function POST(req: NextRequest) {
                     scope: 'start_run',
                     params: { name, argsCount: Array.isArray(args) ? args.length : 'object' }
                 },
-                () => executeRunLogic(name, args)
+                () => executeRunLogic(name, args, user.id)
             );
         }
 
-        return executeRunLogic(name, args);
+        return executeRunLogic(name, args, user.id);
 
     } catch (error: any) {
         console.error('Error running workflow:', error);
@@ -93,4 +100,3 @@ export async function POST(req: NextRequest) {
         );
     }
 }
-

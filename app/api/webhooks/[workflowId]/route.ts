@@ -2,6 +2,45 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { WorkflowEngine } from '@/lib/workflow-engine';
 import { processIdempotency } from '@/lib/idempotency';
+import { verifySignature } from '@/lib/autonomy/security';
+
+async function validateWebhookSignature(workflowId: string, rawPayload: string, signature: string | null) {
+    if (!signature) {
+        return { ok: false, status: 401, error: 'Missing X-Rune-Signature header' };
+    }
+
+    const supabase = createAdminClient();
+    const { data: workflow, error } = await supabase
+        .from('rune_workflows')
+        .select('id, user_id, webhook_secret')
+        .eq('id', workflowId)
+        .single();
+
+    if (error || !workflow) {
+        return { ok: false, status: 404, error: 'Workflow not found' };
+    }
+
+    if (workflow.webhook_secret && verifySignature(rawPayload, workflow.webhook_secret, signature)) {
+        return { ok: true, workflow };
+    }
+
+    // Backward compatibility: endpoint secrets
+    const { data: endpoints } = await supabase
+        .from('rune_webhook_endpoints')
+        .select('secret_hash')
+        .eq('workflow_id', workflowId)
+        .eq('is_active', true);
+
+    const endpointMatch = (endpoints || []).some((ep: any) =>
+        verifySignature(rawPayload, ep.secret_hash, signature)
+    );
+
+    if (!endpointMatch) {
+        return { ok: false, status: 401, error: 'Invalid signature' };
+    }
+
+    return { ok: true, workflow };
+}
 
 export async function POST(
     request: NextRequest,
@@ -9,33 +48,39 @@ export async function POST(
 ) {
     const { workflowId } = await params;
     const idempotencyKey = request.headers.get('idempotency-key');
+    const signature = request.headers.get('x-rune-signature');
 
-    // Parse body if present
-    let body = {};
+    const rawBody = await request.text();
+    let payload: any = {};
     try {
-        body = await request.json();
+        payload = rawBody ? JSON.parse(rawBody) : {};
     } catch {
-        // Body might be empty
+        return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
+    }
+
+    const signatureValidation = await validateWebhookSignature(workflowId, rawBody, signature);
+    if (!signatureValidation.ok) {
+        return NextResponse.json(
+            { success: false, error: signatureValidation.error },
+            { status: signatureValidation.status }
+        );
     }
 
     if (idempotencyKey) {
         return processIdempotency(
             { key: idempotencyKey, scope: 'webhook_run', params: { workflowId } },
-            () => handleWorkflowTrigger(workflowId, body)
+            () => handleWorkflowTrigger(workflowId, payload)
         );
     }
 
-    return handleWorkflowTrigger(workflowId, body);
+    return handleWorkflowTrigger(workflowId, payload);
 }
 
-export async function GET(
-    request: NextRequest,
-    { params }: { params: Promise<{ workflowId: string }> }
-) {
-    const { workflowId } = await params;
-    // GET requests usually don't have a body, pass empty object or query params
-    const searchParams = Object.fromEntries(request.nextUrl.searchParams);
-    return handleWorkflowTrigger(workflowId, searchParams);
+export async function GET() {
+    return NextResponse.json(
+        { success: false, error: 'GET is not supported on this webhook endpoint' },
+        { status: 405 }
+    );
 }
 
 async function handleWorkflowTrigger(workflowId: string, payload: any) {
@@ -49,7 +94,6 @@ async function handleWorkflowTrigger(workflowId: string, payload: any) {
 
         const supabase = createAdminClient();
 
-        // 1. Fetch Latest Deployed Version
         const { data: latestVersion, error } = await supabase
             .from('rune_workflow_versions')
             .select('*')
@@ -59,14 +103,13 @@ async function handleWorkflowTrigger(workflowId: string, payload: any) {
             .single();
 
         if (error || !latestVersion) {
-            console.error('Workflow version lookup failed:', error);
             return NextResponse.json(
                 { success: false, error: 'Workflow not found or not deployed' },
                 { status: 404 }
             );
         }
 
-        const graph = latestVersion.definition_json?.graph; // Production uses definition_json.graph
+        const graph = latestVersion.definition_json?.graph;
         if (!graph || !graph.nodes || !graph.edges) {
             return NextResponse.json(
                 { success: false, error: 'Invalid workflow graph data' },
@@ -74,7 +117,6 @@ async function handleWorkflowTrigger(workflowId: string, payload: any) {
             );
         }
 
-        // 2. Fetch Workflow Name
         const { data: wfMeta } = await supabase
             .from('rune_workflows')
             .select('name, user_id')
@@ -84,7 +126,6 @@ async function handleWorkflowTrigger(workflowId: string, payload: any) {
         const workflowName = wfMeta?.name || 'Unknown Workflow';
         const workflowUserId = wfMeta?.user_id;
 
-        // 3. Initialize Engine
         const engine = new WorkflowEngine(
             supabase,
             workflowId,
@@ -92,10 +133,9 @@ async function handleWorkflowTrigger(workflowId: string, payload: any) {
             graph.nodes,
             graph.edges,
             workflowUserId,
-            latestVersion.id // Pass version ID
+            latestVersion.id
         );
 
-        // Find Webhook Node to trigger
         const webhookNode = graph.nodes.find((n: any) => n.type === 'webhook');
         const triggerNodeId = webhookNode?.id;
 
@@ -106,7 +146,6 @@ async function handleWorkflowTrigger(workflowId: string, payload: any) {
             );
         }
 
-        // 4. Run Execution
         const runResult = await engine.run(payload, triggerNodeId);
 
         return NextResponse.json({
@@ -115,7 +154,6 @@ async function handleWorkflowTrigger(workflowId: string, payload: any) {
             runId: runResult.id,
             result: runResult.result
         });
-
     } catch (error: any) {
         console.error('Webhook error:', error);
         return NextResponse.json(

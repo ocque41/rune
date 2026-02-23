@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(req: NextRequest) {
     try {
+        if (process.env.NODE_ENV === 'production') {
+            return NextResponse.json({ error: 'Endpoint disabled in production' }, { status: 403 });
+        }
+
+        const authClient = await createClient();
+        const { data: { user }, error: authError } = await authClient.auth.getUser();
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const { code, filename } = await req.json();
 
         if (!code || !filename) {

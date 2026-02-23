@@ -93,13 +93,14 @@ export async function GET(req: Request) {
                     const prevDate = prev.toDate();
                     const now = new Date();
 
-                    // If the previous scheduled run was less than 60 seconds ago, we run it.
-                    // This assumes the cron job runs at least every minute.
+                    // If the previous scheduled run was within the cron lookback window, we run it.
+                    // This keeps schedule checks aligned with the deployment cron cadence.
                     const diffMs = now.getTime() - prevDate.getTime();
-                    const oneMinuteMs = 60 * 1000;
+                    const lookbackMinutes = Number(process.env.RUNE_SCHEDULE_LOOKBACK_MINUTES || 5);
+                    const lookbackMs = lookbackMinutes * 60 * 1000;
 
-                    if (diffMs > oneMinuteMs) {
-                        // Not due yet (or we missed it by a lot - simplistic check)
+                    if (diffMs > lookbackMs) {
+                        // Not due in current lookback window.
                         console.log(`[Cron] Skipping ${wf.name} - Not due. Last due: ${prevDate.toISOString()}`);
                         continue;
                     }

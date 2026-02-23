@@ -113,9 +113,11 @@ export async function POST(req: NextRequest) {
                 return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
             }
 
+            const ingestionClient = signature ? createAdminClient() : supabase;
             const { event, deduplicated } = await ingestAutonomyEvent(
                 userId,
-                validation.data as any
+                validation.data as any,
+                ingestionClient as any
             );
 
             if (event && event.status === 'pending') {

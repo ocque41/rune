@@ -1,5 +1,4 @@
-import { validateApprovalToken, markTokenUsed } from '@/lib/autonomy/approvals';
-import { approveJob } from '@/app/actions/autonomy';
+import { applyApprovalToken } from '@/lib/autonomy/approvals';
 import { CheckCircle, XCircle } from 'lucide-react';
 import Link from 'next/link';
 
@@ -10,29 +9,22 @@ export const metadata = {
 // Next.js 15: params is async
 export default async function ApprovalPage({ params }: { params: Promise<{ token: string }> }) {
     const { token } = await params;
-
-    const { valid, jobId, action, alreadyUsed } = await validateApprovalToken(token);
     let error: string | null = null;
     let success = false;
     let successMessage = "";
+    let action: 'approve' | 'reject' | null = null;
 
-    if (!valid) {
-        error = alreadyUsed ? "This approval link has already been used." : "Invalid or expired approval link.";
-    } else if (jobId && action) {
-        try {
-            // We pass the decision based on the token's embedded action
-            const decision = action === 'reject' ? 'rejected' : 'approved';
-            await approveJob(jobId, decision);
-
-            successMessage = decision === 'rejected'
-                ? "The autonomous job has been rejected."
-                : "The autonomous job has been approved and queued for execution.";
-
-            await markTokenUsed(token);
-            success = true;
-        } catch (e: any) {
-            error = e.message;
-        }
+    const result = await applyApprovalToken(token);
+    if (!result.ok) {
+        error = result.alreadyUsed
+            ? "This approval link has already been used."
+            : (result.error || "Invalid or expired approval link.");
+    } else {
+        action = result.action || null;
+        successMessage = action === 'reject'
+            ? "The autonomous job has been rejected."
+            : "The autonomous job has been approved and queued for execution.";
+        success = true;
     }
 
     return (

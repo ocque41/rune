@@ -866,8 +866,12 @@ const FlowBuilderContent = ({
             });
 
             setShowExecutionLogPanel(true);
-            // NEW: Start listening for real-time outputs for this deployment
-            setListeningRunId(crypto.randomUUID()); // Placeholder for actual runId from server
+            // Start listening only when backend returns a real run id.
+            if (data.runId) {
+                setListeningRunId(data.runId);
+            } else {
+                setListeningRunId(null);
+            }
 
         } catch (error) {
             console.error('Deploy error:', error);

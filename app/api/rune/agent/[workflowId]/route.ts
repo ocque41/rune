@@ -1,33 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { agentStore } from '@/lib/agent-store';
+import { AgentConfigSchema } from '@/lib/agent/types';
+
+const DEFAULT_CONFIG = {
+    model: 'gemini-1.5-flash',
+    provider: 'google',
+    temperature: 0.7,
+    outputMode: 'text',
+    tools: [],
+    toolExecutionPolicy: 'confirm_high_impact',
+    maxToolCalls: 10,
+    maxSteps: 20,
+    persistHistory: true,
+    thinking: { enabled: false }
+};
 
 export async function GET(
-    request: NextRequest,
+    _request: NextRequest,
     { params }: { params: Promise<{ workflowId: string }> }
 ) {
     const { workflowId } = await params;
     const supabase = await createClient();
 
-    // Auth check
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const profile = await agentStore.getProfile(supabase, workflowId);
+    const { data: rows } = await supabase
+        .from('rune_agent_configs')
+        .select('scope_type, workflow_id, node_id, config')
+        .eq('user_id', user.id);
 
-    if (!profile) {
-        return NextResponse.json({
-            model: 'gpt-4-turbo',
-            temperature: 0.7,
-            system_prompt: '',
-            tools_enabled: true,
-            tools: []
-        });
-    }
+    const userDefault = rows?.find((r: any) => r.scope_type === 'user_default')?.config || {};
+    const workflowConfig = rows?.find((r: any) => r.scope_type === 'workflow' && r.workflow_id === workflowId)?.config || {};
+    const merged = { ...DEFAULT_CONFIG, ...userDefault, ...workflowConfig };
 
-    return NextResponse.json(profile);
+    const parsed = AgentConfigSchema.safeParse(merged);
+    return NextResponse.json(parsed.success ? parsed.data : merged);
 }
 
 export async function POST(
@@ -35,7 +45,6 @@ export async function POST(
     { params }: { params: Promise<{ workflowId: string }> }
 ) {
     const { workflowId } = await params;
-
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -45,7 +54,29 @@ export async function POST(
 
     try {
         const body = await request.json();
-        await agentStore.updateProfile(supabase, workflowId, user.id, body);
+        const merged = { ...DEFAULT_CONFIG, ...(body || {}) };
+        const parsed = AgentConfigSchema.safeParse(merged);
+
+        if (!parsed.success) {
+            return NextResponse.json({ error: 'Invalid config payload' }, { status: 400 });
+        }
+
+        const { error } = await supabase
+            .from('rune_agent_configs')
+            .upsert({
+                user_id: user.id,
+                scope_type: 'workflow',
+                workflow_id: workflowId,
+                node_id: null,
+                config: parsed.data
+            }, {
+                onConflict: 'user_id,scope_type,workflow_id,node_id'
+            });
+
+        if (error) {
+            return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+
         return NextResponse.json({ success: true });
     } catch (e: any) {
         return NextResponse.json({ error: e.message }, { status: 500 });

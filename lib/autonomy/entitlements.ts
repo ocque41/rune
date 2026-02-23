@@ -31,11 +31,20 @@ export async function getUserEntitlements(userId: string): Promise<UserEntitleme
     const now = new Date();
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
 
-    const { data: usageData, error: usageError } = await supabase
-        .from('rune_usage_rollups_daily')
+    let { data: usageData } = await supabase
+        .from('rune_agent_usage_daily_rollup')
         .select('estimated_cost_usd')
         .eq('user_id', userId)
         .gte('day', firstDay);
+
+    if (!usageData) {
+        const fallback = await supabase
+            .from('rune_usage_rollups_daily')
+            .select('estimated_cost_usd')
+            .eq('user_id', userId)
+            .gte('day', firstDay);
+        usageData = fallback.data || [];
+    }
 
     let totalCost = 0;
     if (usageData) {

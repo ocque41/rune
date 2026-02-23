@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { applySharedCookieDomain } from '@/lib/supabase/cookie-options';
 
 export async function middleware(request: NextRequest) {
     // 1. Create Supabase client
@@ -20,10 +21,7 @@ export async function middleware(request: NextRequest) {
                 setAll(cookiesToSet) {
                     cookiesToSet.forEach(({ name, value, options }) => {
                         request.cookies.set(name, value);
-                        response.cookies.set(name, value, {
-                            ...options,
-                            domain: '.cumulush.com', // FORCE SHARED DOMAIN
-                        });
+                        response.cookies.set(name, value, applySharedCookieDomain(options));
                     });
                 },
             },

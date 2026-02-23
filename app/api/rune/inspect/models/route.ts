@@ -19,14 +19,26 @@ export async function GET(req: NextRequest) {
             const to = url.searchParams.get('to');
 
             let query = supabase
-                .from('rune_usage_rollups_daily')
+                .from('rune_agent_usage_daily_rollup')
                 .select('*')
                 .eq('user_id', user.id);
 
             if (from) query = query.gte('day', from);
             if (to) query = query.lte('day', to);
 
-            const { data, error } = await query;
+            let { data, error } = await query;
+            if (error) {
+                // Backward-compatible fallback.
+                let fallback = supabase
+                    .from('rune_usage_rollups_daily')
+                    .select('*')
+                    .eq('user_id', user.id);
+                if (from) fallback = fallback.gte('day', from);
+                if (to) fallback = fallback.lte('day', to);
+                const fallbackResult = await fallback;
+                data = fallbackResult.data;
+                error = fallbackResult.error;
+            }
 
             if (error) throw error;
 

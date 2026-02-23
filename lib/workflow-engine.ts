@@ -156,7 +156,7 @@ export class WorkflowEngine {
                         run_id: this.context.runId,
                         status: 'completed'
                     }
-                });
+                }, this.supabase as any);
             } catch (e) {
                 console.warn('[Autonomy] Failed to emit completion event', e);
             }
@@ -183,7 +183,7 @@ export class WorkflowEngine {
                         status: 'failed',
                         error: error.message
                     }
-                });
+                }, this.supabase as any);
             } catch (e) {
                 console.warn('[Autonomy] Failed to emit failure event', e);
             }

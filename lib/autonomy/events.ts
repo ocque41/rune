@@ -1,5 +1,6 @@
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { AgentEventInsert } from '@/lib/types/database';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Ingests an event for the autonomous agent system.
@@ -7,9 +8,23 @@ import { AgentEventInsert } from '@/lib/types/database';
  */
 export async function ingestAutonomyEvent(
     userId: string,
-    event: Omit<AgentEventInsert, 'id' | 'created_at' | 'user_id' | 'status'>
+    event: Omit<AgentEventInsert, 'id' | 'created_at' | 'user_id' | 'status'>,
+    supabaseClient?: SupabaseClient
 ) {
-    const supabase = await createClient();
+    let supabase: any = supabaseClient;
+    if (!supabase || typeof supabase.from !== 'function') {
+        try {
+            supabase = await createClient();
+        } catch {
+            try {
+                // Fallback for non-request contexts (cron/workers/tests).
+                supabase = createAdminClient();
+            } catch {
+                // Local/test environments may not expose service role keys.
+                return { event: null, deduplicated: false };
+            }
+        }
+    }
 
     // Default to a random UUID if no dedupe key provided (though type requires it)
     const dedupeKey = event.dedupe_key || crypto.randomUUID();

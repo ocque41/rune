@@ -63,6 +63,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
         messages,
         isTemporaryChat,
         setCurrentChat,
+        setActiveWorkflow,
         setMessages,
         addMessage,
         setIsTemporaryChat,
@@ -109,6 +110,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
     // Switch chats when workflowId changes
     useEffect(() => {
         if (!workflowId) return;
+        setActiveWorkflow(workflowId);
 
         // Load last active chat for this workflow
         const useChatId = useAgentStore.getState().lastActiveChats[workflowId] || null;
@@ -121,7 +123,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
             // Avoid loop if setting null
             setCurrentChat(useChatId);
         }
-    }, [workflowId]);
+    }, [workflowId, setActiveWorkflow, setCurrentChat]);
 
     const loadChat = async (chatId: string) => {
         try {
@@ -204,7 +206,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
             }
         };
         loadInitialData();
-    }, []);
+    }, [workflowId, updateConfig]);
 
     const handleLoadPreset = (presetId: string) => {
         const preset = presets.find(p => p.id === presetId);
@@ -437,6 +439,8 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
             const responseChatId = response.headers.get('X-Chat-Id');
             const sessionStatus = response.headers.get('X-Session-Status');
             const responseSessionId = response.headers.get('X-Session-Id');
+            const approvalRequired = response.headers.get('X-Approval-Required') === 'true';
+            const approvalMessageId = response.headers.get('X-Approval-Message-Id');
 
             if (responseSessionId) {
                 setSessionId(responseSessionId);
@@ -473,6 +477,21 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
 
             if (!isStreamEnabled) {
                 setOutput(fullResponse);
+            }
+
+            if (approvalRequired || sessionStatus === 'waiting_approval') {
+                setActiveSessionId(responseSessionId || resumeSessionId || null);
+                if (responseChatId) {
+                    await loadChat(responseChatId);
+                } else if (currentChatId) {
+                    await loadChat(currentChatId);
+                }
+                setOutput(prev => `${prev}${prev ? '\n' : ''}[Awaiting approval]`);
+                if (approvalMessageId) {
+                    console.log(`[Playground] Waiting approval on message ${approvalMessageId}`);
+                }
+                setIsGenerating(false);
+                return;
             }
 
             // Check if we need to auto-continue
@@ -853,13 +872,17 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                                                 messageId={msg.id!}
                                                                 toolCalls={msg.toolCalls}
                                                                 status={msg.approval_status}
-                                                                onAction={(decision) => {
+                                                                onAction={(decision, resumeSessionId) => {
                                                                     setMessages(messages.map((m) =>
                                                                         m.id === msg.id ? { ...m, approval_status: decision } : m
                                                                     ));
                                                                     // Trigger re-run if approved
                                                                     if (decision === 'approved') {
-                                                                        const resumeId = activeSessionId || sessionId;
+                                                                        const resumeId = resumeSessionId || activeSessionId || sessionId;
+                                                                        if (resumeId) {
+                                                                            setSessionId(resumeId);
+                                                                            setActiveSessionId(resumeId);
+                                                                        }
                                                                         if (resumeId) {
                                                                             handleSubmit(resumeId);
                                                                         } else {

@@ -18,7 +18,7 @@ export class AgentDB {
             .from('rune_chats')
             .select('*')
             .eq('workflow_id', workflowId)
-            .order('last_message_at', { ascending: false });
+            .order('updated_at', { ascending: false });
 
         if (error) throw error;
         return data || [];

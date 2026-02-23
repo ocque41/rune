@@ -18,7 +18,7 @@ interface ApprovalCardProps {
     messageId: string;
     toolCalls: ToolCall[];
     status?: ApprovalStatus;
-    onAction?: (status: 'approved' | 'rejected') => void;
+    onAction?: (status: 'approved' | 'rejected', resumeSessionId?: string | null) => void;
 }
 
 export function ApprovalCard({ messageId, toolCalls, status = 'pending', onAction }: ApprovalCardProps) {
@@ -38,11 +38,10 @@ export function ApprovalCard({ messageId, toolCalls, status = 'pending', onActio
 
             const data = await res.json();
             setCurrentStatus(decision);
-            if (onAction) onAction(decision);
+            if (onAction) onAction(decision, data.resume?.sessionId || null);
 
-            if (decision === 'approved' && data.instruction) {
+            if (decision === 'approved') {
                 toast.success('Approved! Resuming agent...');
-                // The parent component should handle the actual resumption (re-fetch/stream)
             } else {
                 toast.info('Request rejected.');
             }
