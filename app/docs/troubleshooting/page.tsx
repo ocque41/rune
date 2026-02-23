@@ -58,6 +58,45 @@ export default function TroubleshootingPage() {
                             <strong>Fix:</strong> Ensure the variable passed to the "Items" field is actually an Array. Use a <strong>Run Script</strong> node before the loop to debug/log the data type.
                         </div>
                     </div>
+
+                    <div className="border border-amber-500/20 bg-amber-500/5 rounded-xl p-6">
+                        <div className="flex items-center gap-3 mb-4">
+                            <AlertTriangle className="text-amber-500" />
+                            <h2 className="text-xl font-bold text-[var(--foreground-title)]">Push to main Did Not Create a Vercel Deployment</h2>
+                        </div>
+                        <p className="text-[var(--foreground-body)] mb-3">
+                            Use this runbook when a Git push lands in GitHub but Vercel shows no new deployment entry.
+                        </p>
+
+                        <p className="text-sm font-semibold text-[var(--foreground-title)] mb-2">Triage Steps</p>
+                        <ol className="list-decimal list-inside text-sm text-[var(--foreground-body)] space-y-1 mb-4">
+                            <li>Anchor the incident with commit SHA + timestamp.</li>
+                            <li>Check Vercel Deployments for that SHA.</li>
+                            <li>Check Vercel Activity Log in the same time window.</li>
+                            <li>Map the log signal to fix:
+                                <ul className="list-disc list-inside mt-1 ml-5 space-y-1">
+                                    <li><code>project-git-create-deployments-toggled</code> -&gt; re-enable auto deployments for <code>main</code>.</li>
+                                    <li><code>deployment-creation-blocked</code> -&gt; fix team access / commit author access.</li>
+                                    <li>Webhook or OAuth errors -&gt; reconnect Git integration / reauthorize GitHub app.</li>
+                                    <li>No related events -&gt; disconnect/reconnect project Git integration and retest.</li>
+                                </ul>
+                            </li>
+                        </ol>
+
+                        <p className="text-sm font-semibold text-[var(--foreground-title)] mb-2">Recovery + Verification</p>
+                        <ol className="list-decimal list-inside text-sm text-[var(--foreground-body)] space-y-1 mb-4">
+                            <li>Create one manual deployment from the target SHA to restore service.</li>
+                            <li>Push an empty commit (regression test) and confirm auto deployment appears in 1-2 minutes.</li>
+                            <li>If regression fails, reconnect Git integration and reauthorize GitHub app, then test again.</li>
+                        </ol>
+
+                        <p className="text-sm font-semibold text-[var(--foreground-title)] mb-2">Monthly Audit Checklist</p>
+                        <ul className="list-disc list-inside text-sm text-[var(--foreground-body)] space-y-1">
+                            <li>Project Git integration is connected to the expected repository.</li>
+                            <li>Production branch is <code>main</code> and auto deployments are enabled.</li>
+                            <li>Ignored Build Step is empty/disabled unless intentionally configured.</li>
+                        </ul>
+                    </div>
                 </div>
             </main>
         </div>
