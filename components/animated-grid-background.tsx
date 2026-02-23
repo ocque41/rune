@@ -37,16 +37,16 @@ export const AnimatedGridBackground: React.FC<AnimatedGridBackgroundProps> = ({ 
         <div
             className={`absolute inset-0 overflow-hidden pointer-events-none ${className || ''}`}
             style={{
-                background: 'linear-gradient(180deg, #000000 0%, #020208 50%, #000000 100%)',
+                background: '#000000',
             }}
         >
             {/* CSS Grid lines */}
             <div
-                className="absolute inset-0 opacity-[0.03]"
+                className="absolute inset-0 opacity-0"
                 style={{
                     backgroundImage: `
-                        linear-gradient(to right, #F0EEE9 1px, transparent 1px),
-                        linear-gradient(to bottom, #F0EEE9 1px, transparent 1px)
+                        linear-gradient(to right, #050505 1px, transparent 1px),
+                        linear-gradient(to bottom, #050505 1px, transparent 1px)
                     `,
                     backgroundSize: '50px 50px',
                 }}
@@ -73,9 +73,9 @@ export const AnimatedGridBackground: React.FC<AnimatedGridBackgroundProps> = ({ 
 
             {/* Subtle radial gradient overlay */}
             <div
-                className="absolute inset-0"
+                className="absolute inset-0 opacity-0"
                 style={{
-                    background: 'radial-gradient(ellipse at 50% 50%, transparent 0%, #000000 70%)',
+                    background: 'none',
                 }}
             />
 
