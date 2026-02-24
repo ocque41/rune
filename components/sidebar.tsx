@@ -4,10 +4,12 @@ import React, { useMemo, useState } from 'react';
 import type { DragEvent } from 'react';
 import { cn } from '@/lib/utils';
 import { inferKindFromLegacyLabel } from '@/lib/workflow/node-catalog';
+import type { WorkflowMode } from '@/lib/workflow/modes';
 
 interface SidebarProps {
     hasStartNode: boolean;
     workflowId?: string | null;
+    workflowMode?: WorkflowMode;
     onAgentClick?: () => void;
     className?: string;
 }
@@ -41,7 +43,15 @@ const NODE_GROUPS = {
     ],
 } as const;
 
-export const Sidebar = ({ hasStartNode, workflowId, onAgentClick, className }: SidebarProps) => {
+const LINEAL_HIDDEN_KINDS = new Set(['ifElse', 'parallel', 'loop']);
+
+export const Sidebar = ({
+    hasStartNode,
+    workflowId,
+    workflowMode = 'branching',
+    onAgentClick,
+    className
+}: SidebarProps) => {
     const [searchTerm, setSearchTerm] = useState('');
 
     const onDragStart = (event: DragEvent, nodeType: string, label: string) => {
@@ -56,15 +66,19 @@ export const Sidebar = ({ hasStartNode, workflowId, onAgentClick, className }: S
         () =>
             [...NODE_GROUPS.operations, ...NODE_GROUPS.flow].map((item) => ({
                 ...item,
+                hidden:
+                    workflowMode === 'lineal'
+                    && LINEAL_HIDDEN_KINDS.has(inferKindFromLegacyLabel(item.label, item.type)),
                 disabled: item.label === 'Start Workflow' && hasStartNode,
             })),
-        [hasStartNode]
+        [hasStartNode, workflowMode]
     );
 
     const filteredNodes = useMemo(() => {
         const query = searchTerm.trim().toLowerCase();
-        if (!query) return allNodes;
-        return allNodes.filter((node) => node.label.toLowerCase().includes(query));
+        const visibleNodes = allNodes.filter((node) => !node.hidden);
+        if (!query) return visibleNodes;
+        return visibleNodes.filter((node) => node.label.toLowerCase().includes(query));
     }, [allNodes, searchTerm]);
 
     return (
@@ -78,6 +92,9 @@ export const Sidebar = ({ hasStartNode, workflowId, onAgentClick, className }: S
                 <p className="text-xs font-medium text-white/60">Node commands</p>
                 <p className="mt-1 text-[11px] text-white/40">
                     {workflowId ? `Workflow ${workflowId.slice(0, 8)}` : 'Unsaved workflow'}
+                </p>
+                <p className="mt-1 text-[11px] text-white/40">
+                    Mode: {workflowMode}
                 </p>
                 <div className="mt-3 flex gap-2">
                     <button
@@ -119,7 +136,12 @@ export const Sidebar = ({ hasStartNode, workflowId, onAgentClick, className }: S
                         <div>
                             <p className="px-2 text-[10px] font-medium text-white/35">Operations</p>
                             <div className="mt-2 space-y-1">
-                                {NODE_GROUPS.operations.map((node) => (
+                                {NODE_GROUPS.operations
+                                    .filter((node) => {
+                                        if (workflowMode !== 'lineal') return true;
+                                        return !LINEAL_HIDDEN_KINDS.has(inferKindFromLegacyLabel(node.label, node.type));
+                                    })
+                                    .map((node) => (
                                     <SidebarNodeCommand key={`${node.type}-${node.label}`} item={node} onDragStart={onDragStart} />
                                 ))}
                             </div>
@@ -127,7 +149,12 @@ export const Sidebar = ({ hasStartNode, workflowId, onAgentClick, className }: S
                         <div>
                             <p className="px-2 text-[10px] font-medium text-white/35">Flow control</p>
                             <div className="mt-2 space-y-1">
-                                {NODE_GROUPS.flow.map((node) => (
+                                {NODE_GROUPS.flow
+                                    .filter((node) => {
+                                        if (workflowMode !== 'lineal') return true;
+                                        return !LINEAL_HIDDEN_KINDS.has(inferKindFromLegacyLabel(node.label, node.type));
+                                    })
+                                    .map((node) => (
                                     <SidebarNodeCommand
                                         key={`${node.type}-${node.label}`}
                                         item={{
