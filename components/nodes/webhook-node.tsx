@@ -48,7 +48,8 @@ export default function WebhookNode({ id, data, selected }: NodeProps<CustomNode
         <button
           type="button"
           onClick={copyToClipboard}
-          className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-[10px] text-white/70 hover:bg-white/5"
+          className="inline-flex items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[10px] text-white/75 hover:border-white/30 hover:bg-white/10"
+          title="Copy webhook endpoint URL for external trigger setup"
         >
           {copied ? <Check size={12} /> : <Copy size={12} />}
           {copied ? 'Copied' : 'Copy URL'}

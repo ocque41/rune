@@ -48,8 +48,9 @@ export default function GroupNode({ id, data, selected }: NodeProps<CustomGroupN
           <button
             type="button"
             onClick={handleToggleCollapse}
-            className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-[10px] text-white/70 hover:bg-white/5"
+            className="inline-flex items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[10px] text-white/75 hover:border-white/30 hover:bg-white/10"
             aria-label={isCollapsed ? 'Expand group' : 'Collapse group'}
+            title={isCollapsed ? 'Expand group container to show nested nodes' : 'Collapse group container to focus on flow'}
           >
             {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
             {isCollapsed ? 'Expand' : 'Collapse'}

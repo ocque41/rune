@@ -205,26 +205,26 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                                     {senders.map(s => (
                                         <div key={s.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5 group">
                                             <div className="flex items-center gap-3">
-                                                <div className="p-2 bg-blue-500/10 rounded-md text-blue-400">
+                                                <div className="p-2 bg-white/10 rounded-md text-white/80">
                                                     <Mail size={16} />
                                                 </div>
                                                 <div>
                                                     <div className="text-sm text-white/90">{s.email}</div>
-                                                    <div className={`text-[10px] font-medium uppercase tracking-wider ${s.status === 'verified' ? 'text-green-400' :
-                                                        s.status === 'connected' ? 'text-blue-400' : 'text-yellow-400'
+                                                    <div className={`text-[10px] font-medium uppercase tracking-wider ${s.status === 'verified' ? 'text-white/85' :
+                                                        s.status === 'connected' ? 'text-white/75' : 'text-white/65'
                                                         }`}>
                                                         {s.status === 'connected' ? 'SMTP Connected' : s.status}
                                                     </div>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                {(s.status === 'verified' || s.status === 'connected') && <ShieldCheck size={16} className={s.status === 'connected' ? "text-blue-400" : "text-green-400"} />}
+                                                {(s.status === 'verified' || s.status === 'connected') && <ShieldCheck size={16} className={s.status === 'connected' ? "text-white/75" : "text-white/85"} />}
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         handleDelete(s.id, s.email);
                                                     }}
-                                                    className="p-1.5 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"
+                                                    className="p-1.5 text-white/40 hover:text-white hover:bg-white/12 rounded transition-colors"
                                                     title="Delete sender"
                                                 >
                                                     <Trash2 size={14} />
@@ -265,7 +265,7 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                                         <input
                                             type="email"
                                             placeholder="name@company.com"
-                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/30"
                                             value={newEmail}
                                             onChange={e => setNewEmail(e.target.value)}
                                         />
@@ -281,7 +281,7 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                                         <button
                                             onClick={handleSendVerification}
                                             disabled={processing || !newEmail}
-                                            className="flex-1 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                                            className="flex-1 py-2 text-sm bg-white/92 hover:bg-white text-black rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
                                         >
                                             {processing && <Loader2 size={14} className="animate-spin" />}
                                             Send Code
@@ -296,30 +296,30 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-xs font-medium text-white/60">Email Address (Username)</label>
-                                        <input type="email" placeholder="you@gmail.com" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500" value={newEmail} onChange={e => setNewEmail(e.target.value)} />
+                                        <input type="email" placeholder="you@gmail.com" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/30" value={newEmail} onChange={e => setNewEmail(e.target.value)} />
                                     </div>
                                     <div className="grid grid-cols-3 gap-2">
                                         <div className="col-span-2 space-y-2">
                                             <label className="text-xs font-medium text-white/60">Host</label>
-                                            <input type="text" placeholder="smtp.gmail.com" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500" value={smtpConfig.host} onChange={e => setSmtpConfig({ ...smtpConfig, host: e.target.value })} />
+                                            <input type="text" placeholder="smtp.gmail.com" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/30" value={smtpConfig.host} onChange={e => setSmtpConfig({ ...smtpConfig, host: e.target.value })} />
                                         </div>
                                         <div className="space-y-2">
                                             <label className="text-xs font-medium text-white/60">Port</label>
-                                            <input type="text" placeholder="587" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500" value={smtpConfig.port} onChange={e => setSmtpConfig({ ...smtpConfig, port: e.target.value })} />
+                                            <input type="text" placeholder="587" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/30" value={smtpConfig.port} onChange={e => setSmtpConfig({ ...smtpConfig, port: e.target.value })} />
                                         </div>
                                     </div>
                                     <div className="space-y-2">
                                         <div className="flex justify-between items-center">
                                             <label className="text-xs font-medium text-white/60">Password (App Password)</label>
-                                            <button onClick={() => setShowHelp(true)} className="text-[10px] text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 transition-colors">
+                                            <button onClick={() => setShowHelp(true)} className="text-[10px] text-white/75 hover:text-white hover:underline flex items-center gap-1 transition-colors">
                                                 <HelpCircle size={10} /> How to get?
                                             </button>
                                         </div>
-                                        <input type="password" placeholder="xxxx xxxx xxxx xxxx" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500" value={smtpConfig.pass} onChange={e => setSmtpConfig({ ...smtpConfig, pass: e.target.value })} />
+                                        <input type="password" placeholder="xxxx xxxx xxxx xxxx" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/30" value={smtpConfig.pass} onChange={e => setSmtpConfig({ ...smtpConfig, pass: e.target.value })} />
                                     </div>
                                     <div className="flex gap-2 mt-4">
                                         <button onClick={() => setView('list')} className="flex-1 py-2 text-sm text-white/60 hover:text-white hover:bg-white/5 rounded-lg">Cancel</button>
-                                        <button onClick={handleConnectSMTP} disabled={processing} className="flex-1 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">
+                                        <button onClick={handleConnectSMTP} disabled={processing} className="flex-1 py-2 text-sm bg-white/92 hover:bg-white text-black rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">
                                             {processing && <Loader2 size={14} className="animate-spin" />}
                                             Connect & Save
                                         </button>
@@ -331,15 +331,15 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
 
                     {view === 'verify' && (
                         <div className="space-y-4">
-                            <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm text-blue-200">
+                            <div className="p-4 bg-white/10 border border-white/20 rounded-lg text-sm text-white/80">
                                 Code sent to <strong>{newEmail}</strong>. Please check your inbox (and spam).
                                 {previewUrl && (
-                                    <div className="mt-3 pt-3 border-t border-blue-500/20">
+                                    <div className="mt-3 pt-3 border-t border-white/20">
                                         <a
                                             href={previewUrl}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="text-white underline hover:text-blue-100 flex items-center gap-1 font-semibold"
+                                            className="text-white underline hover:text-white/85 flex items-center gap-1 font-semibold"
                                         >
                                             View Email (Ethereal) &rarr;
                                         </a>
@@ -351,7 +351,7 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                                 <input
                                     type="text"
                                     placeholder="123456"
-                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono tracking-widest text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono tracking-widest text-center focus:outline-none focus:ring-1 focus:ring-white/30"
                                     value={verificationCode}
                                     onChange={e => setVerificationCode(e.target.value)}
                                 />
@@ -366,7 +366,7 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                                 <button
                                     onClick={handleVerify}
                                     disabled={processing || !verificationCode}
-                                    className="flex-1 py-2 text-sm bg-green-600 hover:bg-green-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                                    className="flex-1 py-2 text-sm bg-white/92 hover:bg-white text-black rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
                                 >
                                     {processing && <Loader2 size={14} className="animate-spin" />}
                                     Verify & Add
@@ -393,9 +393,9 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                         </div>
 
                         <div className="space-y-6">
-                            <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm text-blue-200">
+                            <div className="p-4 bg-white/10 border border-white/20 rounded-lg text-sm text-white/80">
                                 <p className="font-medium mb-1 flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
+                                    <div className="w-1.5 h-1.5 rounded-full bg-white/75"></div>
                                     Gmail & Outlook
                                 </p>
                                 Most providers block normal passwords. You must use an <strong>App Password</strong>.
@@ -404,7 +404,7 @@ export function VerifiedSendersDrawer({ isOpen, onClose, onSenderVerified }: Pro
                             <div className="space-y-4">
                                 <h3 className="text-sm font-medium text-white">For Gmail Users:</h3>
                                 <ol className="space-y-3 text-sm text-white/60 list-decimal pl-4">
-                                    <li>Go to your <a href="https://myaccount.google.com/security" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline inline-flex items-center gap-0.5">Google Account Security <ExternalLink size={10} /></a> page.</li>
+                                    <li>Go to your <a href="https://myaccount.google.com/security" target="_blank" rel="noopener noreferrer" className="text-white/80 hover:underline inline-flex items-center gap-0.5">Google Account Security <ExternalLink size={10} /></a> page.</li>
                                     <li>Enable <strong>2-Step Verification</strong> if not already on.</li>
                                     <li>Search for <strong>"App passwords"</strong> (or find it under "How you sign in").</li>
                                     <li>Create a new app password named <strong>"Rune"</strong>.</li>

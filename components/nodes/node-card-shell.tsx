@@ -22,52 +22,52 @@ const TONE_STYLES: Record<NodeCardTone, {
   badge: string;
 }> = {
   default: {
-    shell: 'bg-[rgba(10,10,10,0.96)]',
-    header: 'bg-[rgba(22,22,22,0.95)] border-white/10',
-    summary: 'text-white/70',
-    badge: 'bg-white/10 text-white/55 border-white/15',
+    shell: 'bg-[color:var(--metric-surface-2)]',
+    header: 'bg-[color:var(--metric-surface-3)] border-white/12',
+    summary: 'text-white/72',
+    badge: 'bg-white/10 text-white/65 border-white/20',
   },
   trigger: {
-    shell: 'before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-l-xl before:bg-white/55',
-    header: 'bg-[rgba(30,30,30,0.95)] border-white/20',
+    shell: 'before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-l-xl before:bg-white/45',
+    header: 'bg-[color:var(--metric-surface-3)] border-white/20',
     summary: 'text-white/78',
-    badge: 'bg-white/20 text-white/85 border-white/30',
+    badge: 'bg-white/18 text-white/85 border-white/30',
   },
   logic: {
-    shell: 'border-dashed border-white/20 bg-[rgba(11,11,11,0.97)]',
-    header: 'bg-[rgba(24,24,24,0.94)] border-white/12',
-    summary: 'text-white/70',
-    badge: 'bg-white/14 text-white/70 border-white/20',
+    shell: 'border-dashed border-white/20 bg-[color:var(--metric-surface-2)]',
+    header: 'bg-[color:var(--metric-surface-3)] border-white/16',
+    summary: 'text-white/72',
+    badge: 'bg-white/14 text-white/72 border-white/22',
   },
   data: {
-    shell: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] bg-[rgba(13,13,13,0.97)]',
-    header: 'bg-[rgba(26,26,26,0.95)] border-white/12',
-    summary: 'text-white/72',
-    badge: 'bg-white/12 text-white/72 border-white/18',
+    shell: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] bg-[color:var(--metric-surface-2)]',
+    header: 'bg-[color:var(--metric-surface-3)] border-white/16',
+    summary: 'text-white/74',
+    badge: 'bg-white/13 text-white/72 border-white/20',
   },
   ai: {
-    shell: 'bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(0,0,0,0.98))]',
-    header: 'bg-[rgba(28,28,28,0.95)] border-white/18',
+    shell: 'bg-[color:var(--metric-surface-3)] border-white/20',
+    header: 'bg-[color:var(--metric-surface-3)] border-white/22',
     summary: 'text-white/80',
-    badge: 'bg-white/18 text-white/82 border-white/25',
+    badge: 'bg-white/20 text-white/82 border-white/28',
   },
   integration: {
-    shell: 'bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(0,0,0,0.96))]',
-    header: 'bg-[rgba(24,24,24,0.96)] border-white/16',
+    shell: 'bg-[color:var(--metric-surface-2)] border-white/18',
+    header: 'bg-[color:var(--metric-surface-3)] border-white/20',
     summary: 'text-white/74',
-    badge: 'bg-white/14 text-white/74 border-white/20',
+    badge: 'bg-white/15 text-white/74 border-white/22',
   },
   safety: {
-    shell: 'border-white/30 bg-[rgba(18,18,18,0.96)]',
-    header: 'bg-[rgba(28,28,28,0.96)] border-white/24',
-    summary: 'text-white/80',
-    badge: 'bg-white/18 text-white/82 border-white/28',
+    shell: 'border-white/30 bg-[color:var(--metric-surface-3)]',
+    header: 'bg-[color:var(--metric-surface-3)] border-white/26',
+    summary: 'text-white/82',
+    badge: 'bg-white/20 text-white/84 border-white/30',
   },
   group: {
-    shell: 'border-double border-[3px] border-white/22 bg-[rgba(10,10,10,0.95)]',
-    header: 'bg-[rgba(24,24,24,0.95)] border-white/18',
+    shell: 'border-double border-[3px] border-white/24 bg-[color:var(--metric-surface-2)]',
+    header: 'bg-[color:var(--metric-surface-3)] border-white/20',
     summary: 'text-white/72',
-    badge: 'bg-white/13 text-white/70 border-white/18',
+    badge: 'bg-white/13 text-white/72 border-white/20',
   },
 };
 
@@ -116,14 +116,15 @@ export function NodeCardShell({
               </span>
             ) : null}
           </div>
-          {subtitle ? <div className="text-[10px] text-white/45 truncate">{subtitle}</div> : null}
+          {subtitle ? <div className="text-[10px] text-white/55 truncate">{subtitle}</div> : null}
         </div>
         {onOpenSettings ? (
           <button
             type="button"
             onClick={onOpenSettings}
-            className="rounded border border-white/10 px-2 py-1 text-[10px] font-medium text-white/60 transition-colors hover:border-white/25 hover:text-white hover:bg-white/10"
+            className="rounded border border-white/15 bg-white/5 px-2 py-1 text-[10px] font-medium text-white/70 transition-colors hover:border-white/30 hover:text-white hover:bg-white/12"
             aria-label={`Configure ${title}`}
+            title={`Configure ${title}`}
           >
             Edit
           </button>

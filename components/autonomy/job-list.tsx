@@ -30,6 +30,7 @@ export const JobList = ({
                 <button
                     onClick={onRefresh}
                     className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-all"
+                    title="Refresh autonomy jobs list"
                 >
                     <RefreshCw size={14} />
                 </button>
@@ -64,7 +65,7 @@ export const JobList = ({
                                 <span>{formatDistanceToNow(new Date(job.created_at))} ago</span>
                             </div>
                             {job.priority === 'high' && (
-                                <span className="text-red-400 font-medium px-1 bg-red-500/10 rounded">HIGH</span>
+                                <span className="text-white/80 font-medium px-1 bg-white/10 rounded">HIGH</span>
                             )}
                         </div>
                     </div>
@@ -82,11 +83,11 @@ export const JobList = ({
 
 const StatusIcon = ({ status }: { status: string }) => {
     switch (status) {
-        case 'pending': return <Clock size={14} className="text-blue-400" />;
+        case 'pending': return <Clock size={14} className="text-white/75" />;
         case 'running': return <div className="w-3.5 h-3.5 rounded-full border-2 border-primary border-t-transparent animate-spin" />;
-        case 'completed': return <CheckCircle size={14} className="text-green-500" />;
-        case 'failed': return <XCircle size={14} className="text-red-500" />;
-        case 'waiting_approval': return <AlertTriangle size={14} className="text-yellow-500 animate-pulse" />;
+        case 'completed': return <CheckCircle size={14} className="text-white/90" />;
+        case 'failed': return <XCircle size={14} className="text-white/65" />;
+        case 'waiting_approval': return <AlertTriangle size={14} className="text-white/80 animate-pulse" />;
         default: return <div className="w-3 h-3 rounded-full bg-muted" />;
     }
 };

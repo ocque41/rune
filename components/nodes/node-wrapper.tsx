@@ -24,12 +24,11 @@ export const NodeWrapper = memo(({ children, selected, className, style, handles
         <div
             ref={ref}
             className={`relative rounded-xl border-2 transition-colors duration-300 ${selected
-                ? 'border-white/30 shadow-[0_0_24px_rgba(255,255,255,0.08)]'
-                : 'border-white/14 hover:border-white/28'
+                ? 'border-white/34 shadow-[0_0_0_1px_rgba(255,255,255,0.08)]'
+                : 'border-white/16 hover:border-white/30'
                 } ${className}`}
             style={{
-                backgroundColor: 'var(--node-background, #101010)',
-                backdropFilter: 'blur(14px)',
+                backgroundColor: 'var(--metric-surface-2, #101010)',
                 minWidth: '200px',
                 ...style
             }}
@@ -41,7 +40,7 @@ export const NodeWrapper = memo(({ children, selected, className, style, handles
                     type={handle.type}
                     position={handle.position}
                     id={handle.id}
-                    className="!bg-[color:var(--text)] !w-3 !h-3 !border-2 !border-[color:var(--bg)]"
+                    className="!bg-white/85 !w-3 !h-3 !border-2 !border-black"
                 />
             ))}
 

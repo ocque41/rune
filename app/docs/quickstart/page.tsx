@@ -17,8 +17,8 @@ export default function QuickStartPage() {
             <main className="max-w-4xl mx-auto px-6 py-12">
                 <div className="prose prose-invert max-w-none">
                     <div className="flex items-center gap-4 mb-8">
-                        <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                            <Rocket className="w-6 h-6 text-blue-500" />
+                        <div className="w-12 h-12 rounded-xl bg-white/12 flex items-center justify-center">
+                            <Rocket className="w-6 h-6 text-white/85" />
                         </div>
                         <div>
                             <h1 className="text-4xl font-bold text-[var(--foreground-title)] m-0">Building Your First Workflow</h1>

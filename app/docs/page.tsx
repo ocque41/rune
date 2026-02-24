@@ -62,10 +62,10 @@ export default function DocsPage() {
                     <Link href="/docs/quickstart" className="group rounded-2xl p-8 border transition-all hover:shadow-lg" style={{
                         borderColor: 'var(--border-color)'
                     }}>
-                        <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors group-hover:bg-blue-500/20" style={{
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors group-hover:bg-white/14" style={{
                             backgroundColor: 'var(--accent-bg)'
                         }}>
-                            <Zap className="w-6 h-6 transition-colors group-hover:text-blue-500" style={{ color: 'var(--foreground-subtitle)' }} />
+                            <Zap className="w-6 h-6 transition-colors group-hover:text-white" style={{ color: 'var(--foreground-subtitle)' }} />
                         </div>
                         <h3 className="text-xl font-semibold mb-2" style={{
                             color: 'var(--foreground-body)',
@@ -86,10 +86,10 @@ export default function DocsPage() {
                     <Link href="/docs/nodes" className="group rounded-2xl p-8 border transition-all hover:shadow-lg" style={{
                         borderColor: 'var(--border-color)'
                     }}>
-                        <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors group-hover:bg-purple-500/20" style={{
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors group-hover:bg-white/14" style={{
                             backgroundColor: 'var(--accent-bg)'
                         }}>
-                            <Workflow className="w-6 h-6 transition-colors group-hover:text-purple-500" style={{ color: 'var(--foreground-subtitle)' }} />
+                            <Workflow className="w-6 h-6 transition-colors group-hover:text-white" style={{ color: 'var(--foreground-subtitle)' }} />
                         </div>
                         <h3 className="text-xl font-semibold mb-2" style={{
                             color: 'var(--foreground-body)',
@@ -110,10 +110,10 @@ export default function DocsPage() {
                     <Link href="/docs/troubleshooting" className="group rounded-2xl p-8 border transition-all hover:shadow-lg" style={{
                         borderColor: 'var(--border-color)'
                     }}>
-                        <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors group-hover:bg-amber-500/20" style={{
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors group-hover:bg-white/14" style={{
                             backgroundColor: 'var(--accent-bg)'
                         }}>
-                            <Lock className="w-6 h-6 transition-colors group-hover:text-amber-500" style={{ color: 'var(--foreground-subtitle)' }} />
+                            <Lock className="w-6 h-6 transition-colors group-hover:text-white" style={{ color: 'var(--foreground-subtitle)' }} />
                         </div>
                         <h3 className="text-xl font-semibold mb-2" style={{
                             color: 'var(--foreground-body)',

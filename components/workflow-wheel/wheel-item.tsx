@@ -19,9 +19,10 @@ export function WheelItem({ item, active, setRef, onClick, index }: WheelItemPro
       onClick={() => onClick?.(index)}
       role="button"
       tabIndex={0}
+      title={`Open ${item.name} in editor`}
       className={cn(
         "absolute left-1/2 top-1/2 h-40 w-56 -translate-x-1/2 -translate-y-1/2",
-        "rounded-2xl border border-white/10 bg-black/50 backdrop-blur",
+        "rounded-2xl border border-white/12 bg-[color:var(--metric-surface-2)] backdrop-blur",
         "p-3 transition-all duration-300",
         "cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
         active ? "scale-[1.03] shadow-[0_0_32px_rgba(170,170,170,0.2)]" : "opacity-70"

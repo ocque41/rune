@@ -580,7 +580,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                     {/* Header (Top Bar) */}
                     {/* Header (Top Bar) */}
 
-                    <div className="h-14 border-b border-white/[0.06] flex items-center justify-between px-4 bg-black">
+                    <div className="h-14 border-b border-white/[0.06] flex items-center justify-between px-4 bg-[color:var(--metric-surface-1)]">
                         <div className="flex items-center gap-3">
                             <div className="p-1.5 rounded-md bg-white/[0.04] text-white/60">
                                 <PlayCircle className="h-4 w-4" />
@@ -606,7 +606,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                                 <Settings2 className="h-3 w-3 ml-2 opacity-50" />
                                             </Button>
                                         </DropdownMenuTrigger>
-                                        <DropdownMenuContent className="bg-[#0A0A0A] border-white/[0.08] w-[200px]">
+                                        <DropdownMenuContent className="bg-[color:var(--metric-surface-2)] border-white/[0.08] w-[200px]">
                                             <DropdownMenuLabel className="text-[10px] text-white/40 font-mono">
                                                 Saved Presets
                                             </DropdownMenuLabel>
@@ -622,13 +622,14 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                                     >
                                                         <div className="flex items-center justify-between w-full">
                                                             <div className="flex items-center gap-2 overflow-hidden">
-                                                                {selectedPresetId === p.id && <Check className="h-3 w-3 text-amber-500 flex-shrink-0" />}
+                                                                {selectedPresetId === p.id && <Check className="h-3 w-3 text-white flex-shrink-0" />}
                                                                 <span className={cn("truncate", selectedPresetId === p.id && "text-white")}>{p.name}</span>
                                                             </div>
                                                             <button
                                                                 onClick={(e) => handleDeletePreset(p.id, e)}
-                                                                className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-white/40 transition-all hover:bg-white/10 rounded z-50"
+                                                                className="opacity-0 group-hover:opacity-100 p-1 text-white/40 transition-all hover:bg-white/12 hover:text-white rounded z-50"
                                                                 aria-label="Delete preset"
+                                                                title={`Delete preset ${p.name}`}
                                                             >
                                                                 <Trash2 className="h-3 w-3" />
                                                             </button>
@@ -672,15 +673,15 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                         "flex items-center gap-1 px-2 py-1 rounded-md bg-white/5 border border-white/10 ml-1 transition-opacity",
                                         currentChatId && !isTemporaryChat && "opacity-50 cursor-not-allowed"
                                     )}>
-                                        <Clock className={cn("w-3.5 h-3.5", isTemporaryChat ? "text-amber-400" : "text-white/40")} />
-                                        <span className={cn("text-xs hidden sm:inline", isTemporaryChat ? "text-amber-400" : "text-white/50")}>
+                                        <Clock className={cn("w-3.5 h-3.5", isTemporaryChat ? "text-white/85" : "text-white/40")} />
+                                        <span className={cn("text-xs hidden sm:inline", isTemporaryChat ? "text-white/85" : "text-white/50")}>
                                             Temp
                                         </span>
                                         <Switch
                                             checked={isTemporaryChat}
                                             onCheckedChange={setIsTemporaryChat}
                                             disabled={!!currentChatId && !isTemporaryChat}
-                                            className="scale-75 -mr-1 data-[state=unchecked]:bg-white/10 data-[state=unchecked]:border-white/20 data-[state=checked]:bg-amber-500 border border-transparent transition-all"
+                                            className="scale-75 -mr-1 data-[state=unchecked]:bg-white/10 data-[state=unchecked]:border-white/20 data-[state=checked]:bg-white/80 border border-transparent transition-all"
                                         />
                                     </div>
                                 </TooltipTrigger>
@@ -695,12 +696,12 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                     <div
                                         className={cn(
                                             "flex items-center gap-2 px-2.5 py-1.5 rounded-md border ml-1 transition-all",
-                                            autonomousMode ? "bg-amber-500/10 border-amber-500/30" : "bg-white/5 border-white/10"
+                                            autonomousMode ? "bg-white/12 border-white/30" : "bg-white/5 border-white/10"
                                         )}
                                     >
                                         <div className="flex items-center gap-1.5">
-                                            <Zap className={cn("w-3.5 h-3.5", autonomousMode ? "text-amber-400" : "text-white/40")} />
-                                            <span className={cn("text-xs hidden sm:inline", autonomousMode ? "text-amber-400" : "text-white/50")}>
+                                            <Zap className={cn("w-3.5 h-3.5", autonomousMode ? "text-white/90" : "text-white/40")} />
+                                            <span className={cn("text-xs hidden sm:inline", autonomousMode ? "text-white/90" : "text-white/50")}>
                                                 Auto
                                             </span>
                                         </div>
@@ -709,7 +710,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                             className={cn(
                                                 "text-[10px] uppercase tracking-wide",
                                                 autonomousMode
-                                                    ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                                                    ? "bg-white/20 text-white border-white/35"
                                                     : autonomyPolicy?.mode === 'CONFIRM'
                                                         ? "bg-white/10 text-white/70 border-white/20"
                                                         : "border-white/20 text-white/50"
@@ -721,10 +722,10 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                             checked={autonomousMode}
                                             onCheckedChange={handleAutonomousToggle}
                                             disabled={isAutonomyLoading}
-                                            className="scale-75 -mr-1 data-[state=unchecked]:bg-white/10 data-[state=unchecked]:border-white/20 data-[state=checked]:bg-amber-500 border border-transparent transition-all"
+                                            className="scale-75 -mr-1 data-[state=unchecked]:bg-white/10 data-[state=unchecked]:border-white/20 data-[state=checked]:bg-white/80 border border-transparent transition-all"
                                         />
                                         {activeSessionId && (
-                                            <span className="ml-1 text-xs text-amber-500 animate-pulse">●</span>
+                                            <span className="ml-1 text-xs text-white/85 animate-pulse">●</span>
                                         )}
                                     </div>
                                 </TooltipTrigger>
@@ -820,8 +821,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
 
 
                     <div className="flex-1 flex overflow-hidden">
-                        {/* Main Stage (Left/Center) - with gradient */}
-                        <div className="flex-1 flex flex-col relative bg-black p-6 overflow-hidden">
+                        <div className="flex-1 flex flex-col relative bg-[color:var(--metric-surface-0)] p-6 overflow-hidden">
 
                             {/* Chat Messages Area */}
                             <div className="flex-1 min-h-0 flex flex-col pb-4 overflow-y-auto w-full custom-scrollbar">
@@ -913,7 +913,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
 
                             {/* Floating Input Card */}
                             <div className="flex-none w-full max-w-5xl mx-auto flex flex-col mb-2">
-                                <div className="relative rounded-xl border border-white/[0.08] bg-[#0A0A0A] shadow-2xl transition-all duration-300 focus-within:border-white/[0.15] flex flex-col overflow-hidden">
+                                <div className="relative rounded-xl border border-white/[0.08] bg-[color:var(--metric-surface-2)] shadow-2xl transition-all duration-300 focus-within:border-white/[0.15] flex flex-col overflow-hidden">
                                     <Textarea
                                         value={input}
                                         onChange={(e) => setInput(e.target.value)}
@@ -922,7 +922,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                     />
 
                                     {/* Action Bar (Bottom) */}
-                                    <div className="flex-none p-3 flex items-center justify-between border-t border-white/[0.06] bg-black/20">
+                                    <div className="flex-none p-3 flex items-center justify-between border-t border-white/[0.06] bg-[color:var(--metric-surface-1)]">
                                         <div className="flex items-center gap-2">
                                             <Button
                                                 variant="ghost"
@@ -930,16 +930,22 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                                 onClick={() => handleSubmit()}
                                                 disabled={!input.trim() && !isGenerating}
                                                 className="h-7 px-3 text-[10px] uppercase font-semibold tracking-wider text-white/50 hover:text-white/80 hover:bg-white/[0.06] transition-colors disabled:opacity-30"
+                                                title={isGenerating ? 'Stop active generation' : 'Submit prompt to the configured model'}
                                             >
                                                 {isGenerating ? 'Stop' : 'Submit'}
                                             </Button>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-white/40 hover:text-white/70 hover:bg-white/[0.06] rounded-full">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-7 w-7 text-white/40 hover:text-white/70 hover:bg-white/[0.06] rounded-full"
+                                                title="Open chat history manager"
+                                            >
                                                 <History className="h-3.5 w-3.5" />
                                             </Button>
                                         </div>
 
                                         <div className="flex items-center gap-4 text-[10px] text-white/30 font-mono">
-                                            <span className={input.length > (config.maxTokens || 2000) * 4 ? "text-red-400" : ""}>
+                                            <span className={input.length > (config.maxTokens || 2000) * 4 ? "text-white/90" : ""}>
                                                 {input.length} chars
                                             </span>
                                             <div className="h-3 w-px bg-white/10" />
@@ -954,8 +960,8 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                         </div>
 
                         {/* Right Sidebar - Configuration Panel */}
-                        <div className="w-[320px] border-l border-white/[0.06] bg-[#0A0A0A] flex flex-col">
-                            <div className="h-10 flex items-center px-4 border-b border-white/[0.06] bg-black/40">
+                        <div className="w-[320px] border-l border-white/[0.06] bg-[color:var(--metric-surface-2)] flex flex-col">
+                            <div className="h-10 flex items-center px-4 border-b border-white/[0.06] bg-[color:var(--metric-surface-1)]">
                                 <Settings2 className="h-3.5 w-3.5 mr-2 text-white/40" />
                                 <span className="text-[11px] font-semibold text-white/60 uppercase tracking-widest">Configuration</span>
                             </div>
@@ -972,7 +978,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                         <SelectTrigger className="bg-white/[0.03] border-white/[0.08] h-9 text-xs text-white/80">
                                             <SelectValue placeholder="Select model" />
                                         </SelectTrigger>
-                                        <SelectContent className="bg-[#0A0A0A] border-white/[0.08]">
+                                        <SelectContent className="bg-[color:var(--metric-surface-2)] border-white/[0.08]">
                                             <SelectItem value="gemini-3-flash-preview">Gemini 3 Flash (Preview)</SelectItem>
                                             <SelectItem value="gemini-3-pro-preview">Gemini 3 Pro (Preview)</SelectItem>
                                         </SelectContent>
@@ -989,7 +995,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                             </div>
                                             <div className="flex items-center justify-between text-[11px] text-white/60">
                                                 <span>Est. Cost</span>
-                                                <span className="font-mono text-amber-500">
+                                                <span className="font-mono text-white/85">
                                                     ${(messages.reduce((acc, m) => {
                                                         const input = m.usageMetadata?.promptTokenCount || 0;
                                                         const output = m.usageMetadata?.candidatesTokenCount || 0;
@@ -1023,16 +1029,18 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                     <button
                                         onClick={() => setShowChatModal(true)}
                                         className="w-full flex items-center gap-2 px-3 py-2 rounded-md bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 text-xs transition-colors border border-white/10"
+                                        title="Browse, resume, or delete previous chats for this workflow"
                                     >
                                         <History className="w-4 h-4" />
                                         <span>Chat History</span>
                                         {currentChatId && !isTemporaryChat && (
-                                            <span className="ml-auto text-[10px] text-blue-400">saved</span>
+                                            <span className="ml-auto text-[10px] text-white/70">saved</span>
                                         )}
                                     </button>
                                     <button
                                         onClick={handleNewChat}
                                         className="w-full flex items-center gap-2 px-3 py-2 rounded-md bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 text-xs transition-colors border border-white/10"
+                                        title="Start a fresh chat context while keeping current settings"
                                     >
                                         <Plus className="w-4 h-4" />
                                         <span>New Chat</span>
@@ -1077,7 +1085,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                         {/* MCP Tools Group */}
                                         {availableTools.some(t => t.type === 'mcp') && (
                                             <div className="space-y-1.5">
-                                                <div className="text-[10px] uppercase tracking-wider text-[var(--neon-blue)]/50 font-semibold px-1">MCP Extensions</div>
+                                                <div className="text-[10px] uppercase tracking-wider text-white/50 font-semibold px-1">MCP Extensions</div>
                                                 {availableTools.filter(t => t.type === 'mcp').map(tool => (
                                                     <ToolItem
                                                         key={tool.id}
@@ -1115,7 +1123,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                             id="stream-mode"
                                             checked={isStreamEnabled}
                                             onCheckedChange={setIsStreamEnabled}
-                                            className="scale-75 data-[state=checked]:bg-amber-500 data-[state=unchecked]:bg-white/10"
+                                            className="scale-75 data-[state=checked]:bg-white/80 data-[state=unchecked]:bg-white/10"
                                         />
                                     </div>
 
@@ -1133,7 +1141,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                             id="json-mode"
                                             checked={config.outputMode === 'json'}
                                             onCheckedChange={(checked) => updateConfig({ outputMode: checked ? 'json' : 'text' })}
-                                            className="scale-75 data-[state=checked]:bg-amber-500 data-[state=unchecked]:bg-white/10"
+                                            className="scale-75 data-[state=checked]:bg-white/80 data-[state=unchecked]:bg-white/10"
                                         />
                                     </div>
 
@@ -1155,7 +1163,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                             onValueChange={handleTempChange}
                                             max={1}
                                             step={0.01}
-                                            className="py-1 [&>.relative>.bg-primary]:bg-amber-500 [&>.relative>.bg-secondary]:bg-white/20"
+                                            className="py-1 [&>.relative>.bg-primary]:bg-white/80 [&>.relative>.bg-secondary]:bg-white/20"
                                         />
                                     </div>
 
@@ -1177,7 +1185,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                             onValueChange={handleMaxTokensChange}
                                             max={4000}
                                             step={1}
-                                            className="py-1 [&>.relative>.bg-primary]:bg-amber-500 [&>.relative>.bg-secondary]:bg-white/20"
+                                            className="py-1 [&>.relative>.bg-primary]:bg-white/80 [&>.relative>.bg-secondary]:bg-white/20"
                                         />
                                     </div>
 
@@ -1199,7 +1207,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                             onValueChange={handleTopPChange}
                                             max={1}
                                             step={0.01}
-                                            className="py-1 [&>.relative>.bg-primary]:bg-amber-500 [&>.relative>.bg-secondary]:bg-white/20"
+                                            className="py-1 [&>.relative>.bg-primary]:bg-white/80 [&>.relative>.bg-secondary]:bg-white/20"
                                         />
                                     </div>
                                 </div>
@@ -1230,7 +1238,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                                 onValueChange={handleFreqPenaltyChange}
                                                 max={2}
                                                 step={0.01}
-                                                className="py-1 [&>.relative>.bg-primary]:bg-amber-500 [&>.relative>.bg-secondary]:bg-white/20"
+                                                className="py-1 [&>.relative>.bg-primary]:bg-white/80 [&>.relative>.bg-secondary]:bg-white/20"
                                             />
                                         </div>
 
@@ -1252,7 +1260,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                                 onValueChange={handlePresPenaltyChange}
                                                 max={2}
                                                 step={0.01}
-                                                className="py-1 [&>.relative>.bg-primary]:bg-amber-500 [&>.relative>.bg-secondary]:bg-white/20"
+                                                className="py-1 [&>.relative>.bg-primary]:bg-white/80 [&>.relative>.bg-secondary]:bg-white/20"
                                             />
                                         </div>
                                     </div>
@@ -1265,7 +1273,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
 
                 {/* Save Preset Dialog */}
                 < Dialog open={showSavePreset} onOpenChange={setShowSavePreset} >
-                    <DialogContent className="sm:max-w-[425px] bg-[#0A0A0A] border-white/10 text-white">
+                    <DialogContent className="sm:max-w-[425px] bg-[color:var(--metric-surface-2)] border-white/10 text-white">
                         <DialogHeader>
                             <DialogTitle className="text-sm font-semibold">Save Agent Preset</DialogTitle>
                         </DialogHeader>
@@ -1290,7 +1298,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                 size="sm"
                                 onClick={handleSavePreset}
                                 disabled={!newPresetName.trim() || isSavingPreset}
-                                className="bg-white text-black hover:bg-white/90 text-xs h-8"
+                                className="bg-white/90 text-black hover:bg-white text-xs h-8"
                             >
                                 {isSavingPreset ? 'Saving...' : 'Save Preset'}
                             </Button>
@@ -1319,6 +1327,7 @@ function ToolItem({ tool, active, onToggle }: { tool: AgentToolDef, active: bool
         <div
             className="tool-item opacity-0" // Start hidden for animation
             onClick={onToggle}
+            title={active ? `Disable ${tool.label}` : `Enable ${tool.label}`}
         >
             <div className={cn(
                 "flex items-center justify-between p-2 rounded-md border text-xs cursor-pointer transition-all group relative select-none",
@@ -1328,7 +1337,7 @@ function ToolItem({ tool, active, onToggle }: { tool: AgentToolDef, active: bool
             )}>
                 <div className="flex flex-col min-w-0 flex-1 mr-2">
                     <div className="flex items-center gap-1.5">
-                        <span className={cn("font-medium truncate", isMcp && "text-[var(--neon-blue)]")}>
+                        <span className={cn("font-medium truncate", isMcp && "text-white/80")}>
                             {tool.label}
                         </span>
                         {isMcp && tool.serverName && (
@@ -1343,7 +1352,7 @@ function ToolItem({ tool, active, onToggle }: { tool: AgentToolDef, active: bool
                 </div>
                 <div className={cn(
                     "h-3.5 w-3.5 rounded border flex items-center justify-center transition-colors flex-none",
-                    active ? "bg-white text-black border-white" : "border-white/20 group-hover:border-white/40"
+                    active ? "bg-white/90 text-black border-white" : "border-white/20 group-hover:border-white/40"
                 )}>
                     {active && <Check className="h-2.5 w-2.5" />}
                 </div>

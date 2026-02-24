@@ -86,6 +86,7 @@ export const InspectTab = () => {
                         <button
                             key={r}
                             onClick={() => setRange(r)}
+                            title={`View inspect metrics for last ${r}`}
                             className={cn(
                                 "px-3 py-1 rounded-md text-xs font-bold transition-all uppercase tracking-wider",
                                 range === r

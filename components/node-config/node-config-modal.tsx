@@ -142,11 +142,11 @@ export function NodeConfigModal() {
           </DialogHeader>
 
           {modalState.hasConflict ? (
-            <div className="mx-6 mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+            <div className="mx-6 mt-4 rounded-md border border-white/18 bg-white/8 px-4 py-3">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-300" />
+                <AlertTriangle className="h-4 w-4 mt-0.5 text-white/80" />
                 <div className="flex-1">
-                  <p className="text-sm text-amber-100">{modalState.conflictMessage}</p>
+                  <p className="text-sm text-white/80">{modalState.conflictMessage}</p>
                   <div className="mt-2 flex gap-2">
                     <Button size="sm" variant="outline" onClick={reloadDraftFromNode}>Reload Latest</Button>
                     <Button size="sm" variant="destructive" onClick={() => applyNodeConfig({ force: true })}>Force Apply</Button>
@@ -157,8 +157,8 @@ export function NodeConfigModal() {
           ) : null}
 
           {hasErrors ? (
-            <div className="mx-6 mt-4 rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3" role="alert" aria-live="assertive">
-              <p className="text-sm text-red-200 font-medium">Please fix the highlighted fields before applying changes.</p>
+            <div className="mx-6 mt-4 rounded-md border border-white/20 bg-white/8 px-4 py-3" role="alert" aria-live="assertive">
+              <p className="text-sm text-white/80 font-medium">Please fix the highlighted fields before applying changes.</p>
             </div>
           ) : null}
 

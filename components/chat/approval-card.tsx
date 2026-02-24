@@ -57,7 +57,7 @@ export function ApprovalCard({ messageId, toolCalls, status = 'pending', onActio
         const statusLabel = currentStatus === 'auto_approved' ? 'auto-approved' : currentStatus;
         return (
             <div className={cn("flex items-center gap-2 p-2 text-sm rounded-md border",
-                isApproved ? "bg-green-50/50 border-green-200 text-green-700" : "bg-red-50/50 border-red-200 text-red-700"
+                isApproved ? "bg-white/10 border-white/24 text-white/85" : "bg-white/8 border-white/18 text-white/70"
             )}>
                 {isApproved ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
                 <span>Tool execution {statusLabel}.</span>
@@ -71,12 +71,12 @@ export function ApprovalCard({ messageId, toolCalls, status = 'pending', onActio
                 <CardTitle className="text-sm font-medium flex items-center justify-between text-foreground">
                     <span className="flex items-center gap-2">
                         <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white/70 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-white/85"></span>
                         </span>
                         Approval Required
                     </span>
-                    <Badge variant="outline" className="text-yellow-500 border-yellow-500/30 bg-yellow-500/10 font-mono text-xs uppercase tracking-wider">
+                    <Badge variant="outline" className="text-white/80 border-white/22 bg-white/10 font-mono text-xs uppercase tracking-wider">
                         HitL Paused
                     </Badge>
                 </CardTitle>
@@ -100,7 +100,8 @@ export function ApprovalCard({ messageId, toolCalls, status = 'pending', onActio
                     size="sm"
                     onClick={() => handleAction('rejected')}
                     disabled={isLoading}
-                    className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    className="text-muted-foreground hover:text-white hover:bg-white/10 transition-colors"
+                    hint="Reject this tool call and keep execution paused"
                 >
                     Reject
                 </Button>
@@ -109,6 +110,7 @@ export function ApprovalCard({ messageId, toolCalls, status = 'pending', onActio
                     onClick={() => handleAction('approved')}
                     disabled={isLoading}
                     className="bg-primary text-primary-foreground hover:opacity-90 transition-opacity font-medium"
+                    hint="Approve this tool call and resume agent execution"
                 >
                     {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
                     Approve & Run

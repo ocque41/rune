@@ -68,7 +68,8 @@ export const JobDetails = ({ job }: { job: any }) => {
                         <button
                             onClick={handleReject}
                             disabled={actionLoading}
-                            className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/20 rounded-md hover:bg-destructive/20 transition-all font-medium text-sm flex items-center gap-2"
+                            className="px-4 py-2 bg-white/10 text-white/80 border border-white/20 rounded-md hover:bg-white/16 transition-all font-medium text-sm flex items-center gap-2"
+                            title="Reject this job and stop execution"
                         >
                             <ShieldAlert size={16} />
                             Reject
@@ -76,7 +77,8 @@ export const JobDetails = ({ job }: { job: any }) => {
                         <button
                             onClick={handleApprove}
                             disabled={actionLoading}
-                            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:opacity-90 transition-all font-medium text-sm flex items-center gap-2"
+                            className="px-4 py-2 bg-white/92 text-black rounded-md hover:bg-white transition-all font-medium text-sm flex items-center gap-2"
+                            title="Approve this job and continue execution"
                         >
                             <UserCheck size={16} />
                             Approve & Run
@@ -91,7 +93,7 @@ export const JobDetails = ({ job }: { job: any }) => {
                 {/* Triage Reasoning */}
                 <div className="bg-muted/30 border border-border rounded-lg p-4">
                     <div className="flex items-center gap-2 text-foreground/80 mb-2 font-medium">
-                        <Cpu size={16} className="text-primary" />
+                        <Cpu size={16} className="text-white/85" />
                         AI Reasoning
                     </div>
                     <p className="text-sm text-muted-foreground leading-relaxed">
@@ -108,17 +110,17 @@ export const JobDetails = ({ job }: { job: any }) => {
                         </div>
                         <div className="flex items-center gap-2">
                             {runningSteps > 0 && (
-                                <Badge className="bg-primary/15 text-primary border-primary/30">Running</Badge>
+                                <Badge className="bg-white/15 text-white border-white/30">Running</Badge>
                             )}
                             {failedSteps > 0 && (
-                                <Badge className="bg-destructive/10 text-destructive border-destructive/30">{failedSteps} Failed</Badge>
+                                <Badge className="bg-white/10 text-white/75 border-white/22">{failedSteps} Failed</Badge>
                             )}
                         </div>
                     </div>
                     <Progress
                         value={progressValue}
                         className="h-2 bg-muted"
-                        indicatorClassName={failedSteps > 0 ? "bg-destructive" : "bg-primary"}
+                        indicatorClassName={failedSteps > 0 ? "bg-white/70" : "bg-white"}
                     />
                     <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                         <span>{progressValue}% complete</span>
@@ -192,12 +194,12 @@ export const JobDetails = ({ job }: { job: any }) => {
 
 const StatusBadge = ({ status }: { status: string }) => {
     const styles: Record<string, string> = {
-        pending: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-        running: 'bg-primary/10 text-primary border-primary/20 animate-pulse',
-        completed: 'bg-green-500/10 text-green-400 border-green-500/20',
-        failed: 'bg-red-500/10 text-red-400 border-red-500/20',
-        waiting_approval: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-        cancelled: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20',
+        pending: 'bg-white/10 text-white/75 border-white/20',
+        running: 'bg-white/15 text-white border-white/30 animate-pulse',
+        completed: 'bg-white/14 text-white/90 border-white/28',
+        failed: 'bg-white/10 text-white/65 border-white/20',
+        waiting_approval: 'bg-white/12 text-white/80 border-white/24',
+        cancelled: 'bg-white/8 text-white/55 border-white/16',
     };
 
     return (
@@ -209,9 +211,9 @@ const StatusBadge = ({ status }: { status: string }) => {
 
 const getStatusColor = (status: string) => {
     switch (status) {
-        case 'completed': return 'border-green-500/50 text-green-500';
-        case 'failed': return 'border-red-500/50 text-red-500';
-        case 'running': return 'border-primary/50 text-primary';
+        case 'completed': return 'border-white/45 text-white/90';
+        case 'failed': return 'border-white/30 text-white/65';
+        case 'running': return 'border-white/50 text-white';
         default: return 'border-border text-muted-foreground';
     }
 }

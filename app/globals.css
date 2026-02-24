@@ -29,13 +29,13 @@
 }
 
 :root {
-  /* Cumulus Core Brand */
-  --bg: #070707;
-  --title: #FFFFFF;
-  --fg: #ECECEC;
-  --text: #ECECEC;
-  --subtitle: #AAAAAA;
-  --muted: #737373;
+  /* Cumulus Core Brand (Metrical Dark) */
+  --bg: #050505;
+  --title: #F5F5F5;
+  --fg: #E8E8E8;
+  --text: #E8E8E8;
+  --subtitle: #9B9B9B;
+  --muted: #6F6F6F;
 
   /* Rune Surface Aliases */
   --brand-bg: var(--bg);
@@ -45,28 +45,28 @@
   --background: var(--bg);
   --foreground: var(--fg);
 
-  --card: #121212;
+  --card: #0F0F0F;
   --card-foreground: var(--fg);
 
-  --popover: #121212;
+  --popover: #0F0F0F;
   --popover-foreground: var(--fg);
 
-  --primary: #deddd9;
-  --primary-foreground: #171717;
+  --primary: #E0E0E0;
+  --primary-foreground: #0B0B0B;
 
-  --secondary: #161616;
+  --secondary: #121212;
   --secondary-foreground: var(--fg);
 
   --muted-foreground: var(--muted);
 
-  --accent: #1b1b1b;
+  --accent: #151515;
   --accent-foreground: var(--fg);
 
-  --destructive: #990000;
+  --destructive: #2A2A2A;
   --destructive-foreground: #F2F2F2;
 
-  --border: #242424;
-  --input: #242424;
+  --border: #252525;
+  --input: #252525;
   --ring: var(--fg);
 
   --radius: 0.5rem;
@@ -84,44 +84,57 @@
   --foreground-body: var(--text);
   --foreground-subtitle: var(--subtitle);
   --border-color: var(--border);
-  --accent-bg: #171717;
+  --accent-bg: #141414;
   --accent-text: var(--text);
   --node-background: var(--card);
-  --header-background: #111111;
+  --header-background: #0C0C0C;
+
+  /* Metrical Brand Surface Tokens */
+  --metric-surface-0: #050505;
+  --metric-surface-1: #0B0B0B;
+  --metric-surface-2: #101010;
+  --metric-surface-3: #151515;
+  --metric-border-subtle: #252525;
+  --metric-border-strong: #3A3A3A;
+  --metric-text-strong: #F5F5F5;
+  --metric-text-muted: #9B9B9B;
+  --metric-chip: #161616;
+  --metric-chip-strong: #1D1D1D;
 }
 
 [data-theme="light"] {
-  --bg: #FFFFFF;
-  --title: #000000;
-  --fg: #000000;
-  --text: #141414;
-  --subtitle: #333333;
-  --muted: #888888;
+  /* Force the light theme selector to the same dark system for product consistency. */
+  --bg: #050505;
+  --title: #F5F5F5;
+  --fg: #E8E8E8;
+  --text: #E8E8E8;
+  --subtitle: #9B9B9B;
+  --muted: #6F6F6F;
 
   --background: var(--bg);
   --foreground: var(--fg);
-  --card: #F8F8F8;
-  --card-foreground: #141414;
-  --popover: #FFFFFF;
-  --popover-foreground: #141414;
-  --primary: #171717;
-  --primary-foreground: #f9f9f9;
-  --secondary: #EFEFEF;
-  --secondary-foreground: #141414;
-  --accent: #EFEFEF;
-  --accent-foreground: #141414;
-  --border: #DDDDDD;
-  --input: #DDDDDD;
-  --ring: #141414;
+  --card: #0F0F0F;
+  --card-foreground: #E8E8E8;
+  --popover: #0F0F0F;
+  --popover-foreground: #E8E8E8;
+  --primary: #E0E0E0;
+  --primary-foreground: #0B0B0B;
+  --secondary: #121212;
+  --secondary-foreground: #E8E8E8;
+  --accent: #151515;
+  --accent-foreground: #E8E8E8;
+  --border: #252525;
+  --input: #252525;
+  --ring: #E8E8E8;
 
   --foreground-title: var(--title);
   --foreground-body: var(--text);
   --foreground-subtitle: var(--subtitle);
   --border-color: var(--border);
-  --accent-bg: #F1F1F1;
+  --accent-bg: #141414;
   --accent-text: var(--text);
   --node-background: var(--card);
-  --header-background: #FFFFFF;
+  --header-background: #0C0C0C;
 }
 
 html {
@@ -168,6 +181,22 @@ a:hover:not(.no-underline):not(.card-link) {
   background: rgba(20, 20, 20, 0.8);
   backdrop-filter: blur(12px);
   border: 1px solid var(--border);
+}
+
+.metric-panel {
+  background: var(--metric-surface-2);
+  border: 1px solid var(--metric-border-subtle);
+}
+
+.metric-panel-strong {
+  background: var(--metric-surface-3);
+  border: 1px solid var(--metric-border-strong);
+}
+
+.metric-chip {
+  background: var(--metric-chip);
+  border: 1px solid var(--metric-border-subtle);
+  color: var(--metric-text-muted);
 }
 
 ::selection {

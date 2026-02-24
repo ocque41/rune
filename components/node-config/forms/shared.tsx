@@ -75,7 +75,7 @@ export function ErrorText({ errors, path }: { errors: NodeConfigErrorMap; path: 
   if (!message) return null;
   return (
     <p
-      className="text-xs text-red-400"
+      className="text-xs text-white/75"
       role="alert"
       data-error-path={path}
       id={`node-config-error-${path.replace(/[^a-zA-Z0-9-_]/g, '-')}`}

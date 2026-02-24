@@ -115,6 +115,7 @@ export function ChatListModal({
                     <button
                         onClick={onClose}
                         className="p-1 rounded hover:bg-white/10 transition-colors"
+                        title="Close chat history"
                     >
                         <svg className="w-5 h-5 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -129,11 +130,12 @@ export function ChatListModal({
                         placeholder="Search chats..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-blue-500/50"
+                        className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-white/30"
                     />
                     <button
                         onClick={() => { onNewChat(); onClose(); }}
-                        className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors"
+                        className="px-3 py-2 border border-white/20 bg-white/90 hover:bg-white text-black text-sm font-medium rounded-lg transition-colors"
+                        title="Start a new chat session"
                     >
                         New Chat
                     </button>
@@ -174,7 +176,7 @@ export function ChatListModal({
                                                     value={editTitle}
                                                     onChange={e => setEditTitle(e.target.value)}
                                                     onBlur={() => saveRename(chat.id)}
-                                                    className="w-full bg-black/50 border border-blue-500/50 rounded px-2 py-1 text-sm text-white focus:outline-none"
+                                                    className="w-full bg-black/50 border border-white/30 rounded px-2 py-1 text-sm text-white focus:outline-none"
                                                 />
                                             </form>
                                         ) : (
@@ -200,7 +202,7 @@ export function ChatListModal({
                                         </button>
                                         <button
                                             onClick={(e) => handleDelete(chat.id, e)}
-                                            className="p-1.5 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400 transition-colors"
+                                            className="p-1.5 rounded hover:bg-white/12 text-white/40 hover:text-white transition-colors"
                                             title="Delete"
                                         >
                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

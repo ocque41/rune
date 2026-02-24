@@ -32,7 +32,7 @@ export default function LoopNode({ id, data, selected }: NodeProps<CustomLoopNod
       handles={[{ type: 'target', position: Position.Top }]}
     >
       <div className="relative h-10 border-t border-white/5">
-        <div className="absolute left-[35%] top-2 -translate-x-1/2 text-[10px] text-blue-300 uppercase tracking-wide">Body</div>
+        <div className="absolute left-[35%] top-2 -translate-x-1/2 text-[10px] text-white/75 uppercase tracking-wide">Body</div>
         <div className="absolute left-[70%] top-2 -translate-x-1/2 text-[10px] text-white/50 uppercase tracking-wide">Done</div>
         <Handle type="source" position={Position.Bottom} id="body" style={{ left: '35%' }} className="!bg-[color:var(--text)] !border-2 !border-[color:var(--bg)]" />
         <Handle type="source" position={Position.Bottom} id="done" style={{ left: '70%' }} className="!bg-[color:var(--text)] !border-2 !border-[color:var(--bg)]" />

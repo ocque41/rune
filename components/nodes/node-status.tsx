@@ -9,15 +9,15 @@ export function NodeStatusDot({ status }: { status?: string }) {
 
   const normalized = status as NodeRuntimeStatus;
   const classes = normalized === 'running'
-    ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)] animate-pulse'
+    ? 'bg-white/85 shadow-[0_0_10px_rgba(255,255,255,0.35)] animate-pulse'
     : normalized === 'completed' || normalized === 'success'
-      ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]'
+      ? 'bg-white/75 shadow-[0_0_10px_rgba(255,255,255,0.25)]'
       : normalized === 'failed' || normalized === 'failure'
-        ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]'
+        ? 'bg-white/55 shadow-[0_0_8px_rgba(255,255,255,0.18)]'
         : normalized === 'waiting'
-          ? 'bg-yellow-500 shadow-[0_0_10px_rgba(245,158,11,0.5)] animate-pulse'
+          ? 'bg-white/65 shadow-[0_0_10px_rgba(255,255,255,0.22)] animate-pulse'
           : normalized === 'skipped'
-            ? 'bg-gray-500 shadow-[0_0_10px_rgba(107,114,128,0.5)]'
+            ? 'bg-white/40 shadow-[0_0_8px_rgba(255,255,255,0.12)]'
             : 'bg-white/30';
 
   return <span className={`inline-block h-2.5 w-2.5 rounded-full ${classes}`} aria-label={`Node status: ${status}`} />;

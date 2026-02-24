@@ -162,11 +162,11 @@ export function DrilldownLists({ calls, tools, jobs, loading }: DrilldownListsPr
 }
 
 const StatusDot = ({ status }: { status: string }) => {
-    let color = 'bg-gray-500';
-    if (status === 'success' || status === 'completed') color = 'bg-emerald-500';
-    if (status === 'failed') color = 'bg-red-500';
-    if (status === 'running' || status === 'pending') color = 'bg-amber-500';
-    if (status === 'waiting_approval') color = 'bg-purple-500';
+    let color = 'bg-white/45';
+    if (status === 'success' || status === 'completed') color = 'bg-white/85';
+    if (status === 'failed') color = 'bg-white/60';
+    if (status === 'running' || status === 'pending') color = 'bg-white/75';
+    if (status === 'waiting_approval') color = 'bg-white/70';
 
     return (
         <div className="flex items-center justify-end gap-2">

@@ -16,9 +16,9 @@ export function AppHeader() {
   const pathname = usePathname();
 
   return (
-    <header className="flex items-center justify-between border-b border-white/10 px-8 py-4">
+    <header className="flex items-center justify-between border-b border-white/12 bg-[color:var(--metric-surface-1)] px-8 py-4">
       <div className="flex items-center gap-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-sm font-semibold text-white">
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/14 bg-[color:var(--metric-surface-3)] text-sm font-semibold text-white">
           R
         </div>
         <div>
@@ -33,11 +33,12 @@ export function AppHeader() {
             <Link
               key={item.href}
               href={item.href}
+              title={`Go to ${item.label}`}
               className={cn(
                 "rounded-full border px-3 py-1.5 text-xs transition",
                 active
-                  ? "border-white/30 bg-white/10 text-white"
-                  : "border-white/10 text-white/50 hover:text-white"
+                  ? "border-white/28 bg-white/12 text-white"
+                  : "border-white/14 bg-[color:var(--metric-surface-2)] text-white/65 hover:border-white/25 hover:text-white"
               )}
             >
               {item.label}
@@ -46,7 +47,8 @@ export function AppHeader() {
         })}
         <a
           href="https://cumulush.com/dashboard"
-          className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/50 transition hover:bg-white/5 hover:text-white"
+          title="Open the Cumulus account dashboard"
+          className="rounded-full border border-white/14 bg-[color:var(--metric-surface-2)] px-3 py-1.5 text-xs text-white/65 transition hover:border-white/25 hover:bg-[color:var(--metric-surface-3)] hover:text-white"
         >
           Back to Dashboard
         </a>

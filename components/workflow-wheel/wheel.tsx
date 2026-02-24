@@ -43,7 +43,7 @@ export function WorkflowWheel({ workflows, activeIndex, onSelect, onItemClick }:
         </div>
       </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-8 flex items-center justify-center">
-        <div className="rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-[10px] uppercase tracking-[0.28em] text-white/60">
+        <div className="rounded-full border border-white/14 bg-[color:var(--metric-surface-1)] px-3 py-1.5 text-[10px] uppercase tracking-[0.28em] text-white/65">
           Drag to rotate · Release to snap
         </div>
       </div>

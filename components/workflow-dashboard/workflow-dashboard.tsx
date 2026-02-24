@@ -85,9 +85,9 @@ export function WorkflowDashboard() {
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-background text-foreground">
-      <header className="flex items-center justify-between border-b border-white/10 px-10 py-6">
+      <header className="flex items-center justify-between border-b border-white/12 bg-[color:var(--metric-surface-1)] px-10 py-6">
         <div className="flex items-center gap-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-sm font-semibold text-white">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/14 bg-[color:var(--metric-surface-3)] text-sm font-semibold text-white">
             R
           </div>
           <div>
@@ -102,11 +102,12 @@ export function WorkflowDashboard() {
               <button
                 key={item.key}
                 onClick={() => setActiveModule(item.key)}
+                title={`Open ${item.label} module`}
                 className={cn(
                   "rounded-full border px-4 py-2 text-xs transition",
                   active
-                    ? "border-white/30 bg-white/10 text-white"
-                    : "border-white/10 text-white/50 hover:text-white"
+                    ? "border-white/28 bg-white/12 text-white"
+                    : "border-white/14 bg-[color:var(--metric-surface-2)] text-white/65 hover:border-white/25 hover:text-white"
                 )}
               >
                 {item.label}
@@ -118,13 +119,13 @@ export function WorkflowDashboard() {
 
       <main className="flex flex-1 flex-col gap-10 px-10 py-10">
         <section className="grid grid-cols-[1.25fr_0.75fr] gap-10">
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-8">
+          <div className="rounded-3xl border border-white/12 bg-[color:var(--metric-surface-2)] p-8">
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <p className="text-xs text-white/40">Selection engine</p>
                 <h2 className="text-2xl font-semibold text-white">3D Workflow Wheel</h2>
               </div>
-              <div className="rounded-full border border-white/10 bg-black/40 px-4 py-2 text-xs text-white/60">
+              <div className="rounded-full border border-white/14 bg-[color:var(--metric-surface-1)] px-4 py-2 text-xs text-white/65" title="Current workflow focus">
                 {isLoadingWorkflows ? "Loading workflows" : `Active ${activeWorkflow.name}`}
               </div>
             </div>
@@ -143,7 +144,7 @@ export function WorkflowDashboard() {
 
           <div className="flex flex-col gap-6">
             <WheelHud active={activeWorkflow} />
-            <div className="rounded-2xl border border-white/10 bg-black/60 p-6 backdrop-blur">
+            <div className="rounded-2xl border border-white/12 bg-[color:var(--metric-surface-1)] p-6 backdrop-blur">
               <p className="text-xs text-white/40">System notes</p>
               <h3 className="mt-2 text-lg font-semibold text-white">Stability First</h3>
               <ul className="mt-4 space-y-2 text-sm text-white/60">
@@ -156,18 +157,18 @@ export function WorkflowDashboard() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/5 p-8">
+        <section className="rounded-3xl border border-white/12 bg-[color:var(--metric-surface-2)] p-8">
           <div className="mb-6 flex items-center justify-between">
             <div>
               <p className="text-xs text-white/40">Operations bay</p>
               <h2 className="text-2xl font-semibold text-white">Modules</h2>
             </div>
-            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-4 py-2 text-xs text-white/60">
+            <div className="flex items-center gap-2 rounded-full border border-white/14 bg-[color:var(--metric-surface-1)] px-4 py-2 text-xs text-white/65" title="Current active module">
               Mode {modules.find((m) => m.key === activeModule)?.label}
             </div>
           </div>
 
-          <div className="min-h-[520px] overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+          <div className="min-h-[520px] overflow-hidden rounded-2xl border border-white/12 bg-[color:var(--metric-surface-1)]">
             {activeModule === "editor" && <FlowBuilder initialWorkflowId={selectedWorkflowId} />}
             {activeModule === "workflows" && (
               <WorkflowList

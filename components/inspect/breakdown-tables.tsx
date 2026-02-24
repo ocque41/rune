@@ -69,7 +69,7 @@ export function BreakdownTables({ models, tools, loading }: BreakdownTablesProps
                                 <span className="font-mono font-medium">{t.name}</span>
                                 <span className="text-muted-foreground">{t.count.toLocaleString()} calls</span>
                             </div>
-                            <Progress value={t.percentage} className="h-1 bg-secondary" indicatorClassName="bg-blue-500/80" />
+                            <Progress value={t.percentage} className="h-1 bg-secondary" indicatorClassName="bg-white/80" />
                         </div>
                     ))}
                     {tools.length === 0 && <div className="text-sm text-muted-foreground">No tool usage data.</div>}

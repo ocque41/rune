@@ -1178,12 +1178,12 @@ const FlowBuilderContent = ({
 
     // Check if start node exists
     const hasStartNode = nodes.some((n) => resolveNodeKind(n) === 'startWorkflow');
-    const commandButtonClass = 'rounded-md border border-white/15 bg-black/55 px-3 py-1.5 text-xs font-medium text-white/80 transition-colors hover:border-white/30 hover:bg-black/70 hover:text-white disabled:cursor-not-allowed disabled:opacity-40';
-    const primaryCommandButtonClass = 'rounded-md border border-white/40 bg-white/15 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-white/25 disabled:cursor-not-allowed disabled:opacity-40';
+    const commandButtonClass = 'inline-flex items-center justify-center rounded-md border border-white/15 bg-[color:var(--metric-surface-2)] px-3 py-1.5 text-xs font-medium text-white/80 transition-colors hover:border-white/30 hover:bg-[color:var(--metric-surface-3)] hover:text-white disabled:cursor-not-allowed disabled:opacity-40';
+    const primaryCommandButtonClass = 'inline-flex items-center justify-center rounded-md border border-white/25 bg-white/90 px-3 py-1.5 text-xs font-semibold text-black transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-40';
 
     return (
         <NodeConfigProvider nodes={nodes} setNodes={setNodes}>
-            <div className="relative h-full min-h-screen w-full overflow-hidden bg-black">
+            <div className="relative h-full min-h-screen w-full overflow-hidden bg-[color:var(--metric-surface-0)]">
                 <div className="absolute left-4 top-4 z-30 hidden lg:block">
                     <Sidebar
                         hasStartNode={hasStartNode}
@@ -1206,12 +1206,13 @@ const FlowBuilderContent = ({
 
                     {/* Agent modification notification banner */}
                     {hasExternalChanges && (
-                        <div className="absolute top-28 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-white/25 bg-black/70 px-4 py-2 text-sm text-white shadow-lg backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="absolute top-28 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-white/25 bg-[color:var(--metric-surface-2)] px-4 py-2 text-sm text-white shadow-lg backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-300">
                             <div className="flex items-center gap-3">
                                 <span>Agent changes detected on this workflow.</span>
                                 <button
                                     onClick={reloadFromServer}
                                     className={commandButtonClass}
+                                    title="Reload latest server workflow changes into this editor"
                                 >
                                     Reload
                                 </button>
@@ -1219,6 +1220,7 @@ const FlowBuilderContent = ({
                                     onClick={() => setHasExternalChanges(false)}
                                     className={commandButtonClass}
                                     aria-label="Dismiss workflow modification notification"
+                                    title="Hide this notification and keep current local state"
                                 >
                                     Dismiss
                                 </button>
@@ -1253,17 +1255,18 @@ const FlowBuilderContent = ({
                             className="opacity-20"
                         />
                         <div className="pointer-events-none absolute inset-x-4 top-4 z-20 flex flex-col gap-2 lg:left-[20.5rem]">
-                            <div className="pointer-events-auto flex flex-wrap items-center gap-2 rounded-xl border border-white/15 bg-black/55 px-3 py-2 shadow-xl backdrop-blur-xl">
-                                <Link href="/" className={commandButtonClass}>
+                            <div className="pointer-events-auto flex flex-wrap items-center gap-2 rounded-xl border border-white/15 bg-[color:var(--metric-surface-2)] px-3 py-2 shadow-xl backdrop-blur-xl">
+                                <Link href="/" className={commandButtonClass} title="Return to workflow library">
                                     Back to workflows
                                 </Link>
-                                <Link href="/docs/quickstart" target="_blank" className={commandButtonClass}>
+                                <Link href="/docs/quickstart" target="_blank" className={commandButtonClass} title="Open quickstart documentation in a new tab">
                                     Quickstart
                                 </Link>
                                 <button
                                     onClick={() => reactFlowInstance?.zoomIn?.()}
                                     className={commandButtonClass}
                                     type="button"
+                                    title="Zoom into the workflow canvas"
                                 >
                                     Zoom in
                                 </button>
@@ -1271,6 +1274,7 @@ const FlowBuilderContent = ({
                                     onClick={() => reactFlowInstance?.zoomOut?.()}
                                     className={commandButtonClass}
                                     type="button"
+                                    title="Zoom out of the workflow canvas"
                                 >
                                     Zoom out
                                 </button>
@@ -1278,11 +1282,12 @@ const FlowBuilderContent = ({
                                     onClick={() => reactFlowInstance?.fitView?.({ padding: 0.2 })}
                                     className={commandButtonClass}
                                     type="button"
+                                    title="Fit all visible nodes inside the viewport"
                                 >
                                     Fit view
                                 </button>
                                 {workflowModesV1Enabled && (
-                                    <div className="ml-auto flex min-w-[220px] items-center gap-2 rounded-md border border-white/10 bg-black/40 px-2 py-1">
+                                    <div className="ml-auto flex min-w-[220px] items-center gap-2 rounded-md border border-white/10 bg-[color:var(--metric-surface-1)] px-2 py-1">
                                         <span className="text-[11px] text-white/55">Mode</span>
                                         <select
                                             value={workflowMode}
@@ -1299,6 +1304,7 @@ const FlowBuilderContent = ({
                                             }}
                                             className="rounded border border-white/15 bg-black/50 px-2 py-1 text-xs text-white outline-none"
                                             aria-label="Workflow mode"
+                                            title="Select structural constraints for your workflow graph"
                                         >
                                             {WORKFLOW_MODES.map((mode) => (
                                                 <option key={mode} value={mode}>
@@ -1308,7 +1314,7 @@ const FlowBuilderContent = ({
                                         </select>
                                     </div>
                                 )}
-                                <div className="flex min-w-[220px] items-center gap-2 rounded-md border border-white/10 bg-black/40 px-2 py-1">
+                                <div className="flex min-w-[220px] items-center gap-2 rounded-md border border-white/10 bg-[color:var(--metric-surface-1)] px-2 py-1">
                                     <span className="text-[11px] text-white/55">Name</span>
                                     <input
                                         type="text"
@@ -1316,30 +1322,32 @@ const FlowBuilderContent = ({
                                         onChange={(event) => setWorkflowName(event.target.value)}
                                         className="w-full bg-transparent text-xs text-white outline-none placeholder:text-white/30"
                                         placeholder="Workflow name"
+                                        title="Name your workflow for save, deploy, and search"
                                     />
                                 </div>
                             </div>
 
-                            <div className="pointer-events-auto flex flex-wrap gap-2 rounded-xl border border-white/10 bg-black/45 p-2 shadow-xl backdrop-blur-xl">
+                            <div className="pointer-events-auto flex flex-wrap gap-2 rounded-xl border border-white/10 bg-[color:var(--metric-surface-2)] p-2 shadow-xl backdrop-blur-xl">
                                 <button
                                     onClick={() => {
                                         setShowOpenModal(true);
                                         fetchWorkflows();
                                     }}
                                     className={commandButtonClass}
+                                    title="Open an existing workflow from storage"
                                 >
                                     Open
                                 </button>
-                                <button onClick={onClearSession} className={commandButtonClass}>
+                                <button onClick={onClearSession} className={commandButtonClass} title="Clear canvas, logs, and local session state">
                                     Clear
                                 </button>
-                                <button onClick={undo} disabled={!canUndo} className={commandButtonClass}>
+                                <button onClick={undo} disabled={!canUndo} className={commandButtonClass} title="Undo last change on the canvas">
                                     Undo
                                 </button>
-                                <button onClick={redo} disabled={!canRedo} className={commandButtonClass}>
+                                <button onClick={redo} disabled={!canRedo} className={commandButtonClass} title="Redo the previously undone canvas change">
                                     Redo
                                 </button>
-                                <button onClick={() => setShowSecretsManager(true)} className={commandButtonClass}>
+                                <button onClick={() => setShowSecretsManager(true)} className={commandButtonClass} title="Manage runtime secrets used by workflow steps">
                                     Secrets
                                 </button>
                                 <button
@@ -1348,6 +1356,7 @@ const FlowBuilderContent = ({
                                         fetchUserTemplates();
                                     }}
                                     className={commandButtonClass}
+                                    title="Browse system and personal workflow templates"
                                 >
                                     Templates
                                 </button>
@@ -1357,6 +1366,7 @@ const FlowBuilderContent = ({
                                         setShowSaveTemplateModal(true);
                                     }}
                                     className={commandButtonClass}
+                                    title="Save the current graph as a reusable template"
                                 >
                                     Save as template
                                 </button>
@@ -1369,13 +1379,14 @@ const FlowBuilderContent = ({
                                         setShowValidation(true);
                                     }}
                                     className={commandButtonClass}
+                                    title="Run structural validation checks on the current graph"
                                 >
                                     Validate
                                 </button>
-                                <button onClick={onExport} className={commandButtonClass}>
+                                <button onClick={onExport} className={commandButtonClass} title="Export workflow graph and source as JSON">
                                     Export
                                 </button>
-                                <button onClick={onImport} className={commandButtonClass}>
+                                <button onClick={onImport} className={commandButtonClass} title="Import workflow graph from a JSON export file">
                                     Import
                                 </button>
                                 <button
@@ -1389,6 +1400,7 @@ const FlowBuilderContent = ({
                                     }}
                                     disabled={isSaving}
                                     className={commandButtonClass}
+                                    title="Persist workflow changes to local or cloud storage"
                                 >
                                     {isSaving ? 'Saving' : 'Save'}
                                 </button>
@@ -1396,10 +1408,11 @@ const FlowBuilderContent = ({
                                     onClick={onSimulate}
                                     disabled={isExecuting}
                                     className={primaryCommandButtonClass}
+                                    title="Execute a simulated run and inspect logs"
                                 >
                                     {isExecuting ? 'Simulating' : 'Simulate'}
                                 </button>
-                                <button onClick={onDeploy} className={primaryCommandButtonClass}>
+                                <button onClick={onDeploy} className={primaryCommandButtonClass} title="Deploy the current version for runtime execution">
                                     Deploy
                                 </button>
                             </div>
@@ -1426,7 +1439,7 @@ const FlowBuilderContent = ({
                         }}>
                             <div className="mb-4 flex items-center justify-between">
                                 <h2 className="text-lg font-bold" style={{ color: 'var(--foreground-title)' }}>Export Ready</h2>
-                                <button onClick={closeExportModal} className={commandButtonClass} aria-label="Close export modal">
+                                <button onClick={closeExportModal} className={commandButtonClass} aria-label="Close export modal" title="Close export dialog">
                                     Close
                                 </button>
                             </div>
@@ -1442,6 +1455,7 @@ const FlowBuilderContent = ({
                                         backgroundColor: 'var(--foreground-title)',
                                         color: 'var(--background)',
                                     }}
+                                    title="Download serialized workflow JSON to your machine"
                                     onClick={() => {
                                         // Optional: close modal after download
                                         // setTimeout(closeExportModal, 1000);
@@ -1463,7 +1477,7 @@ const FlowBuilderContent = ({
                         }}>
                             <div className="mb-4 flex items-center justify-between">
                                 <h2 className="text-lg font-bold" style={{ color: 'var(--foreground-title)' }}>Choose a Template</h2>
-                                <button onClick={() => setShowTemplates(false)} className={commandButtonClass} aria-label="Close templates modal">
+                                <button onClick={() => setShowTemplates(false)} className={commandButtonClass} aria-label="Close templates modal" title="Close templates chooser">
                                     Close
                                 </button>
                             </div>
@@ -1475,6 +1489,7 @@ const FlowBuilderContent = ({
                                         color: 'var(--foreground-title)'
                                     }}
                                     onClick={() => setTemplateTab('system')}
+                                    title="View built-in starter templates"
                                 >
                                     System Templates
                                 </button>
@@ -1485,6 +1500,7 @@ const FlowBuilderContent = ({
                                         color: 'var(--foreground-title)'
                                     }}
                                     onClick={() => setTemplateTab('my')}
+                                    title="View templates saved from your workflows"
                                 >
                                     My Templates
                                 </button>
@@ -1498,6 +1514,7 @@ const FlowBuilderContent = ({
                                             onClick={() => loadTemplate(template)}
                                             className="flex flex-col items-start rounded-lg border p-4 text-left transition-all hover:bg-black/5 dark:hover:bg-white/5"
                                             style={{ borderColor: 'var(--border-color)' }}
+                                            title={`Load template ${template.name}`}
                                         >
                                             <span className="font-medium" style={{ color: 'var(--foreground-title)' }}>{template.name}</span>
                                             <span className="text-sm opacity-60" style={{ color: 'var(--foreground-subtitle)' }}>{template.description}</span>
@@ -1511,6 +1528,7 @@ const FlowBuilderContent = ({
                                                 className="group relative flex flex-col items-start rounded-lg border p-4 text-left transition-all hover:bg-black/5 dark:hover:bg-white/5"
                                                 style={{ borderColor: 'var(--border-color)', cursor: 'pointer' }}
                                                 onClick={() => loadUserTemplate(template)}
+                                                title={`Load template ${template.name}`}
                                             >
                                                 <div className="flex w-full justify-between items-start">
                                                     <div>
@@ -1522,7 +1540,7 @@ const FlowBuilderContent = ({
                                                             e.preventDefault();
                                                             onDeleteTemplate(template.id, e);
                                                         }}
-                                                        className="opacity-0 group-hover:opacity-100 rounded border border-red-500/40 bg-red-500/10 px-2 py-1 text-[10px] text-red-300 transition-opacity z-10 relative"
+                                                        className="opacity-0 group-hover:opacity-100 rounded border border-white/20 bg-white/8 px-2 py-1 text-[10px] text-white/70 transition-opacity z-10 relative hover:bg-white/14 hover:text-white"
                                                         title="Delete Template"
                                                     >
                                                         Delete
@@ -1550,7 +1568,7 @@ const FlowBuilderContent = ({
                         }}>
                             <div className="mb-4 flex items-center justify-between">
                                 <h2 className="text-lg font-bold" style={{ color: 'var(--foreground-title)' }}>Save as Template</h2>
-                                <button onClick={() => setShowSaveTemplateModal(false)} className={commandButtonClass}>
+                                <button onClick={() => setShowSaveTemplateModal(false)} className={commandButtonClass} title="Close save-template dialog">
                                     Close
                                 </button>
                             </div>
@@ -1586,13 +1604,15 @@ const FlowBuilderContent = ({
                                         onClick={() => setShowSaveTemplateModal(false)}
                                         className="px-4 py-2 text-sm font-medium rounded hover:bg-black/5 dark:hover:bg-white/5"
                                         style={{ color: 'var(--foreground-body)' }}
+                                        title="Cancel template creation"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         onClick={onSaveTemplate}
                                         disabled={isSavingTemplate || !templateForm.name.trim()}
-                                        className="px-4 py-2 text-sm font-medium rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                                        className="px-4 py-2 text-sm font-semibold rounded border border-white/20 bg-white/90 text-black hover:bg-white disabled:opacity-50"
+                                        title="Save current workflow as reusable template"
                                     >
                                         {isSavingTemplate ? 'Saving...' : 'Save Template'}
                                     </button>
@@ -1605,23 +1625,23 @@ const FlowBuilderContent = ({
                 {/* Validation Panel (existing) */}
                 {showValidation && validationResult && (
                     <div className="absolute bottom-4 left-4 z-50 w-80 rounded-lg border p-4 shadow-lg" style={{
-                        backgroundColor: 'var(--node-background)',
-                        borderColor: validationResult.valid ? 'green' : 'red'
+                        backgroundColor: 'var(--metric-surface-2)',
+                        borderColor: 'var(--metric-border-strong)'
                     }}>
                         <div className="mb-2 flex items-center justify-between">
-                            <h3 className="font-bold" style={{ color: validationResult.valid ? 'green' : 'red' }}>
+                            <h3 className="font-bold text-white/90">
                                 {validationResult.valid ? 'Valid Workflow' : 'Validation Errors'}
                             </h3>
-                            <button onClick={() => setShowValidation(false)} className={commandButtonClass}>
+                            <button onClick={() => setShowValidation(false)} className={commandButtonClass} title="Close validation report">
                                 Close
                             </button>
                             {!validationResult.valid && validationResult.errors.length > 0 && (
                                 <div className="space-y-2">
                                     {validationResult.errors.map((error, idx) => (
-                                        <div key={idx} className="flex items-start gap-2 p-2 rounded" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)' }}>
-                                            <span style={{ color: '#ef4444' }}>✕</span>
+                                        <div key={idx} className="flex items-start gap-2 rounded border border-white/10 bg-white/5 p-2">
+                                            <span className="text-white/65">✕</span>
                                             <div className="flex-1">
-                                                <div className="text-sm font-medium" style={{ color: '#ef4444' }}>Error</div>
+                                                <div className="text-sm font-medium text-white/75">Error</div>
                                                 <div className="text-xs" style={{ color: 'var(--foreground-body)' }}>{error.message}</div>
                                             </div>
                                         </div>
@@ -1632,10 +1652,10 @@ const FlowBuilderContent = ({
                             {validationResult.warnings.length > 0 && (
                                 <div className="mt-2 space-y-2">
                                     {validationResult.warnings.map((warning, idx) => (
-                                        <div key={idx} className="flex items-start gap-2 p-2 rounded" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)' }}>
-                                            <span style={{ color: '#f59e0b' }}>⚠</span>
+                                        <div key={idx} className="flex items-start gap-2 rounded border border-white/10 bg-white/5 p-2">
+                                            <span className="text-white/65">⚠</span>
                                             <div className="flex-1">
-                                                <div className="text-sm font-medium" style={{ color: '#f59e0b' }}>Warning</div>
+                                                <div className="text-sm font-medium text-white/75">Warning</div>
                                                 <div className="text-xs" style={{ color: 'var(--foreground-body)' }}>{warning.message}</div>
                                             </div>
                                         </div>
@@ -1652,8 +1672,8 @@ const FlowBuilderContent = ({
                         data-simulation-panel
                         className="absolute bottom-0 left-0 right-0 z-40 flex flex-col shadow-2xl"
                         style={{
-                            background: 'linear-gradient(180deg, rgba(0,0,0,0.95) 0%, #000000 100%)',
-                            borderTop: '1px solid rgba(0, 255, 255, 0.2)',
+                            background: 'var(--metric-surface-0)',
+                            borderTop: '1px solid rgba(255, 255, 255, 0.14)',
                             borderRadius: '24px 24px 0 0',
                             height: '380px',
                             maxHeight: '45vh',
@@ -1679,9 +1699,9 @@ const FlowBuilderContent = ({
                                     className="rounded-lg border border-white/20 bg-white/5 px-2 py-1 text-[10px] text-white/70"
                                     style={{
                                         background: isExecuting
-                                            ? 'rgba(0, 255, 255, 0.15)'
+                                            ? 'rgba(255, 255, 255, 0.13)'
                                             : 'rgba(255, 255, 255, 0.05)',
-                                        border: '1px solid rgba(0, 255, 255, 0.3)'
+                                        border: '1px solid rgba(255, 255, 255, 0.22)'
                                     }}
                                 >
                                     {isExecuting ? 'Live' : 'Logs'}
@@ -1699,21 +1719,21 @@ const FlowBuilderContent = ({
                                             <span
                                                 className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full"
                                                 style={{
-                                                    background: 'rgba(0, 255, 255, 0.15)',
-                                                    color: '#00FFFF',
-                                                    border: '1px solid rgba(0, 255, 255, 0.3)'
+                                                    background: 'rgba(255, 255, 255, 0.15)',
+                                                    color: '#F5F5F5',
+                                                    border: '1px solid rgba(255, 255, 255, 0.24)'
                                                 }}
                                             >
-                                                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                                                <span className="w-1.5 h-1.5 rounded-full bg-white/85 animate-pulse" />
                                                 Running
                                             </span>
                                         ) : executionLogs.some(l => l.type === 'error') ? (
                                             <span
                                                 className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full"
                                                 style={{
-                                                    background: 'rgba(255, 0, 100, 0.15)',
-                                                    color: '#FF0064',
-                                                    border: '1px solid rgba(255, 0, 100, 0.3)'
+                                                    background: 'rgba(255, 255, 255, 0.12)',
+                                                    color: '#D9D9D9',
+                                                    border: '1px solid rgba(255, 255, 255, 0.2)'
                                                 }}
                                             >
                                                 Error
@@ -1722,9 +1742,9 @@ const FlowBuilderContent = ({
                                             <span
                                                 className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full"
                                                 style={{
-                                                    background: 'rgba(0, 255, 0, 0.15)',
-                                                    color: '#00FF00',
-                                                    border: '1px solid rgba(0, 255, 0, 0.3)'
+                                                    background: 'rgba(255, 255, 255, 0.15)',
+                                                    color: '#F5F5F5',
+                                                    border: '1px solid rgba(255, 255, 255, 0.24)'
                                                 }}
                                             >
                                                 Complete
@@ -1781,7 +1801,8 @@ const FlowBuilderContent = ({
                                     <button
                                         key={key}
                                         onClick={() => setActiveLogFilter(key)}
-                                        className={`flex items-center gap-2 rounded-full px-3 py-1 text-[11px] transition-all duration-200 ${isActive ? 'bg-cyan-500/20 border border-cyan-400/60 text-white' : 'bg-white/5 border border-white/10 text-white/70 hover:bg-white/10'}`}
+                                        className={`flex items-center gap-2 rounded-full px-3 py-1 text-[11px] transition-all duration-200 ${isActive ? 'bg-white/18 border border-white/30 text-white' : 'bg-white/5 border border-white/10 text-white/70 hover:bg-white/10'}`}
+                                        title={`Show ${filter.label.toLowerCase()}`}
                                     >
                                         {filter.label}
                                         <span className="text-[10px] rounded-full bg-white/10 px-2 py-0.5 text-white/70">
@@ -1803,11 +1824,11 @@ const FlowBuilderContent = ({
                                         {isExecuting ? (
                                             <>
                                                 <div className="flex gap-1.5">
-                                                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                                                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                                                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                                                    <span className="w-2 h-2 rounded-full bg-white/75 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                                    <span className="w-2 h-2 rounded-full bg-white/75 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                                    <span className="w-2 h-2 rounded-full bg-white/75 animate-bounce" style={{ animationDelay: '300ms' }} />
                                                 </div>
-                                                <span className="text-sm" style={{ color: '#00FFFF' }}>Executing workflow...</span>
+                                                <span className="text-sm text-white/80">Executing workflow...</span>
                                             </>
                                         ) : (
                                             <>
@@ -1863,27 +1884,27 @@ const FlowBuilderContent = ({
                                         detailPayload !== null &&
                                         (typeof detailPayload !== 'object' || Object.keys(detailPayload).length > 0);
                                     const dotClass = log.type === 'error'
-                                        ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
+                                        ? 'bg-white/55 shadow-[0_0_8px_rgba(255,255,255,0.18)]'
                                         : log.type === 'success'
-                                            ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]'
+                                            ? 'bg-white/78 shadow-[0_0_8px_rgba(255,255,255,0.24)]'
                                             : log.type === 'warning'
-                                                ? 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]'
+                                                ? 'bg-white/62 shadow-[0_0_8px_rgba(255,255,255,0.2)]'
                                                 : log.type === 'nodeStatus'
-                                                    ? 'bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.5)]'
+                                                    ? 'bg-white/70 shadow-[0_0_8px_rgba(255,255,255,0.24)]'
                                                     : log.type === 'nodeOutput'
-                                                        ? 'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]'
-                                                        : 'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.5)]';
+                                                        ? 'bg-white/74 shadow-[0_0_8px_rgba(255,255,255,0.24)]'
+                                                        : 'bg-white/68 shadow-[0_0_8px_rgba(255,255,255,0.22)]';
                                     const badgeClass = log.type === 'error'
-                                        ? 'bg-red-500/15 text-red-400 border border-red-500/30'
+                                        ? 'bg-white/8 text-white/70 border border-white/16'
                                         : log.type === 'success'
-                                            ? 'bg-green-500/15 text-green-400 border border-green-500/30'
+                                            ? 'bg-white/12 text-white/88 border border-white/24'
                                             : log.type === 'warning'
-                                                ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
+                                                ? 'bg-white/10 text-white/75 border border-white/18'
                                                 : log.type === 'nodeOutput'
-                                                    ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30'
+                                                    ? 'bg-white/10 text-white/80 border border-white/20'
                                                     : log.type === 'nodeStatus'
-                                                        ? 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/30'
-                                                        : 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30';
+                                                        ? 'bg-white/11 text-white/82 border border-white/20'
+                                                        : 'bg-white/10 text-white/78 border border-white/20';
                                     const badgeLabel = log.type === 'nodeOutput'
                                         ? 'Output'
                                         : log.type === 'nodeStatus'
@@ -1940,7 +1961,8 @@ const FlowBuilderContent = ({
                                                     <div className="mt-3 space-y-2">
                                                         <button
                                                             onClick={() => setExpandedLogKey(isExpanded ? null : logKey)}
-                                                            className="text-[11px] font-semibold text-cyan-300 transition-colors duration-200 hover:text-cyan-100"
+                                                            className="text-[11px] font-semibold text-white/80 transition-colors duration-200 hover:text-white"
+                                                            title={isExpanded ? 'Collapse log details payload' : 'Expand log details payload'}
                                                         >
                                                             {isExpanded ? 'Hide details' : 'Show details'}
                                                         </button>
@@ -1972,7 +1994,7 @@ const FlowBuilderContent = ({
                         }}>
                             <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
                                 <h2 className="text-lg font-bold" style={{ color: 'var(--foreground-title)' }}>Open Workflow</h2>
-                                <button onClick={() => setShowOpenModal(false)} className={commandButtonClass}>
+                                <button onClick={() => setShowOpenModal(false)} className={commandButtonClass} title="Close workflow picker">
                                     Close
                                 </button>
                             </div>
@@ -2009,8 +2031,8 @@ const FlowBuilderContent = ({
                                                 </div>
                                                 <button
                                                     onClick={(e) => onDeleteWorkflow(wf.id, e)}
-                                                    className="rounded border border-red-500/40 bg-red-500/10 px-2 py-1 text-[10px] text-red-300 opacity-0 transition-all group-hover:opacity-100"
-                                                    title="Delete workflow"
+                                                    className="rounded border border-white/20 bg-white/8 px-2 py-1 text-[10px] text-white/70 opacity-0 transition-all group-hover:opacity-100 hover:bg-white/14 hover:text-white"
+                                                    title="Delete workflow from cloud storage"
                                                 >
                                                     Delete
                                                 </button>

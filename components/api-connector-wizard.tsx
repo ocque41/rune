@@ -122,7 +122,7 @@ const ApiConnectorWizard: React.FC<ApiConnectorWizardProps> = ({
                             <Label htmlFor="method">Method</Label>
                             <select
                                 id="method"
-                                className="w-full rounded-md bg-[#222222] border-none px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                className="w-full rounded-md bg-[#222222] border-none px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/30"
                                 value={method}
                                 onChange={(e) => setMethod(e.target.value as any)}
                             >
@@ -177,7 +177,7 @@ const ApiConnectorWizard: React.FC<ApiConnectorWizardProps> = ({
                         <Label htmlFor="body">Body (JSON or Plain Text)</Label>
                         <textarea
                             id="body"
-                            className="w-full rounded-md bg-[#222222] border-none px-3 py-2 text-sm font-mono text-white placeholder-white/50 focus:outline-none focus:ring-1 focus:ring-blue-500 min-h-[150px]"
+                            className="w-full rounded-md bg-[#222222] border-none px-3 py-2 text-sm font-mono text-white placeholder-white/50 focus:outline-none focus:ring-1 focus:ring-white/30 min-h-[150px]"
                             value={body}
                             onChange={(e) => setBody(e.target.value)}
                             placeholder='{"key": "value"}'

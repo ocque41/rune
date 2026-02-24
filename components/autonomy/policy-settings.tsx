@@ -108,7 +108,7 @@ export const PolicySettings = () => {
 
     return (
         <div className="p-6 max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
-            <Card className="border-white/10 bg-gradient-to-br from-background/80 via-background to-background/60 shadow-[0_20px_60px_rgba(0,0,0,0.25)]">
+            <Card className="border-white/12 bg-[color:var(--metric-surface-2)] shadow-[0_20px_60px_rgba(0,0,0,0.25)]">
                 <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="space-y-2">
                         <CardTitle className="text-2xl">Autonomy Policy</CardTitle>
@@ -117,13 +117,13 @@ export const PolicySettings = () => {
                     <div className="flex items-center gap-3">
                         <Badge variant={modeBadgeVariant} className={cn(
                             "uppercase tracking-wide",
-                            config.mode === 'AUTONOMOUS' && "bg-amber-500/20 text-amber-300 border-amber-500/40",
+                            config.mode === 'AUTONOMOUS' && "bg-white/18 text-white border-white/28",
                             config.mode === 'CONFIRM' && "bg-white/10 text-white/70 border-white/20",
                             config.mode === 'OFF' && "border-white/20 text-white/50"
                         )}>
                             {config.mode === 'AUTONOMOUS' ? 'Autonomous' : config.mode === 'CONFIRM' ? 'Confirm' : 'Off'}
                         </Badge>
-                        <Button onClick={handleSave} disabled={saving} className="gap-2">
+                        <Button onClick={handleSave} disabled={saving} className="gap-2" hint="Save autonomy policy changes for future agent executions">
                             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                             Save Changes
                         </Button>
@@ -131,10 +131,10 @@ export const PolicySettings = () => {
                 </CardHeader>
             </Card>
 
-            <Card className="border-destructive/30 bg-destructive/5">
+            <Card className="border-white/12 bg-[color:var(--metric-surface-2)]">
                 <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-destructive">
+                        <div className="flex items-center gap-2 text-white/80">
                             <Power size={16} />
                             <CardTitle className="text-base">Emergency Kill Switch</CardTitle>
                         </div>
@@ -142,7 +142,7 @@ export const PolicySettings = () => {
                     </div>
                     <Dialog>
                         <DialogTrigger asChild>
-                            <Button variant="destructive" disabled={saving || config.mode === 'OFF'} className="gap-2">
+                            <Button variant="destructive" disabled={saving || config.mode === 'OFF'} className="gap-2" hint="Immediately switch autonomy mode to OFF">
                                 <Power size={16} />
                                 Disable Autonomy
                             </Button>
@@ -156,9 +156,9 @@ export const PolicySettings = () => {
                             </DialogHeader>
                             <DialogFooter>
                                 <DialogClose asChild>
-                                    <Button variant="outline" disabled={saving}>Cancel</Button>
+                                    <Button variant="outline" disabled={saving} hint="Keep autonomy settings unchanged">Cancel</Button>
                                 </DialogClose>
-                                <Button variant="destructive" onClick={handleKillSwitch} disabled={saving}>
+                                <Button variant="destructive" onClick={handleKillSwitch} disabled={saving} hint="Confirm immediate autonomy shutdown">
                                     Disable Now
                                 </Button>
                             </DialogFooter>
@@ -190,7 +190,7 @@ export const PolicySettings = () => {
                         title="Human-in-the-loop"
                         description="Plans are generated, but require your approval to run."
                         icon={AlertTriangle}
-                        accent="text-amber-400"
+                        accent="text-white/80"
                     />
                     <ModeCard
                         dataMode="AUTONOMOUS"
@@ -199,7 +199,7 @@ export const PolicySettings = () => {
                         title="Fully Autonomous"
                         description="Executes automatically within your defined budgets."
                         icon={Zap}
-                        accent="text-primary"
+                        accent="text-white"
                     />
                 </div>
             </div>
@@ -316,11 +316,12 @@ const ModeCard = ({
     <Card
         data-mode={dataMode}
         onClick={onClick}
+        title={`Switch autonomy mode to ${title}`}
         className={cn(
             'cursor-pointer border transition-all h-full',
             active
-                ? 'border-primary/40 bg-primary/10 shadow-[0_0_30px_rgba(59,130,246,0.15)]'
-                : 'border-border/60 bg-card/60 hover:bg-muted/30 hover:border-foreground/20'
+                ? 'border-white/28 bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.08)]'
+                : 'border-border/60 bg-card/60 hover:bg-muted/30 hover:border-white/22'
         )}
     >
         <CardHeader className="pb-3">
@@ -332,7 +333,7 @@ const ModeCard = ({
         </CardHeader>
         <CardContent>
             {active ? (
-                <Badge className="bg-primary/20 text-primary border-primary/30">Selected</Badge>
+                <Badge className="bg-white/18 text-white border-white/28">Selected</Badge>
             ) : (
                 <Badge variant="outline" className="border-white/10 text-white/60">Select</Badge>
             )}
@@ -347,7 +348,8 @@ const StatInput = ({ label, value, onChange }: { label: string; value: number; o
             type="number"
             value={value}
             onChange={(e) => onChange(parseInt(e.target.value || '0'))}
-            className="bg-muted/40 border-white/10 focus-visible:ring-primary/40"
+            className="bg-muted/40 border-white/10 focus-visible:ring-white/25"
+            title={`Set ${label}`}
         />
     </div>
 );
@@ -355,6 +357,6 @@ const StatInput = ({ label, value, onChange }: { label: string; value: number; o
 const ToggleRow = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) => (
     <div className="flex items-center justify-between rounded-lg border border-white/10 bg-muted/20 px-4 py-3">
         <span className="text-sm text-foreground">{label}</span>
-        <Switch checked={checked} onCheckedChange={onChange} />
+        <Switch checked={checked} onCheckedChange={onChange} title={`Toggle ${label}`} />
     </div>
 );

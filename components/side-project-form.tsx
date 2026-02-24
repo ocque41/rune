@@ -36,12 +36,12 @@ export function SideProjectForm() {
     };
 
     return (
-        <div className="w-full max-w-md p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800">
+        <div className="w-full max-w-md rounded-2xl border border-white/12 bg-[color:var(--metric-surface-2)] p-8 shadow-xl">
             <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold text-zinc-900 dark:text-white mb-2">
+                <h2 className="text-3xl font-bold text-white mb-2">
                     Side Project Roulette
                 </h2>
-                <p className="text-zinc-600 dark:text-zinc-400">
+                <p className="text-white/65">
                     Enter your email to spin the wheel and get a new side project idea!
                 </p>
             </div>
@@ -50,7 +50,7 @@ export function SideProjectForm() {
                 <div>
                     <label
                         htmlFor="email"
-                        className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
+                        className="mb-2 block text-sm font-medium text-white/75"
                     >
                         Email Address
                     </label>
@@ -60,15 +60,17 @@ export function SideProjectForm() {
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                        className="w-full rounded-lg border border-white/12 bg-[color:var(--metric-surface-1)] px-4 py-3 text-white focus:border-white/30 focus:ring-2 focus:ring-white/20 outline-none transition-all"
                         placeholder="you@example.com"
+                        title="Enter email to receive side-project workflow results"
                     />
                 </div>
 
                 <button
                     type="submit"
                     disabled={status === "loading"}
-                    className="w-full py-3 px-6 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/92 px-6 py-3 text-lg font-semibold text-black transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Start side-project workflow run"
                 >
                     {status === "loading" ? (
                         <>
@@ -83,8 +85,8 @@ export function SideProjectForm() {
                 {message && (
                     <div
                         className={`p-4 rounded-lg text-center ${status === "success"
-                            ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                            : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                            ? "bg-white/10 text-white/85"
+                            : "bg-white/8 text-white/70"
                             }`}
                     >
                         {message}

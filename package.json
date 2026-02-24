@@ -8,6 +8,7 @@
     "build:lib": "vite build --config vite.config.lib.ts",
     "start": "next start",
     "lint": "eslint",
+    "check:ui-style": "bash ./scripts/check-monochrome-ui.sh",
     "test": "vitest",
     "inspector": "npx workflow inspect runs --web",
     "autonomy:worker": "node ./scripts/autonomy-worker.js"

@@ -32,8 +32,8 @@ export default function IfNode({ id, data, selected }: NodeProps<CustomIfNode>) 
       handles={[{ type: 'target', position: Position.Top }]}
     >
       <div className="relative h-10 border-t border-white/5">
-        <div className="absolute left-[25%] top-2 -translate-x-1/2 text-[10px] text-green-400">True</div>
-        <div className="absolute left-[75%] top-2 -translate-x-1/2 text-[10px] text-red-400">False</div>
+        <div className="absolute left-[25%] top-2 -translate-x-1/2 text-[10px] text-white/75">True</div>
+        <div className="absolute left-[75%] top-2 -translate-x-1/2 text-[10px] text-white/55">False</div>
         <Handle type="source" position={Position.Bottom} id="true" style={{ left: '25%' }} className="!bg-[color:var(--text)] !border-2 !border-[color:var(--bg)]" />
         <Handle type="source" position={Position.Bottom} id="false" style={{ left: '75%' }} className="!bg-[color:var(--text)] !border-2 !border-[color:var(--bg)]" />
       </div>

@@ -9,27 +9,18 @@ interface AnimatedGridBackgroundProps {
 export const AnimatedGridBackground: React.FC<AnimatedGridBackgroundProps> = ({ className }) => {
     return (
         <div className={`pointer-events-none absolute inset-0 overflow-hidden ${className ?? ''}`}>
-            <div
-                className="absolute inset-0"
-                style={{
-                    background:
-                        'radial-gradient(circle at 14% 18%, rgba(255,255,255,0.06), transparent 36%), radial-gradient(circle at 84% 8%, rgba(255,255,255,0.04), transparent 32%), linear-gradient(180deg, #040404 0%, #080808 60%, #030303 100%)',
-                }}
-            />
-            <div
-                className="absolute inset-0 opacity-25"
-                style={{
-                    backgroundImage:
-                        'linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px)',
-                    backgroundSize: '42px 42px',
-                    maskImage: 'radial-gradient(circle at center, black 35%, transparent 88%)',
-                }}
-            />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0),rgba(0,0,0,0.75)_70%)]" />
-            <div className="animated-haze absolute -inset-[20%] opacity-20" />
+            <div className="absolute inset-0 bg-[color:var(--metric-surface-0)]" />
+            <div className="absolute inset-0 opacity-30">
+                <div className="absolute inset-6 rounded-2xl border border-white/[0.04]" />
+                <div className="absolute left-0 right-0 top-1/3 h-px bg-white/[0.04]" />
+                <div className="absolute left-0 right-0 top-2/3 h-px bg-white/[0.04]" />
+                <div className="absolute bottom-0 top-0 left-1/3 w-px bg-white/[0.04]" />
+                <div className="absolute bottom-0 top-0 left-2/3 w-px bg-white/[0.04]" />
+            </div>
+            <div className="animated-field absolute -inset-[20%] opacity-20" />
             <style jsx>{`
-                .animated-haze {
-                    background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.12), transparent 55%);
+                .animated-field {
+                    background-color: rgba(255, 255, 255, 0.08);
                     filter: blur(80px);
                     animation: drift 18s ease-in-out infinite alternate;
                 }

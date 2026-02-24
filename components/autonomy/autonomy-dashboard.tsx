@@ -163,12 +163,13 @@ const NavButton = ({ active, onClick, icon: Icon, label }: any) => (
     <button
         onClick={onClick}
         className={cn(
-            "p-3 rounded-xl transition-all group relative",
+            "p-3 rounded-xl transition-all group relative border",
             active
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                ? "border-white/26 bg-white/12 text-white"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted hover:border-white/18"
         )}
         title={label}
+        aria-label={label}
     >
         <Icon size={20} />
         {active && (

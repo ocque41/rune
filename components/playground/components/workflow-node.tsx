@@ -24,10 +24,10 @@ export function WorkflowNode({
 
   const getStatusColor = () => {
     switch (status) {
-      case "running": return "border-l-blue-500"
-      case "completed": return "border-l-green-500"
-      case "error": return "border-l-red-500"
-      default: return "border-l-gray-300"
+      case "running": return "border-l-white"
+      case "completed": return "border-l-white/80"
+      case "error": return "border-l-white/55"
+      default: return "border-l-white/20"
     }
   }
 
@@ -42,7 +42,7 @@ export function WorkflowNode({
             {getIcon()}
             <span>{title}</span>
           </CardTitle>
-          <div className={`w-2.5 h-2.5 rounded-full ${status === 'running' ? 'bg-blue-500 shadow-blue-500/50 shadow-sm' : 'bg-muted'}`} />
+          <div className={`w-2.5 h-2.5 rounded-full ${status === 'running' ? 'bg-white shadow-white/35 shadow-sm' : 'bg-muted'}`} />
         </CardHeader>
         <CardContent className="p-6 pt-0">
           <div className="text-xs text-muted-foreground font-mono mt-1 mb-4 opacity-70">

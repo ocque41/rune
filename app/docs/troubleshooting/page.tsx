@@ -18,9 +18,9 @@ export default function TroubleshootingPage() {
                 <h1 className="text-4xl font-bold text-[var(--foreground-title)] mb-8">Common Issues & Fixes</h1>
 
                 <div className="space-y-8">
-                    <div className="border border-red-500/20 bg-red-500/5 rounded-xl p-6">
+                    <div className="border border-white/20 bg-white/8 rounded-xl p-6">
                         <div className="flex items-center gap-3 mb-4">
-                            <AlertTriangle className="text-red-500" />
+                            <AlertTriangle className="text-white/75" />
                             <h2 className="text-xl font-bold text-[var(--foreground-title)]">Workflow Fails to Save</h2>
                         </div>
                         <p className="text-[var(--foreground-body)] mb-3">
@@ -59,9 +59,9 @@ export default function TroubleshootingPage() {
                         </div>
                     </div>
 
-                    <div className="border border-amber-500/20 bg-amber-500/5 rounded-xl p-6">
+                    <div className="border border-white/20 bg-white/8 rounded-xl p-6">
                         <div className="flex items-center gap-3 mb-4">
-                            <AlertTriangle className="text-amber-500" />
+                            <AlertTriangle className="text-white/75" />
                             <h2 className="text-xl font-bold text-[var(--foreground-title)]">Push to main Did Not Create a Vercel Deployment</h2>
                         </div>
                         <p className="text-[var(--foreground-body)] mb-3">

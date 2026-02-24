@@ -51,7 +51,7 @@ export const RunDetails = ({ runId }: RunDetailsProps) => {
     }
 
     if (error) {
-        return <div className="flex items-center justify-center h-full text-xs text-red-500">{error}</div>;
+        return <div className="flex items-center justify-center h-full text-xs text-white/70">{error}</div>;
     }
 
     if (!run) {
@@ -63,9 +63,9 @@ export const RunDetails = ({ runId }: RunDetailsProps) => {
             {/* Header */}
             <div className="p-6 border-b" style={{ borderColor: 'var(--border-color)' }}>
                 <div className="flex items-center gap-3 mb-4">
-                    <div className={`p-2 rounded-full ${run.status === 'completed' ? 'bg-emerald-500/10 text-emerald-500' :
-                            run.status === 'failed' ? 'bg-red-500/10 text-red-500' :
-                                'bg-blue-500/10 text-blue-500'
+                    <div className={`p-2 rounded-full ${run.status === 'completed' ? 'bg-white/12 text-white' :
+                            run.status === 'failed' ? 'bg-white/8 text-white/70' :
+                                'bg-white/10 text-white/85'
                         }`}>
                         {run.status === 'completed' ? <CheckCircle size={20} /> :
                             run.status === 'failed' ? <XCircle size={20} /> :
@@ -94,7 +94,7 @@ export const RunDetails = ({ runId }: RunDetailsProps) => {
                     </div>
                     <div className="p-3 rounded border" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--node-background)' }}>
                         <div className="text-xs mb-1 opacity-70">Result</div>
-                        <div className={`text-sm font-medium ${run.status === 'failed' ? 'text-red-500' : 'text-emerald-500'}`}>
+                        <div className={`text-sm font-medium ${run.status === 'failed' ? 'text-white/70' : 'text-white/90'}`}>
                             {run.status === 'completed' ? 'Success' : run.status === 'failed' ? 'Error' : 'Running'}
                         </div>
                     </div>
@@ -120,8 +120,8 @@ export const RunDetails = ({ runId }: RunDetailsProps) => {
                                 <div key={i} className="flex gap-3">
                                     <span className="opacity-40 select-none">{new Date(log.timestamp).toLocaleTimeString()}</span>
                                     <span className={
-                                        log.level === 'error' ? 'text-red-500' :
-                                            log.level === 'warn' ? 'text-amber-500' :
+                                        log.level === 'error' ? 'text-white/70' :
+                                            log.level === 'warn' ? 'text-white/75' :
                                                 'text-inherit'
                                     }>
                                         {log.message}
@@ -151,7 +151,7 @@ export const RunDetails = ({ runId }: RunDetailsProps) => {
                         <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--foreground-title)' }}>
                             {run.status === 'failed' ? 'Error Details' : 'Output Result'}
                         </h3>
-                        <pre className={`rounded-lg border p-4 text-xs overflow-auto ${run.status === 'failed' ? 'text-red-500 bg-red-500/5' : ''}`} style={{
+                        <pre className={`rounded-lg border p-4 text-xs overflow-auto ${run.status === 'failed' ? 'text-white/75 bg-white/6' : ''}`} style={{
                             borderColor: 'var(--border-color)',
                             backgroundColor: run.status === 'failed' ? undefined : 'var(--node-background)',
                             maxHeight: '200px'

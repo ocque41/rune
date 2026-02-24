@@ -132,15 +132,12 @@ export function McpModal() {
     return (
         <Dialog>
             <DialogTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1.5 text-muted-foreground hover:text-foreground hover:bg-accent/50 group">
+                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1.5 text-muted-foreground hover:text-foreground hover:bg-accent/50 group" title="Open MCP server manager">
                     <Plug className="h-3.5 w-3.5 group-hover:text-white transition-colors" />
                     MCPs
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[650px] bg-[#0A0A0A]/95 backdrop-blur-xl border-white/10 shadow-2xl max-h-[85vh] overflow-y-auto text-white">
-                <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden rounded-lg">
-                    <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(circle_at_center,theme(colors.white/0.03),transparent_50%)]" />
-                </div>
+            <DialogContent className="sm:max-w-[650px] bg-[color:var(--metric-surface-2)] backdrop-blur-xl border-white/10 shadow-2xl max-h-[85vh] overflow-y-auto text-white">
 
                 <DialogHeader className="relative z-10">
                     <DialogTitle className="flex items-center gap-2 text-lg font-bold tracking-tight">
@@ -169,7 +166,7 @@ export function McpModal() {
                             <div className="flex flex-col items-center justify-center h-[200px] text-white/30 gap-2 border border-dashed border-white/10 rounded-xl bg-white/5">
                                 <Server className="h-8 w-8 opacity-50" />
                                 <p className="text-sm">No servers connected</p>
-                                <Button variant="link" onClick={() => setActiveTab('add')} className="text-white h-auto p-0 text-xs hover:text-white/80">
+                                <Button variant="link" onClick={() => setActiveTab('add')} className="text-white h-auto p-0 text-xs hover:text-white/80" title="Switch to add-server form">
                                     Add your first server
                                 </Button>
                             </div>
@@ -177,8 +174,6 @@ export function McpModal() {
                             <div ref={listRef} className="grid gap-3">
                                 {servers.map((server) => (
                                     <div key={server.id} className="group relative flex flex-col gap-3 p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/[0.07] transition-all overflow-hidden">
-                                        <div className="absolute inset-0 bg-gradient-to-r from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-
                                         <div className="flex items-start justify-between relative z-10">
                                             <div className="flex items-center gap-3">
                                                 <div className={cn("p-2.5 rounded-lg border",
@@ -194,10 +189,10 @@ export function McpModal() {
                                                         <span className={cn("flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-mono font-medium tracking-wide uppercase border",
                                                             server.status === 'connected'
                                                                 ? "bg-white/10 text-white border-white/20"
-                                                                : "bg-red-500/10 text-red-500 border-red-500/20"
+                                                                : "bg-white/8 text-white/65 border-white/18"
                                                         )}>
                                                             <span className={cn("h-1.5 w-1.5 rounded-full",
-                                                                server.status === 'connected' ? "bg-white animate-pulse" : "bg-red-500"
+                                                                server.status === 'connected' ? "bg-white animate-pulse" : "bg-white/45"
                                                             )} />
                                                             {server.status}
                                                         </span>
@@ -214,7 +209,7 @@ export function McpModal() {
                                                     onCheckedChange={() => handleToggleServer(server.id, server.status as string)}
                                                     className="data-[state=checked]:bg-white"
                                                 />
-                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-white/30 hover:text-red-400 hover:bg-red-500/10" onClick={() => handleDeleteServer(server.id)}>
+                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-white/30 hover:text-white hover:bg-white/10" onClick={() => handleDeleteServer(server.id)} title={`Delete MCP server ${server.name}`}>
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
                                             </div>
@@ -234,7 +229,7 @@ export function McpModal() {
                                         )}
 
                                         {server.error_message && (
-                                            <div className="relative z-10 pt-2 text-[10px] text-red-400 flex items-center gap-2">
+                                            <div className="relative z-10 pt-2 text-[10px] text-white/65 flex items-center gap-2">
                                                 <AlertCircle className="h-3 w-3" />
                                                 {server.error_message}
                                             </div>
@@ -310,9 +305,10 @@ export function McpModal() {
 
                         <div className="pt-4">
                             <Button
-                                className="w-full h-10 gap-2 transition-all bg-white text-black hover:bg-white/90 font-medium"
+                                className="w-full h-10 gap-2 transition-all bg-white/92 text-black hover:bg-white font-medium"
                                 onClick={handleSaveServer}
                                 disabled={isVerifying || !newServer.name || !newServer.url}
+                                title="Verify server connectivity and save this MCP configuration"
                             >
                                 {isVerifying ? (
                                     <>

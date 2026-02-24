@@ -100,10 +100,11 @@ export function NotificationBell() {
                     "relative p-2 rounded-lg transition-colors",
                     isOpen ? "bg-white/10" : "hover:bg-white/5"
                 )}
+                title={isOpen ? "Close notifications panel" : "Open notifications panel"}
             >
                 <Bell className="w-5 h-5 text-white/70" />
                 {unreadCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-500 rounded-full">
+                    <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-black bg-white rounded-full">
                         {unreadCount > 99 ? '99+' : unreadCount}
                     </span>
                 )}
@@ -118,7 +119,8 @@ export function NotificationBell() {
                         {unreadCount > 0 && (
                             <button
                                 onClick={() => markAsRead()}
-                                className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                                className="text-xs text-white/70 hover:text-white transition-colors"
+                                title="Mark all notifications as read"
                             >
                                 Mark all read
                             </button>
@@ -140,9 +142,10 @@ export function NotificationBell() {
                                         onClick={() => handleNotificationClick(notification)}
                                         className={cn(
                                             "flex items-start gap-3 p-4 cursor-pointer transition-colors",
-                                            notification.is_read ? "bg-transparent" : "bg-blue-500/5",
+                                            notification.is_read ? "bg-transparent" : "bg-white/6",
                                             "hover:bg-white/5"
                                         )}
+                                        title={notification.link ? "Open related context" : "Mark notification as read"}
                                     >
                                         {/* Icon */}
                                         <span className="text-lg">
@@ -169,7 +172,7 @@ export function NotificationBell() {
 
                                         {/* Unread indicator */}
                                         {!notification.is_read && (
-                                            <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-1.5" />
+                                            <span className="w-2 h-2 rounded-full bg-white/75 flex-shrink-0 mt-1.5" />
                                         )}
                                     </div>
                                 ))}

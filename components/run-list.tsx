@@ -66,10 +66,10 @@ export const RunList = ({ onSelectRun, selectedRunId }: RunListProps) => {
 
     const getStatusIcon = (status: string) => {
         switch (status) {
-            case 'completed': return <CheckCircle size={14} className="text-emerald-500" />;
-            case 'failed': return <XCircle size={14} className="text-red-500" />;
-            case 'running': return <RefreshCw size={14} className="text-blue-500 animate-spin" />;
-            default: return <Clock size={14} className="text-gray-400" />;
+            case 'completed': return <CheckCircle size={14} className="text-white/85" />;
+            case 'failed': return <XCircle size={14} className="text-white/65" />;
+            case 'running': return <RefreshCw size={14} className="text-white/80 animate-spin" />;
+            default: return <Clock size={14} className="text-white/50" />;
         }
     };
 
@@ -89,7 +89,8 @@ export const RunList = ({ onSelectRun, selectedRunId }: RunListProps) => {
                 <h2 className="font-semibold text-sm" style={{ color: 'var(--foreground-title)' }}>Recent Runs</h2>
                 <button
                     onClick={() => fetchRuns()}
-                    className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                    className="rounded border border-white/12 bg-[color:var(--metric-surface-2)] p-1 transition-colors hover:border-white/24 hover:bg-[color:var(--metric-surface-3)]"
+                    title="Refresh run history"
                 >
                     <RefreshCw size={14} style={{ color: 'var(--foreground-subtitle)' }} />
                 </button>
@@ -99,7 +100,7 @@ export const RunList = ({ onSelectRun, selectedRunId }: RunListProps) => {
                 {loading && runs.length === 0 ? (
                     <div className="p-4 text-center text-xs opacity-60">Loading...</div>
                 ) : error ? (
-                    <div className="p-4 text-center text-xs text-red-500">{error}</div>
+                    <div className="p-4 text-center text-xs text-white/70">{error}</div>
                 ) : runs.length === 0 ? (
                     <div className="p-4 text-center text-xs opacity-60">No runs yet</div>
                 ) : (
@@ -109,8 +110,9 @@ export const RunList = ({ onSelectRun, selectedRunId }: RunListProps) => {
                                 <button
                                     key={run.id}
                                     onClick={() => onSelectRun(run.id)}
-                                    className={`w-full p-3 text-left transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${selectedRunId === run.id ? 'bg-black/5 dark:bg-white/5' : ''
+                                    className={`w-full p-3 text-left transition-colors hover:bg-[color:var(--metric-surface-2)] ${selectedRunId === run.id ? 'bg-[color:var(--metric-surface-2)]' : ''
                                         }`}
+                                    title={`Open run ${run.id}`}
                                 >
                                     <div className="flex items-center justify-between mb-1">
                                         <span className="font-medium text-sm truncate" style={{ color: 'var(--foreground-body)' }}>
@@ -132,8 +134,9 @@ export const RunList = ({ onSelectRun, selectedRunId }: RunListProps) => {
                                 <button
                                     onClick={() => fetchRuns(true)}
                                     disabled={loadingMore}
-                                    className="w-full flex items-center justify-center gap-2 py-2 rounded text-xs hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                    className="w-full flex items-center justify-center gap-2 rounded border border-white/12 bg-[color:var(--metric-surface-2)] py-2 text-xs transition-colors hover:border-white/24 hover:bg-[color:var(--metric-surface-3)]"
                                     style={{ color: 'var(--foreground-subtitle)' }}
+                                    title="Load additional runs"
                                 >
                                     {loadingMore ? (
                                         <RefreshCw size={12} className="animate-spin" />
