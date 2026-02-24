@@ -1,11 +1,14 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { Node, Edge } from '@xyflow/react';
+import type { WorkflowMode, WorkflowModeConfig } from '@/lib/workflow/modes';
 
 const STORAGE_KEY = 'rune_workflow_session';
 
 interface WorkflowSession {
     nodes: Node[];
     edges: Edge[];
+    workflowMode?: WorkflowMode;
+    workflowModeConfig?: WorkflowModeConfig;
     meta?: {
         name?: string;
         description?: string;
@@ -18,6 +21,10 @@ interface UseLocalWorkflowSessionProps {
     edges: Edge[];
     setNodes: (nodes: Node[]) => void;
     setEdges: (edges: Edge[]) => void;
+    workflowMode?: WorkflowMode;
+    workflowModeConfig?: WorkflowModeConfig;
+    setWorkflowMode?: (mode: WorkflowMode) => void;
+    setWorkflowModeConfig?: (config: WorkflowModeConfig) => void;
     workflowMeta?: {
         name?: string;
         description?: string;
@@ -29,6 +36,10 @@ export function useLocalWorkflowSession({
     edges,
     setNodes,
     setEdges,
+    workflowMode,
+    workflowModeConfig,
+    setWorkflowMode,
+    setWorkflowModeConfig,
     workflowMeta
 }: UseLocalWorkflowSessionProps) {
     const isInitialized = useRef(false);
@@ -72,6 +83,12 @@ export function useLocalWorkflowSession({
 
                     setNodes(uniqueNodes);
                     setEdges(session.edges);
+                    if (session.workflowMode && setWorkflowMode) {
+                        setWorkflowMode(session.workflowMode);
+                    }
+                    if (session.workflowModeConfig && setWorkflowModeConfig) {
+                        setWorkflowModeConfig(session.workflowModeConfig);
+                    }
                     console.log('Restored workflow session from', new Date(session.updatedAt).toLocaleString());
                 }
             }
@@ -96,6 +113,8 @@ export function useLocalWorkflowSession({
                 const session: WorkflowSession = {
                     nodes,
                     edges,
+                    workflowMode,
+                    workflowModeConfig,
                     meta: workflowMeta,
                     updatedAt: Date.now(),
                 };
@@ -106,7 +125,7 @@ export function useLocalWorkflowSession({
         }, 500); // 500ms debounce
 
         return () => clearTimeout(timeoutId);
-    }, [nodes, edges, workflowMeta]);
+    }, [nodes, edges, workflowMode, workflowModeConfig, workflowMeta]);
 
     const clearSession = useCallback(() => {
         if (typeof window === 'undefined') return;

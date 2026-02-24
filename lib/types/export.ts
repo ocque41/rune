@@ -1,4 +1,5 @@
 import { Node, Edge } from '@xyflow/react';
+import type { WorkflowMode, WorkflowModeConfig } from '@/lib/workflow/modes';
 
 /**
  * Metadata for an exported workflow
@@ -22,6 +23,12 @@ export interface ExportedWorkflow {
 
     /** Workflow metadata */
     meta: WorkflowMeta;
+
+    /** Graph behavior mode */
+    workflow_mode?: WorkflowMode;
+
+    /** Optional mode configuration */
+    workflow_mode_config?: WorkflowModeConfig;
 
     /** ReactFlow nodes array */
     nodes: Node[];

@@ -54,6 +54,13 @@ import TwilioMessageNode from './nodes/twilio-message-node';
 import { NodeConfigProvider } from '@/components/node-config/node-config-context';
 import { NodeConfigModal } from '@/components/node-config/node-config-modal';
 import { inferKindFromLegacyLabel, resolveNodeKind } from '@/lib/workflow/node-catalog';
+import {
+    DEFAULT_WORKFLOW_MODE,
+    normalizeWorkflowMode,
+    normalizeWorkflowModeConfig,
+    type WorkflowMode,
+    type WorkflowModeConfig
+} from '@/lib/workflow/modes';
 
 // Define a type for the data property of a node, extending ReactFlow's default Node data
 interface RuneNodeData {
@@ -82,7 +89,7 @@ const nodeTypes = {
     dataValidation: DataValidationNode,
     groupNode: GroupNode,
     twilioMessage: TwilioMessageNode,
-} as const;
+} as any;
 
 const initialNodes: Node<RuneNodeData>[] = [
     {
@@ -104,6 +111,40 @@ const LOG_FILTERS = {
 type LogFilterKey = keyof typeof LOG_FILTERS;
 
 const getId = () => `dndnode_${crypto.randomUUID()}`;
+
+const LINEAL_BLOCKED_KINDS = new Set([
+    'ifElse',
+    'parallel',
+    'loop',
+]);
+
+function willCreateCycle(
+    existingEdges: Edge[],
+    source: string,
+    target: string,
+): boolean {
+    if (source === target) return true;
+
+    const adjacency = new Map<string, string[]>();
+    for (const edge of existingEdges) {
+        if (!adjacency.has(edge.source)) adjacency.set(edge.source, []);
+        adjacency.get(edge.source)!.push(edge.target);
+    }
+
+    const queue = [target];
+    const visited = new Set<string>();
+
+    while (queue.length > 0) {
+        const current = queue.shift()!;
+        if (current === source) return true;
+        if (visited.has(current)) continue;
+        visited.add(current);
+        const next = adjacency.get(current) || [];
+        for (const nodeId of next) queue.push(nodeId);
+    }
+
+    return false;
+}
 
 const FlowBuilderContent = ({
     onSave,
@@ -128,6 +169,10 @@ const FlowBuilderContent = ({
     const [showTemplates, setShowTemplates] = useState(false);
     const [workflowId, setWorkflowId] = useState<string | null>(null);
     const [workflowName, setWorkflowName] = useState<string>('My Workflow');
+    const [workflowMode, setWorkflowMode] = useState<WorkflowMode>(DEFAULT_WORKFLOW_MODE);
+    const [workflowModeConfig, setWorkflowModeConfig] = useState<WorkflowModeConfig>(
+        normalizeWorkflowModeConfig(DEFAULT_WORKFLOW_MODE, {}),
+    );
     const { config: agentConfig, setConfig: setAgentConfig } = useAgentStore();
     const [isSaving, setIsSaving] = useState(false);
 
@@ -294,6 +339,14 @@ const FlowBuilderContent = ({
 
                     setNodes(newNodes);
                     setEdges(newEdges);
+                    const pastedMode = normalizeWorkflowMode((parsed as { workflow_mode?: unknown }).workflow_mode);
+                    setWorkflowMode(pastedMode);
+                    setWorkflowModeConfig(
+                        normalizeWorkflowModeConfig(
+                            pastedMode,
+                            (parsed as { workflow_mode_config?: unknown }).workflow_mode_config,
+                        ),
+                    );
 
                     // Apply agent config if present
                     if (parsed.agentConfig) {
@@ -350,12 +403,17 @@ const FlowBuilderContent = ({
             // Logic to restore graph from workflow.graph_json
             // We assume graph_json has { nodes, edges } structure
             const graph = workflow.graph_json;
-            if (graph && graph.nodes && graph.edges) {
-                setNodes(graph.nodes);
-                setEdges(graph.edges);
-                if (graph.agentConfig) {
-                    setAgentConfig(graph.agentConfig);
-                }
+                if (graph && graph.nodes && graph.edges) {
+                    setNodes(graph.nodes);
+                    setEdges(graph.edges);
+                    const loadedMode = normalizeWorkflowMode(workflow.workflow_mode);
+                    setWorkflowMode(loadedMode);
+                    setWorkflowModeConfig(
+                        normalizeWorkflowModeConfig(loadedMode, workflow.workflow_mode_config),
+                    );
+                    if (graph.agentConfig) {
+                        setAgentConfig(graph.agentConfig);
+                    }
                 setWorkflowName(workflow.name);
                 setWorkflowId(workflow.id); // Set ID so subsequent saves are updates
 
@@ -429,7 +487,11 @@ const FlowBuilderContent = ({
         nodes,
         edges,
         setNodes,
-        setEdges
+        setEdges,
+        workflowMode,
+        workflowModeConfig,
+        setWorkflowMode,
+        setWorkflowModeConfig,
     });
 
     const onClearSession = useCallback(() => {
@@ -437,6 +499,8 @@ const FlowBuilderContent = ({
             clearSession();
             setNodes(initialNodes);
             setEdges([]);
+            setWorkflowMode(DEFAULT_WORKFLOW_MODE);
+            setWorkflowModeConfig(normalizeWorkflowModeConfig(DEFAULT_WORKFLOW_MODE, {}));
             toast.success('Session cleared');
         }
     }, [clearSession, setNodes, setEdges]);
@@ -607,6 +671,11 @@ const FlowBuilderContent = ({
             if (graph?.nodes && graph?.edges) {
                 setNodes(graph.nodes);
                 setEdges(graph.edges);
+                const loadedMode = normalizeWorkflowMode(workflow.workflow_mode);
+                setWorkflowMode(loadedMode);
+                setWorkflowModeConfig(
+                    normalizeWorkflowModeConfig(loadedMode, workflow.workflow_mode_config),
+                );
                 if (graph.agentConfig) {
                     setAgentConfig(graph.agentConfig);
                 }
@@ -664,8 +733,55 @@ const FlowBuilderContent = ({
     }, [filteredLogs.length]);
 
     const onConnect = useCallback(
-        (params: Connection) => setEdges((eds) => addEdge(params, eds)),
-        [setEdges],
+        (params: Connection) => {
+            if (!params.source || !params.target) return;
+
+            const sourceNode = nodes.find((n) => n.id === params.source);
+            const targetNode = nodes.find((n) => n.id === params.target);
+            if (!sourceNode || !targetNode) return;
+
+            const sourceKind = resolveNodeKind(sourceNode);
+
+            if (workflowMode === 'lineal') {
+                if (LINEAL_BLOCKED_KINDS.has(sourceKind)) {
+                    toast.error('Lineal mode does not allow branching or loop nodes.');
+                    return;
+                }
+
+                const outgoingCount = edges.filter((edge) => edge.source === params.source).length;
+                const incomingCount = edges.filter((edge) => edge.target === params.target).length;
+                if (outgoingCount >= 1) {
+                    toast.error('Lineal mode allows only one outgoing connection per node.');
+                    return;
+                }
+                if (incomingCount >= 1) {
+                    toast.error('Lineal mode allows only one incoming connection per node.');
+                    return;
+                }
+                if (willCreateCycle(edges, params.source, params.target)) {
+                    toast.error('Lineal mode does not allow circular paths.');
+                    return;
+                }
+            }
+
+            if (workflowMode === 'branching' && willCreateCycle(edges, params.source, params.target)) {
+                toast.error('Branching mode does not allow circular paths.');
+                return;
+            }
+
+            const createsCycle = willCreateCycle(edges, params.source, params.target);
+            const nextEdge: Edge = {
+                id: `e-${params.source}-${params.target}-${crypto.randomUUID().slice(0, 8)}`,
+                ...params,
+                animated: workflowMode === 'circular' && createsCycle,
+                style: workflowMode === 'circular' && createsCycle
+                    ? { stroke: '#f59e0b', strokeWidth: 2 }
+                    : undefined,
+            };
+
+            setEdges((eds) => addEdge(nextEdge, eds));
+        },
+        [setEdges, edges, nodes, workflowMode],
     );
 
     const onDragOver = useCallback((event: React.DragEvent) => {
@@ -686,6 +802,16 @@ const FlowBuilderContent = ({
                 return;
             }
 
+            if (!reactFlowInstance) {
+                return;
+            }
+
+            const normalizedKind = draggedKind || inferKindFromLegacyLabel(label || `${type} node`, type);
+            if (workflowMode === 'lineal' && LINEAL_BLOCKED_KINDS.has(normalizedKind)) {
+                toast.error('This node type is not available in lineal mode.');
+                return;
+            }
+
             const position = reactFlowInstance.screenToFlowPosition({
                 x: event.clientX,
                 y: event.clientY,
@@ -697,13 +823,13 @@ const FlowBuilderContent = ({
                 position,
                 data: {
                     label: label || `${type} node`,
-                    kind: draggedKind || inferKindFromLegacyLabel(label || `${type} node`, type),
+                    kind: normalizedKind,
                 },
             };
 
             setNodes((nds) => nds.concat(newNode));
         },
-        [reactFlowInstance, setNodes],
+        [reactFlowInstance, setNodes, workflowMode],
     );
 
     const onSaveCloud = useCallback(async () => {
@@ -727,6 +853,8 @@ const FlowBuilderContent = ({
                     name: finalName,
                     description: 'Created via Flow Builder',
                     graph: { nodes, edges, agentConfig },
+                    workflow_mode: workflowMode,
+                    workflow_mode_config: workflowModeConfig,
                     code,
                 }),
             });
@@ -749,7 +877,7 @@ const FlowBuilderContent = ({
         } finally {
             setIsSaving(false);
         }
-    }, [nodes, edges, workflowId, workflowName]);
+    }, [nodes, edges, workflowId, workflowName, workflowMode, workflowModeConfig, agentConfig]);
 
     const onSaveDraft = useCallback(async () => {
         if (!nodes.length) return;
@@ -773,7 +901,7 @@ const FlowBuilderContent = ({
             console.error('Save error:', error);
             toast.error('Failed to save draft');
         }
-    }, [nodes, edges]);
+    }, [nodes, edges, workflowId, workflowMode, workflowModeConfig]);
 
     const onDeploy = useCallback(async () => {
         try {
@@ -806,6 +934,8 @@ const FlowBuilderContent = ({
                         name: currentName,
                         description: 'Auto-saved before deploy',
                         graph: { nodes, edges, agentConfig },
+                        workflow_mode: workflowMode,
+                        workflow_mode_config: workflowModeConfig,
                         code
                     }),
                 });
@@ -826,6 +956,8 @@ const FlowBuilderContent = ({
                         id: currentWorkflowId,
                         name: currentName,
                         graph: { nodes, edges, agentConfig },
+                        workflow_mode: workflowMode,
+                        workflow_mode_config: workflowModeConfig,
                         code
                     }),
                 });
@@ -853,7 +985,13 @@ const FlowBuilderContent = ({
                 workflowId: currentWorkflowId || '',
                 workflowName: currentName,
                 code: code,
-                graphJson: JSON.stringify({ nodes, edges, agentConfig }, null, 2)
+                graphJson: JSON.stringify({
+                    nodes,
+                    edges,
+                    agentConfig,
+                    workflow_mode: workflowMode,
+                    workflow_mode_config: workflowModeConfig,
+                }, null, 2)
             });
             setShowDeployModal(true);
 
@@ -874,7 +1012,7 @@ const FlowBuilderContent = ({
             toast.error(error instanceof Error ? error.message : 'Failed to deploy');
             setIsSaving(false);
         }
-    }, [nodes, edges, workflowId, workflowName]);
+    }, [nodes, edges, workflowId, workflowName, workflowMode, workflowModeConfig, agentConfig]);
 
     const loadTemplate = useCallback((template: Template) => {
         setNodes(template.nodes);
@@ -899,6 +1037,8 @@ const FlowBuilderContent = ({
                     description: 'Exported workflow from Flow Builder',
                     createdAt: new Date().toISOString(),
                 },
+                workflow_mode: workflowMode,
+                workflow_mode_config: workflowModeConfig,
                 nodes,
                 edges,
                 code,
@@ -918,7 +1058,7 @@ const FlowBuilderContent = ({
             console.error('Export error:', error);
             toast.error('Failed to export workflow');
         }
-    }, [nodes, edges]);
+    }, [nodes, edges, workflowId, workflowName, workflowMode, workflowModeConfig]);
 
     const closeExportModal = useCallback(() => {
         if (exportUrl) {
@@ -956,6 +1096,11 @@ const FlowBuilderContent = ({
                 // Replace current workflow with imported data
                 setNodes(data.nodes);
                 setEdges(data.edges);
+                const importedMode = normalizeWorkflowMode(data.workflow_mode);
+                setWorkflowMode(importedMode);
+                setWorkflowModeConfig(
+                    normalizeWorkflowModeConfig(importedMode, data.workflow_mode_config),
+                );
 
                 toast.success('Workflow imported successfully!');
             } catch (error) {
