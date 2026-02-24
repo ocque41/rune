@@ -1,97 +1,46 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 
 interface AnimatedGridBackgroundProps {
     className?: string;
 }
 
 export const AnimatedGridBackground: React.FC<AnimatedGridBackgroundProps> = ({ className }) => {
-    const [dots, setDots] = useState<{ x: number; y: number; delay: number }[]>([]);
-
-    useEffect(() => {
-        const cols = Math.ceil(window.innerWidth / 50);
-        const rows = Math.ceil(window.innerHeight / 50);
-        const newDots: { x: number; y: number; delay: number }[] = [];
-
-        const centerX = cols / 2;
-        const centerY = rows / 2;
-
-        for (let row = 0; row < rows; row++) {
-            for (let col = 0; col < cols; col++) {
-                // Calculate distance from center for stagger effect
-                const distFromCenter = Math.sqrt(
-                    Math.pow(col - centerX, 2) + Math.pow(row - centerY, 2)
-                );
-                newDots.push({
-                    x: col * 50 + 25,
-                    y: row * 50 + 25,
-                    delay: distFromCenter * 0.08, // Stagger based on distance
-                });
-            }
-        }
-        setDots(newDots);
-    }, []);
-
     return (
-        <div
-            className={`absolute inset-0 overflow-hidden pointer-events-none ${className || ''}`}
-            style={{
-                background: '#000000',
-            }}
-        >
-            {/* CSS Grid lines */}
+        <div className={`pointer-events-none absolute inset-0 overflow-hidden ${className ?? ''}`}>
             <div
-                className="absolute inset-0 opacity-0"
+                className="absolute inset-0"
                 style={{
-                    backgroundImage: `
-                        linear-gradient(to right, #050505 1px, transparent 1px),
-                        linear-gradient(to bottom, #050505 1px, transparent 1px)
-                    `,
-                    backgroundSize: '50px 50px',
+                    background:
+                        'radial-gradient(circle at 14% 18%, rgba(255,255,255,0.06), transparent 36%), radial-gradient(circle at 84% 8%, rgba(255,255,255,0.04), transparent 32%), linear-gradient(180deg, #040404 0%, #080808 60%, #030303 100%)',
                 }}
             />
-
-            {/* Animated dots */}
-            {dots.map((dot, i) => (
-                <div
-                    key={i}
-                    className="absolute animate-pulse-glow"
-                    style={{
-                        left: dot.x,
-                        top: dot.y,
-                        width: 3,
-                        height: 3,
-                        borderRadius: '50%',
-                        background: 'rgba(240, 238, 233, 0.4)',
-                        boxShadow: '0 0 6px rgba(240, 238, 233, 0.3)',
-                        animationDelay: `${dot.delay}s`,
-                        transform: 'translate(-50%, -50%)',
-                    }}
-                />
-            ))}
-
-            {/* Subtle radial gradient overlay */}
             <div
-                className="absolute inset-0 opacity-0"
+                className="absolute inset-0 opacity-25"
                 style={{
-                    background: 'none',
+                    backgroundImage:
+                        'linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px)',
+                    backgroundSize: '42px 42px',
+                    maskImage: 'radial-gradient(circle at center, black 35%, transparent 88%)',
                 }}
             />
-
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0),rgba(0,0,0,0.75)_70%)]" />
+            <div className="animated-haze absolute -inset-[20%] opacity-20" />
             <style jsx>{`
-                @keyframes pulse-glow {
-                    0%, 100% {
-                        opacity: 0.2;
-                        transform: translate(-50%, -50%) scale(1);
-                    }
-                    50% {
-                        opacity: 0.6;
-                        transform: translate(-50%, -50%) scale(1.5);
-                    }
+                .animated-haze {
+                    background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.12), transparent 55%);
+                    filter: blur(80px);
+                    animation: drift 18s ease-in-out infinite alternate;
                 }
-                .animate-pulse-glow {
-                    animation: pulse-glow 4s ease-in-out infinite;
+
+                @keyframes drift {
+                    from {
+                        transform: translate3d(-2%, -1%, 0) scale(1);
+                    }
+                    to {
+                        transform: translate3d(2%, 1%, 0) scale(1.05);
+                    }
                 }
             `}</style>
         </div>

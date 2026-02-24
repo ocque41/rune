@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { Folder, Cloud, HardDrive, RefreshCw, Trash2, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Workflow {
@@ -47,7 +46,7 @@ export function WorkflowList({ onSelectWorkflow }: { onSelectWorkflow?: (id: str
 
             if (!res.ok) throw new Error(data.error || 'Failed to fetch');
 
-            const mapped: Workflow[] = data.workflows.map((w: any) => ({
+            const mapped: Workflow[] = data.workflows.map((w: { id: string; name: string; description?: string; updated_at?: string }) => ({
                 id: w.id,
                 name: w.name,
                 description: w.description,
@@ -107,7 +106,7 @@ export function WorkflowList({ onSelectWorkflow }: { onSelectWorkflow?: (id: str
                     disabled={isLoading}
                     className="p-2 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors opacity-60 hover:opacity-100"
                 >
-                    <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} style={{ color: 'var(--foreground-title)' }} />
+                    <span className="text-xs" style={{ color: 'var(--foreground-title)' }}>{isLoading ? 'Loading' : 'Refresh'}</span>
                 </button>
             </div>
 
@@ -116,7 +115,6 @@ export function WorkflowList({ onSelectWorkflow }: { onSelectWorkflow?: (id: str
                     <div className="flex items-center justify-center h-full opacity-50">Loading...</div>
                 ) : workflows.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full opacity-50 gap-2">
-                        <Folder size={24} />
                         <span className="text-sm">No workflows found. Save a workflow in the Editor to see it here.</span>
                     </div>
                 ) : (
@@ -130,8 +128,8 @@ export function WorkflowList({ onSelectWorkflow }: { onSelectWorkflow?: (id: str
                                     onClick={() => onSelectWorkflow?.(workflow.id, workflow.type)}
                                 >
                                     <div className="flex items-center gap-2 mb-2">
-                                        <div className="p-2 rounded bg-blue-500/10 text-blue-500">
-                                            <Folder size={16} />
+                                        <div className="rounded border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-white/60">
+                                            Workflow
                                         </div>
                                         <span className="font-semibold truncate" style={{ color: 'var(--foreground-title)' }}>
                                             {workflow.name}
@@ -140,10 +138,10 @@ export function WorkflowList({ onSelectWorkflow }: { onSelectWorkflow?: (id: str
                                     {activeTab === 'cloud' && (
                                         <button
                                             onClick={(e) => onDeleteWorkflow(workflow.id, e)}
-                                            className="absolute top-2 right-2 p-2 rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-500 transition-all"
+                                            className="absolute top-2 right-2 rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-[10px] text-red-300 opacity-0 transition-all group-hover:opacity-100"
                                             title="Delete workflow"
                                         >
-                                            <Trash2 size={16} />
+                                            Delete
                                         </button>
                                     )}
                                     {workflow.description && (
@@ -152,7 +150,7 @@ export function WorkflowList({ onSelectWorkflow }: { onSelectWorkflow?: (id: str
                                         </p>
                                     )}
                                     <div className="mt-auto pt-2 flex items-center justify-between text-[10px] opacity-40" style={{ color: 'var(--foreground-subtitle)' }}>
-                                        <span>{workflow.type.toUpperCase()}</span>
+                                        <span>{workflow.type}</span>
                                         {workflow.updated_at && (
                                             <span>{new Date(workflow.updated_at).toLocaleDateString()}</span>
                                         )}
@@ -170,11 +168,7 @@ export function WorkflowList({ onSelectWorkflow }: { onSelectWorkflow?: (id: str
                                     className="flex items-center gap-2 px-4 py-2 rounded-lg border bg-white dark:bg-black hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                                     style={{ borderColor: 'var(--border-color)', color: 'var(--foreground-title)' }}
                                 >
-                                    {isLoadingMore ? (
-                                        <RefreshCw size={14} className="animate-spin" />
-                                    ) : (
-                                        <ChevronDown size={14} />
-                                    )}
+                                    <span className="text-xs">{isLoadingMore ? 'Loading' : 'More'}</span>
                                     <span className="text-sm">{isLoadingMore ? 'Loading...' : 'Load More'}</span>
                                 </button>
                             </div>

@@ -64,10 +64,10 @@ export function WorkflowPicker() {
         <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
           <div className="mb-5 flex items-center justify-between">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.28em] text-white/40">Selection Engine</p>
+              <p className="text-[10px] text-white/40">Selection engine</p>
               <h2 className="text-xl font-semibold text-white">Workflow Wheel</h2>
             </div>
-            <div className="rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-[10px] uppercase tracking-[0.28em] text-white/60">
+            <div className="rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-[10px] text-white/60">
               {isLoadingWorkflows ? "Loading workflows" : `Active ${activeWorkflow.name}`}
             </div>
           </div>
@@ -82,7 +82,7 @@ export function WorkflowPicker() {
         <div className="flex flex-col gap-5">
           <WheelHud active={activeWorkflow} />
           <div className="rounded-2xl border border-white/10 bg-black/60 p-5 backdrop-blur">
-            <p className="text-[10px] uppercase tracking-[0.28em] text-white/40">System Notes</p>
+            <p className="text-[10px] text-white/40">System notes</p>
             <h3 className="mt-2 text-base font-semibold text-white">Stability First</h3>
             <ul className="mt-3 space-y-2 text-xs text-white/60">
               <li>Transform-only animation pipeline for 60fps target.</li>

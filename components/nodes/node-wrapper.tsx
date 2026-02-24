@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { Handle, Position, NodeProps } from '@xyflow/react';
+import { Handle, Position } from '@xyflow/react';
 import { useEnterAnimation } from '@/lib/animation-utils';
 // animejs import removed
 
@@ -24,12 +24,12 @@ export const NodeWrapper = memo(({ children, selected, className, style, handles
         <div
             ref={ref}
             className={`relative rounded-xl border-2 transition-colors duration-300 ${selected
-                ? 'border-[color:var(--title)]/30 shadow-[0_0_20px_rgba(255,255,255,0.08)]'
-                : 'border-[color:var(--border-color)] hover:border-[color:var(--subtitle)]/60'
+                ? 'border-white/30 shadow-[0_0_24px_rgba(255,255,255,0.08)]'
+                : 'border-white/14 hover:border-white/28'
                 } ${className}`}
             style={{
-                backgroundColor: 'var(--node-background, #1A1A1A)',
-                backdropFilter: 'blur(10px)',
+                backgroundColor: 'var(--node-background, #101010)',
+                backdropFilter: 'blur(14px)',
                 minWidth: '200px',
                 ...style
             }}

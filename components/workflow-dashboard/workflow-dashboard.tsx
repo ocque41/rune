@@ -6,7 +6,6 @@ import { WorkflowWheel } from "@/components/workflow-wheel/wheel";
 import { WheelHud } from "@/components/workflow-wheel/wheel-hud";
 import { WorkflowItem, workflowFallbacks } from "@/lib/workflows.data";
 import { cn } from "@/lib/utils";
-import { Activity, Bot, FolderGit2, LayoutDashboard } from "lucide-react";
 import { toast } from "sonner";
 
 const FlowBuilder = dynamic(
@@ -37,10 +36,10 @@ const AutonomyDashboard = dynamic(
 type ModuleKey = "editor" | "workflows" | "runs" | "autonomy";
 
 const modules = [
-  { key: "editor" as const, label: "Editor", icon: LayoutDashboard },
-  { key: "workflows" as const, label: "Workflows", icon: FolderGit2 },
-  { key: "runs" as const, label: "Runs", icon: Activity },
-  { key: "autonomy" as const, label: "Autonomy", icon: Bot }
+  { key: "editor" as const, label: "Editor" },
+  { key: "workflows" as const, label: "Workflows" },
+  { key: "runs" as const, label: "Runs" },
+  { key: "autonomy" as const, label: "Autonomy" }
 ];
 
 export function WorkflowDashboard() {
@@ -92,26 +91,24 @@ export function WorkflowDashboard() {
             R
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.35em] text-white/40">Rune</p>
+            <p className="text-xs text-white/40">Rune</p>
             <h1 className="text-lg font-semibold text-white">Workflow Command Deck</h1>
           </div>
         </div>
         <div className="flex items-center gap-3">
           {modules.map((item) => {
-            const Icon = item.icon;
             const active = item.key === activeModule;
             return (
               <button
                 key={item.key}
                 onClick={() => setActiveModule(item.key)}
                 className={cn(
-                  "flex items-center gap-2 rounded-full border px-4 py-2 text-xs uppercase tracking-[0.3em] transition",
+                  "rounded-full border px-4 py-2 text-xs transition",
                   active
                     ? "border-white/30 bg-white/10 text-white"
                     : "border-white/10 text-white/50 hover:text-white"
                 )}
               >
-                <Icon className="h-4 w-4" />
                 {item.label}
               </button>
             );
@@ -124,10 +121,10 @@ export function WorkflowDashboard() {
           <div className="rounded-3xl border border-white/10 bg-white/5 p-8">
             <div className="mb-6 flex items-center justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-white/40">Selection Engine</p>
+                <p className="text-xs text-white/40">Selection engine</p>
                 <h2 className="text-2xl font-semibold text-white">3D Workflow Wheel</h2>
               </div>
-              <div className="rounded-full border border-white/10 bg-black/40 px-4 py-2 text-xs uppercase tracking-[0.3em] text-white/60">
+              <div className="rounded-full border border-white/10 bg-black/40 px-4 py-2 text-xs text-white/60">
                 {isLoadingWorkflows ? "Loading workflows" : `Active ${activeWorkflow.name}`}
               </div>
             </div>
@@ -147,7 +144,7 @@ export function WorkflowDashboard() {
           <div className="flex flex-col gap-6">
             <WheelHud active={activeWorkflow} />
             <div className="rounded-2xl border border-white/10 bg-black/60 p-6 backdrop-blur">
-              <p className="text-xs uppercase tracking-[0.3em] text-white/40">System Notes</p>
+              <p className="text-xs text-white/40">System notes</p>
               <h3 className="mt-2 text-lg font-semibold text-white">Stability First</h3>
               <ul className="mt-4 space-y-2 text-sm text-white/60">
                 <li>Transform-only animation pipeline for 60fps target.</li>
@@ -162,10 +159,10 @@ export function WorkflowDashboard() {
         <section className="rounded-3xl border border-white/10 bg-white/5 p-8">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-white/40">Operations Bay</p>
+              <p className="text-xs text-white/40">Operations bay</p>
               <h2 className="text-2xl font-semibold text-white">Modules</h2>
             </div>
-            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-4 py-2 text-xs uppercase tracking-[0.3em] text-white/60">
+            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-4 py-2 text-xs text-white/60">
               Mode {modules.find((m) => m.key === activeModule)?.label}
             </div>
           </div>
@@ -191,7 +188,7 @@ export function WorkflowDashboard() {
                   {selectedRunId ? (
                     <RunDetails runId={selectedRunId} />
                   ) : (
-                    <div className="text-sm uppercase tracking-[0.3em] text-white/50">
+                    <div className="text-sm text-white/50">
                       Select a run to view details
                     </div>
                   )}

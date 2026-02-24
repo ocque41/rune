@@ -1,176 +1,172 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { DragEvent } from 'react';
-import { MessageSquare, Mail, Database, Globe, Clock, Code, PauseCircle, Split, Repeat, Lock, GitMerge, Workflow, Info, ChevronDown, UserCheck, Sparkles, Box, Play, Layers, Bot, CheckSquare, Group } from 'lucide-react';
-// import { AutoPilotContainer } from '@/components/playground/auto-pilot-container'; // Removed
-import { LLMConfig } from '@/lib/types/agent';
 import { cn } from '@/lib/utils';
 import { inferKindFromLegacyLabel } from '@/lib/workflow/node-catalog';
 
 interface SidebarProps {
     hasStartNode: boolean;
     workflowId?: string | null;
+    onAgentClick?: () => void;
+    className?: string;
 }
 
-export const Sidebar = ({ hasStartNode, workflowId, onAgentClick }: { hasStartNode: boolean; workflowId?: string | null; onAgentClick?: () => void }) => {
-    const [searchTerm, setSearchTerm] = useState(''); // New state for search term
+const NODE_GROUPS = {
+    operations: [
+        { type: 'step', label: 'Send Email' },
+        { type: 'step', label: 'HTTP Request' },
+        { type: 'step', label: 'Database Query' },
+        { type: 'step', label: 'Run Script' },
+        { type: 'step', label: 'Slack Message' },
+        { type: 'step', label: 'Stream' },
+        { type: 'batchProcess', label: 'Batch Process' },
+        { type: 'customCode', label: 'Custom Code' },
+        { type: 'dataValidation', label: 'Data Validation' },
+    ],
+    flow: [
+        { type: 'step', label: 'Start Workflow' },
+        { type: 'webhook', label: 'Webhook' },
+        { type: 'schedule', label: 'Schedule' },
+        { type: 'step', label: 'Sleep' },
+        { type: 'step', label: 'Wait' },
+        { type: 'approval', label: 'Approval' },
+        { type: 'if', label: 'If / Else' },
+        { type: 'loop', label: 'Loop' },
+        { type: 'parallel', label: 'Parallel' },
+        { type: 'subWorkflow', label: 'Sub-Workflow' },
+        { type: 'ai', label: 'AI Gen' },
+        { type: 'transform', label: 'Transform' },
+        { type: 'groupNode', label: 'Group' },
+    ],
+} as const;
+
+export const Sidebar = ({ hasStartNode, workflowId, onAgentClick, className }: SidebarProps) => {
+    const [searchTerm, setSearchTerm] = useState('');
 
     const onDragStart = (event: DragEvent, nodeType: string, label: string) => {
-        // ... (existing implementation)
-        if (event.dataTransfer) {
-            event.dataTransfer.setData('application/reactflow', nodeType);
-            event.dataTransfer.setData('application/reactflow/label', label);
-            event.dataTransfer.setData('application/reactflow/kind', inferKindFromLegacyLabel(label, nodeType));
-            event.dataTransfer.effectAllowed = 'move';
-        }
+        if (!event.dataTransfer) return;
+        event.dataTransfer.setData('application/reactflow', nodeType);
+        event.dataTransfer.setData('application/reactflow/label', label);
+        event.dataTransfer.setData('application/reactflow/kind', inferKindFromLegacyLabel(label, nodeType));
+        event.dataTransfer.effectAllowed = 'move';
     };
-    const steps = [
-        { type: 'step', label: 'Send Email', icon: Mail },
-        { type: 'step', label: 'HTTP Request', icon: Globe },
-        { type: 'step', label: 'Database Query', icon: Database },
-        { type: 'step', label: 'Run Script', icon: Code },
-        { type: 'step', label: 'Slack Message', icon: MessageSquare },
-        { type: 'step', label: 'Stream', icon: MessageSquare },
-    ];
 
-    const controlFlow = [
-        // Start Workflow can only be added if one doesn't exist
-        { type: 'step', label: 'Start Workflow', icon: Play, disabled: hasStartNode },
-        { type: 'webhook', label: 'Webhook', icon: Globe },
-        { type: 'schedule', label: 'Schedule', icon: Clock },
-        { type: 'step', label: 'Sleep', icon: Clock },
-        { type: 'step', label: 'Wait', icon: PauseCircle },
-        { type: 'approval', label: 'Approval', icon: UserCheck },
-        { type: 'if', label: 'If / Else', icon: Split },
-        { type: 'loop', label: 'Loop', icon: Repeat },
-        { type: 'parallel', label: 'Parallel', icon: GitMerge },
-        { type: 'subWorkflow', label: 'Sub-Workflow', icon: Workflow },
-        { type: 'ai', label: 'AI Gen', icon: Sparkles },
-        { type: 'transform', label: 'Transform', icon: Code },
-    ];
-    // Combine all draggable nodes
-    const allDraggableNodes = [
-        ...steps,
-        ...controlFlow,
-        { type: 'batchProcess', label: 'Batch Process', icon: Box },
-        { type: 'customCode', label: 'Custom Code', icon: Code },
-        { type: 'dataValidation', label: 'Data Validation', icon: CheckSquare },
-        { type: 'groupNode', label: 'Group', icon: Group },
-    ];
+    const allNodes = useMemo(
+        () =>
+            [...NODE_GROUPS.operations, ...NODE_GROUPS.flow].map((item) => ({
+                ...item,
+                disabled: item.label === 'Start Workflow' && hasStartNode,
+            })),
+        [hasStartNode]
+    );
 
-    const filteredNodes = searchTerm
-        ? allDraggableNodes.filter(node =>
-              node.label.toLowerCase().includes(searchTerm.toLowerCase())
-          )
-        : allDraggableNodes; // If no search term, show all
+    const filteredNodes = useMemo(() => {
+        const query = searchTerm.trim().toLowerCase();
+        if (!query) return allNodes;
+        return allNodes.filter((node) => node.label.toLowerCase().includes(query));
+    }, [allNodes, searchTerm]);
+
     return (
         <aside
-            className="h-full w-56 border-r flex flex-col z-20 transition-all duration-300 bg-background border-border"
+            className={cn(
+                'w-[18rem] max-w-[calc(100vw-2rem)] rounded-2xl border border-white/10 bg-black/60 text-white shadow-2xl backdrop-blur-xl',
+                className
+            )}
         >
-            {/* Tab Switcher - Modified for Agent Trigger */}
-            <div className="flex p-2 gap-1 border-b border-border">
-                <div
-
-                    className={cn(
-                        "flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-xs font-medium transition-all bg-secondary text-primary shadow-sm"
-                    )}
-                >
-                    <Layers size={14} />
-                    <span>Steps</span>
+            <div className="border-b border-white/10 px-3 py-3">
+                <p className="text-xs font-medium text-white/60">Node commands</p>
+                <p className="mt-1 text-[11px] text-white/40">
+                    {workflowId ? `Workflow ${workflowId.slice(0, 8)}` : 'Unsaved workflow'}
+                </p>
+                <div className="mt-3 flex gap-2">
+                    <button
+                        type="button"
+                        className="rounded-md border border-white/20 bg-white/10 px-2.5 py-1.5 text-[11px] font-medium text-white/90"
+                    >
+                        Nodes
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onAgentClick}
+                        className="rounded-md border border-white/10 bg-black/40 px-2.5 py-1.5 text-[11px] font-medium text-white/70 transition-colors hover:border-white/20 hover:text-white"
+                    >
+                        Agent
+                    </button>
                 </div>
-                <button
-                    onClick={onAgentClick}
-                    className={cn(
-                        "flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-xs font-medium transition-all",
-                        "text-muted-foreground hover:text-foreground hover:bg-muted border border-transparent hover:border-border"
-                    )}
-                >
-                    <Bot size={14} />
-                    <span>Agent</span>
-                </button>
             </div>
 
-            {/* Content Area */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col">
-                <div className="p-2 animate-in fade-in slide-in-from-left-4 duration-300">
-                    <input
-                        type="text"
-                        placeholder="Search nodes..."
-                        className="w-full rounded-md bg-[#222222] border-none px-3 py-2 text-sm font-mono text-white placeholder-white/50 focus:outline-none focus:ring-1 focus:ring-blue-500 mb-4"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        aria-label="Search nodes"
-                    />
-                    {searchTerm ? (
-                        <div className="flex flex-col gap-1">
-                            <span className="text-[9px] uppercase tracking-wider text-white/30 mb-2 px-1 font-mono">Search Results</span>
-                            <div className="grid grid-cols-1 gap-1">
-                                {filteredNodes.map((node) => (
-                                    <SidebarIconButton
-                                        key={node.type + node.label}
-                                        item={node}
+            <div className="p-3">
+                <input
+                    type="text"
+                    placeholder="Search nodes"
+                    className="w-full rounded-md border border-white/10 bg-black/50 px-3 py-2 text-xs text-white placeholder:text-white/40 focus:border-white/30 focus:outline-none"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    aria-label="Search nodes"
+                />
+            </div>
+
+            <div className="max-h-[55vh] overflow-y-auto px-2 pb-3">
+                {searchTerm ? (
+                    <div className="space-y-1">
+                        {filteredNodes.map((node) => (
+                            <SidebarNodeCommand key={`${node.type}-${node.label}`} item={node} onDragStart={onDragStart} />
+                        ))}
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        <div>
+                            <p className="px-2 text-[10px] font-medium text-white/35">Operations</p>
+                            <div className="mt-2 space-y-1">
+                                {NODE_GROUPS.operations.map((node) => (
+                                    <SidebarNodeCommand key={`${node.type}-${node.label}`} item={node} onDragStart={onDragStart} />
+                                ))}
+                            </div>
+                        </div>
+                        <div>
+                            <p className="px-2 text-[10px] font-medium text-white/35">Flow control</p>
+                            <div className="mt-2 space-y-1">
+                                {NODE_GROUPS.flow.map((node) => (
+                                    <SidebarNodeCommand
+                                        key={`${node.type}-${node.label}`}
+                                        item={{
+                                            ...node,
+                                            disabled: node.label === 'Start Workflow' && hasStartNode,
+                                        }}
                                         onDragStart={onDragStart}
                                     />
                                 ))}
                             </div>
                         </div>
-                    ) : (
-                        <>
-                            {/* Workflow Steps */}
-                            <div className="flex flex-col gap-1 mb-4">
-                                <span className="text-[9px] uppercase tracking-wider text-white/30 mb-2 px-1 font-mono">Operations</span>
-                                <div className="grid grid-cols-1 gap-1">
-                                    {steps.map((step) => (
-                                        <SidebarIconButton
-                                            key={step.label}
-                                            item={step}
-                                            onDragStart={onDragStart}
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Divider */}
-                            <div className="w-8 h-px bg-white/10 my-4" />
-
-                            {/* Control Flow */}
-                            <div className="flex flex-col gap-1">
-                                <span className="text-[9px] uppercase tracking-wider text-white/30 mb-2 px-1 font-mono">Control Flow</span>
-                                <div className="grid grid-cols-1 gap-1">
-                                    {controlFlow.map((control) => (
-                                        <SidebarIconButton
-                                            key={control.label}
-                                            item={control}
-                                            onDragStart={onDragStart}
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-                        </>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
         </aside>
     );
 };
 
-// Compact button component with label
-const SidebarIconButton = ({ item, onDragStart }: { item: any, onDragStart: any }) => {
-    const isDisabled = item.disabled;
+const SidebarNodeCommand = ({
+    item,
+    onDragStart,
+}: {
+    item: { type: string; label: string; disabled?: boolean };
+    onDragStart: (event: DragEvent, nodeType: string, label: string) => void;
+}) => {
+    const isDisabled = Boolean(item.disabled);
 
     return (
         <div
-            className={`w-full flex items-center gap-3 px-3 py-2 transition-all text-xs font-medium truncate rounded-[6px] border border-transparent group
-                ${isDisabled
-                    ? 'opacity-40 cursor-not-allowed bg-[#222222]/50 text-white/50'
-                    : 'cursor-grab active:cursor-grabbing hover:bg-white/5 hover:border-white/10 text-zinc-400 hover:text-zinc-100'
-                }`}
+            className={cn(
+                'w-full rounded-lg border px-3 py-2 text-left text-xs transition-colors',
+                isDisabled
+                    ? 'cursor-not-allowed border-white/5 bg-white/[0.04] text-white/30'
+                    : 'cursor-grab border-white/10 bg-black/30 text-white/80 hover:border-white/25 hover:bg-black/50 hover:text-white active:cursor-grabbing'
+            )}
             draggable={!isDisabled}
             onDragStart={(e) => !isDisabled && onDragStart(e, item.type, item.label)}
         >
-            <item.icon size={15} className={`shrink-0 transition-colors ${!isDisabled && 'group-hover:text-[var(--neon-green)]'}`} />
-            <span>{item.label}</span>
+            {item.label}
         </div>
     );
 };

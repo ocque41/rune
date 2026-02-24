@@ -30,7 +30,7 @@ export function RunsPage() {
               {selectedRunId ? (
                 <RunDetails runId={selectedRunId} />
               ) : (
-                <div className="text-sm uppercase tracking-[0.3em] text-white/50">
+                <div className="text-sm text-white/50">
                   Select a run to view details
                 </div>
               )}

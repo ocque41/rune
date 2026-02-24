@@ -30,12 +30,12 @@
 
 :root {
   /* Cumulus Core Brand */
-  --bg: #141414;
+  --bg: #070707;
   --title: #FFFFFF;
-  --fg: #F2F2F2;
-  --text: #F2F2F2;
-  --subtitle: #C0C0C0;
-  --muted: #808080;
+  --fg: #ECECEC;
+  --text: #ECECEC;
+  --subtitle: #AAAAAA;
+  --muted: #737373;
 
   /* Rune Surface Aliases */
   --brand-bg: var(--bg);
@@ -45,28 +45,28 @@
   --background: var(--bg);
   --foreground: var(--fg);
 
-  --card: #1A1A1A;
+  --card: #121212;
   --card-foreground: var(--fg);
 
-  --popover: #1A1A1A;
+  --popover: #121212;
   --popover-foreground: var(--fg);
 
   --primary: #deddd9;
   --primary-foreground: #171717;
 
-  --secondary: #202020;
+  --secondary: #161616;
   --secondary-foreground: var(--fg);
 
   --muted-foreground: var(--muted);
 
-  --accent: #262626;
+  --accent: #1b1b1b;
   --accent-foreground: var(--fg);
 
   --destructive: #990000;
   --destructive-foreground: #F2F2F2;
 
-  --border: #2A2A2A;
-  --input: #2A2A2A;
+  --border: #242424;
+  --input: #242424;
   --ring: var(--fg);
 
   --radius: 0.5rem;
@@ -84,10 +84,10 @@
   --foreground-body: var(--text);
   --foreground-subtitle: var(--subtitle);
   --border-color: var(--border);
-  --accent-bg: #202020;
+  --accent-bg: #171717;
   --accent-text: var(--text);
   --node-background: var(--card);
-  --header-background: #171717;
+  --header-background: #111111;
 }
 
 [data-theme="light"] {
@@ -134,7 +134,7 @@ body {
   color: var(--foreground);
   font-family: var(--font-drafting), monospace;
   font-weight: 400;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.01em;
   min-height: 100%;
   overflow-x: hidden;
 }
@@ -160,8 +160,7 @@ a {
 }
 
 a:hover:not(.no-underline):not(.card-link) {
-  text-decoration: underline;
-  text-decoration-thickness: 0.5px;
+  text-decoration: none;
 }
 
 /* Utilities */
