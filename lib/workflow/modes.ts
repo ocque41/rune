@@ -17,6 +17,17 @@ export interface ModeExecutionPolicy {
 
 export const DEFAULT_WORKFLOW_MODE: WorkflowMode = 'branching';
 
+export function isWorkflowModesV1Enabled(): boolean {
+  const serverFlag = process.env.RUNE_WORKFLOW_MODES_V1;
+  const clientFlag = process.env.NEXT_PUBLIC_RUNE_WORKFLOW_MODES_V1;
+
+  if (serverFlag === 'false' || clientFlag === 'false') {
+    return false;
+  }
+
+  return true;
+}
+
 export const DEFAULT_MODE_CONFIG: Record<WorkflowMode, WorkflowModeConfig> = {
   lineal: {},
   branching: {},
@@ -32,6 +43,7 @@ export function isWorkflowMode(value: unknown): value is WorkflowMode {
 }
 
 export function normalizeWorkflowMode(value: unknown): WorkflowMode {
+  if (!isWorkflowModesV1Enabled()) return DEFAULT_WORKFLOW_MODE;
   return isWorkflowMode(value) ? value : DEFAULT_WORKFLOW_MODE;
 }
 
@@ -82,4 +94,3 @@ export function buildModeExecutionPolicy(
     alertThresholds: alertThresholds.length ? alertThresholds : [60, 80, 95],
   };
 }
-

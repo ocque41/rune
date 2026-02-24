@@ -1,83 +1,67 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
+import { createClient } from '@/lib/supabase/server';
+
+const DEPRECATION_HEADERS = {
+    Deprecation: 'true',
+    Sunset: 'Tue, 30 Jun 2026 00:00:00 GMT',
+    Link: '</api/rune/workflows/deploy>; rel="successor-version"',
+    'X-Rune-Deprecated-Endpoint': '/api/workflows/deploy',
+};
 
 export async function POST(req: NextRequest) {
     try {
-        const { slug } = await req.json();
+        const body = await req.json().catch(() => ({}));
+        let workflowId: string | null =
+            body.workflow_id || body.workflowId || body.id || null;
 
-        if (!slug) {
+        // Legacy payload used "slug" (workflow name). Resolve to ID for compatibility.
+        if (!workflowId && body.slug) {
+            const supabase = await createClient();
+            const { data: { user }, error: authError } = await supabase.auth.getUser();
+            if (authError || !user) {
+                return NextResponse.json(
+                    { error: 'Authentication required' },
+                    { status: 401, headers: DEPRECATION_HEADERS },
+                );
+            }
+
+            const { data: workflow } = await supabase
+                .from('rune_workflows')
+                .select('id')
+                .eq('user_id', user.id)
+                .eq('name', body.slug)
+                .single();
+
+            workflowId = workflow?.id ?? null;
+        }
+
+        if (!workflowId) {
             return NextResponse.json(
-                { error: 'Missing workflow slug' },
-                { status: 400 }
+                { error: 'Missing workflow_id (or resolvable legacy slug)' },
+                { status: 400, headers: DEPRECATION_HEADERS },
             );
         }
 
-        const workflowsDir = path.join(process.cwd(), 'workflows');
-        const workflowDir = path.join(workflowsDir, slug);
-        const draftPath = path.join(workflowDir, 'draft.ts');
-        const metaPath = path.join(workflowDir, 'meta.json');
-        const versionsDir = path.join(workflowDir, 'versions');
-
-        // Check if draft exists
-        try {
-            await fs.access(draftPath);
-        } catch {
-            return NextResponse.json(
-                { error: 'Draft not found. Save the workflow first.' },
-                { status: 404 }
-            );
-        }
-
-        // Read draft content
-        const draftContent = await fs.readFile(draftPath, 'utf-8');
-
-        // Read or init meta
-        let meta = { latestVersion: 0, prodVersion: 0, history: [] as any[] };
-        try {
-            const metaContent = await fs.readFile(metaPath, 'utf-8');
-            meta = JSON.parse(metaContent);
-        } catch {
-            // Meta missing, use default
-        }
-
-        // Increment version
-        const newVersion = meta.latestVersion + 1;
-        const versionFilename = `v${newVersion}.ts`;
-        const versionPath = path.join(versionsDir, versionFilename);
-
-        // Ensure versions dir exists
-        await fs.mkdir(versionsDir, { recursive: true });
-
-        // Save version snapshot
-        await fs.writeFile(versionPath, draftContent, 'utf-8');
-
-        // Update prod.ts
-        const prodPath = path.join(workflowDir, 'prod.ts');
-        await fs.writeFile(prodPath, draftContent, 'utf-8');
-
-        // Update meta
-        meta.latestVersion = newVersion;
-        meta.prodVersion = newVersion;
-        meta.history.unshift({
-            version: newVersion,
-            timestamp: new Date().toISOString(),
-            note: 'Deployed via UI'
+        const origin = new URL(req.url).origin;
+        const response = await fetch(`${origin}/api/rune/workflows/deploy`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                cookie: req.headers.get('cookie') ?? '',
+            },
+            body: JSON.stringify({
+                workflow_id: workflowId,
+                commit_message: body.commit_message || body.note,
+            }),
         });
 
-        await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), 'utf-8');
-
-        return NextResponse.json({
-            success: true,
-            version: newVersion,
-            message: `Deployed version ${newVersion}`
-        });
-
+        const data = await response.json().catch(() => ({}));
+        return NextResponse.json(data, { status: response.status, headers: DEPRECATION_HEADERS });
     } catch (error) {
-        console.error('Error deploying workflow:', error);
+        console.error('Legacy deploy workflow error:', error);
         return NextResponse.json(
             { error: 'Failed to deploy workflow' },
-            { status: 500 }
+            { status: 500, headers: DEPRECATION_HEADERS },
         );
     }
 }

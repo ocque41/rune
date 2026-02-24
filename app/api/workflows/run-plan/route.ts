@@ -25,7 +25,7 @@ async function executeRunPlanLogic(payload: any, userId: string) {
     // 1. Resolve workflow
     const workflowQuery = supabase
         .from('rune_workflows')
-        .select('id, name, user_id');
+        .select('id, name, user_id, workflow_mode, workflow_mode_config');
 
     const { data: workflow, error: wfError } = workflowId
         ? await workflowQuery.eq('id', workflowId).eq('user_id', userId).single()
@@ -87,7 +87,9 @@ async function executeRunPlanLogic(payload: any, userId: string) {
         nodes,
         edges,
         workflow.user_id,
-        latestVersion.id
+        latestVersion.id,
+        latestVersion.workflow_mode || workflow.workflow_mode || latestVersion.definition_json?.workflow_mode,
+        latestVersion.workflow_mode_config || workflow.workflow_mode_config || latestVersion.definition_json?.workflow_mode_config,
     );
 
     const startQueue = planStartNodes.map((nodeId: string) => ({

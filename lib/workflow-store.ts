@@ -1,41 +1,74 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Node, Edge } from '@xyflow/react';
 import { LLMConfig } from './types/agent';
+import {
+    DEFAULT_WORKFLOW_MODE,
+    normalizeWorkflowMode,
+    normalizeWorkflowModeConfig,
+    type WorkflowMode,
+    type WorkflowModeConfig,
+} from './workflow/modes';
+
+export interface WorkflowGraph {
+    nodes: Node[];
+    edges: Edge[];
+    agentConfig?: LLMConfig;
+    [key: string]: unknown;
+}
 
 export interface WorkflowData {
     id: string;
     name: string;
     description?: string;
-    graph: {
-        nodes: Node[];
-        edges: Edge[];
-        agentConfig?: LLMConfig;
-    };
+    graph: WorkflowGraph;
     code?: string;
     is_active: boolean;
     updated_at: string;
-    version?: number; // Optimistic locking
+    workflow_mode: WorkflowMode;
+    workflow_mode_config: WorkflowModeConfig;
+    version_number?: number;
 }
 
 export interface WorkflowVersion {
     id: string;
     workflow_id: string;
+    version_number: number;
     version: number;
-    graph: any;
+    graph: WorkflowGraph;
     code: string;
     deployed_at: string;
+    workflow_mode: WorkflowMode;
+    workflow_mode_config: WorkflowModeConfig;
     commit_message?: string;
+}
+
+function normalizeGraph(raw: unknown): WorkflowGraph {
+    const graph = raw && typeof raw === 'object' ? (raw as Partial<WorkflowGraph>) : {};
+    return {
+        ...graph,
+        nodes: Array.isArray(graph.nodes) ? graph.nodes : [],
+        edges: Array.isArray(graph.edges) ? graph.edges : [],
+    };
+}
+
+function readModeFromRecord(record: any): { mode: WorkflowMode; modeConfig: WorkflowModeConfig } {
+    const mode = normalizeWorkflowMode(
+        record?.workflow_mode ?? record?.definition_json?.workflow_mode ?? DEFAULT_WORKFLOW_MODE,
+    );
+    const modeConfig = normalizeWorkflowModeConfig(
+        mode,
+        record?.workflow_mode_config ?? record?.definition_json?.workflow_mode_config ?? {},
+    );
+
+    return { mode, modeConfig };
 }
 
 /**
  * Workflow Store
- * Handles CRUD for workflows and ensures immutable versioning on deployment.
+ * Canonical writes use graph_json + workflow_mode + workflow_mode_config.
+ * Read compatibility supports legacy graph/definition_json fields.
  */
 export const workflowStore = {
-
-    /**
-     * Get a workflow by ID
-     */
     async getWorkflow(supabase: SupabaseClient, id: string): Promise<WorkflowData | null> {
         const { data, error } = await supabase
             .from('rune_workflows')
@@ -46,59 +79,68 @@ export const workflowStore = {
         if (error) throw error;
         if (!data) return null;
 
-        // Map graph_json to graph
+        const graph = normalizeGraph(data.graph_json ?? data.graph ?? data.definition_json?.graph);
+        const { mode, modeConfig } = readModeFromRecord(data);
+
         return {
             ...data,
-            graph: data.graph_json
+            graph,
+            workflow_mode: mode,
+            workflow_mode_config: modeConfig,
+            version_number: data.version_number ?? data.version,
         } as WorkflowData;
     },
 
-    /**
-     * Save a workflow draft (mutable)
-     */
-    async saveDraft(supabase: SupabaseClient, id: string, updates: Partial<WorkflowData>, currentVersion?: number): Promise<void> {
+    async saveDraft(
+        supabase: SupabaseClient,
+        id: string,
+        updates: Partial<WorkflowData>,
+        currentVersion?: number,
+    ): Promise<void> {
+        const mode = normalizeWorkflowMode(updates.workflow_mode ?? DEFAULT_WORKFLOW_MODE);
+        const modeConfig = normalizeWorkflowModeConfig(mode, updates.workflow_mode_config ?? {});
 
-        // Map updates to DB columns
-        const updatePayload: any = { ...updates };
-        if (updates.graph) {
-            updatePayload.graph_json = updates.graph;
-            delete updatePayload.graph;
-        }
-        updatePayload.updated_at = new Date().toISOString();
+        const updatePayload: Record<string, unknown> = {
+            updated_at: new Date().toISOString(),
+        };
+
+        if (updates.name !== undefined) updatePayload.name = updates.name;
+        if (updates.description !== undefined) updatePayload.description = updates.description;
+        if (updates.code !== undefined) updatePayload.code = updates.code;
+        if (updates.is_active !== undefined) updatePayload.is_active = updates.is_active;
+        if (updates.graph !== undefined) updatePayload.graph_json = updates.graph;
+        if (updates.workflow_mode !== undefined) updatePayload.workflow_mode = mode;
+        if (updates.workflow_mode_config !== undefined) updatePayload.workflow_mode_config = modeConfig;
 
         let query = supabase
             .from('rune_workflows')
             .update(updatePayload)
             .eq('id', id);
 
-        // Optimistic Locking Check
         if (currentVersion !== undefined) {
-            updatePayload.version = currentVersion + 1;
-            query = supabase
-                .from('rune_workflows')
-                .update(updatePayload)
-                .eq('id', id)
-                .eq('version', currentVersion);
+            updatePayload.version_number = currentVersion + 1;
+            query = query.eq('version_number', currentVersion);
         }
 
-        const { error, count, data } = await query.select();
-
+        const { error, data } = await query.select('id');
         if (error) throw error;
 
-        if (currentVersion !== undefined) {
-            if (!data || data.length === 0) {
-                throw new Error(`Conflict: Workflow has been modified by another process. (ver ${currentVersion})`);
-            }
+        if (currentVersion !== undefined && (!data || data.length === 0)) {
+            throw new Error(`Conflict: workflow was changed elsewhere (version ${currentVersion}).`);
         }
     },
 
-    /**
-     * Deploy a NEW VERSION of the workflow
-     */
-    async deployVersion(supabase: SupabaseClient, workflowId: string, graph: any, code: string, commitMessage?: string, userId?: string): Promise<WorkflowVersion> {
-
-        // 1. Get current max version
-        const { data: maxVerData } = await supabase
+    async deployVersion(
+        supabase: SupabaseClient,
+        workflowId: string,
+        graph: WorkflowGraph,
+        code: string,
+        commitMessage?: string,
+        userId?: string,
+        workflowMode: WorkflowMode = DEFAULT_WORKFLOW_MODE,
+        workflowModeConfig: WorkflowModeConfig = {},
+    ): Promise<WorkflowVersion> {
+        const { data: latestVersion } = await supabase
             .from('rune_workflow_versions')
             .select('version_number')
             .eq('workflow_id', workflowId)
@@ -106,22 +148,23 @@ export const workflowStore = {
             .limit(1)
             .single();
 
-        // Handle "no versions exist" case (count on error)
-        const nextVersion = (maxVerData?.version_number || 0) + 1;
+        const nextVersion = (latestVersion?.version_number || 0) + 1;
+        const normalizedMode = normalizeWorkflowMode(workflowMode);
+        const normalizedModeConfig = normalizeWorkflowModeConfig(normalizedMode, workflowModeConfig);
 
-        // 2. Insert new version
-        // Production schema uses 'version_number' and 'definition_json' (a combined JSONB column)
-        // user_id is required for RLS policy: auth.uid() = user_id
         const insertPayload = {
             workflow_id: workflowId,
             user_id: userId,
             version_number: nextVersion,
+            workflow_mode: normalizedMode,
+            workflow_mode_config: normalizedModeConfig,
             definition_json: {
-                graph: graph,
-                code: code,
+                graph,
+                code,
                 commit_message: commitMessage,
+                workflow_mode: normalizedMode,
+                workflow_mode_config: normalizedModeConfig,
             },
-            // created_at handled by default
         };
 
         const { data, error: insertError } = await supabase
@@ -132,23 +175,21 @@ export const workflowStore = {
 
         if (insertError) throw insertError;
 
-        // Map back to interface (production uses definition_json nested structure)
+        const { mode, modeConfig } = readModeFromRecord(data);
+
         return {
             ...data,
             version: data.version_number,
-            graph: data.definition_json?.graph,
-            code: data.definition_json?.code,
+            version_number: data.version_number,
+            graph: normalizeGraph(data.definition_json?.graph ?? data.graph_json ?? data.graph),
+            code: data.definition_json?.code ?? code,
             commit_message: data.definition_json?.commit_message,
-            deployed_at: data.created_at
+            deployed_at: data.created_at ?? new Date().toISOString(),
+            workflow_mode: mode,
+            workflow_mode_config: modeConfig,
         } as WorkflowVersion;
     },
 
-    /**
-     * Get the deployed code for a specific version
-     */
-    /**
-     * Get the deployed code for a specific version
-     */
     async getVersionCode(supabase: SupabaseClient, versionId: string): Promise<string | null> {
         const { data, error } = await supabase
             .from('rune_workflow_versions')
@@ -157,12 +198,9 @@ export const workflowStore = {
             .single();
 
         if (error) return null;
-        return data.definition_json?.code || null;
+        return data?.definition_json?.code || null;
     },
 
-    /**
-     * Delete a workflow
-     */
     async deleteWorkflow(supabase: SupabaseClient, id: string): Promise<void> {
         const { error } = await supabase
             .from('rune_workflows')
@@ -170,5 +208,5 @@ export const workflowStore = {
             .eq('id', id);
 
         if (error) throw error;
-    }
+    },
 };

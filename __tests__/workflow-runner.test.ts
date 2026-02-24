@@ -76,8 +76,8 @@ describe('WorkflowEngine', () => {
         expect(result.result['falseNode']).toBeUndefined();
     });
 
-    it('should handle loop execution limit', async () => {
-        // self-loop to trigger limit
+    it('should emergency-stop circular runs at execution cap', async () => {
+        // self-loop to trigger circular emergency cap
         const nodes: Node[] = [
             { id: 'start', type: 'step', data: { label: 'Start Workflow' }, position: { x: 0, y: 0 } },
             { id: 'loop1', type: 'step', data: { label: 'Transform', transformConfig: { expression: 'return 1' } }, position: { x: 100, y: 0 } }
@@ -87,14 +87,18 @@ describe('WorkflowEngine', () => {
             { id: 'e2', source: 'loop1', target: 'loop1' } // Infinite loop
         ];
 
-        const engine = new WorkflowEngine(mockSupabase, 'wf-loop', 'Loop Workflow', nodes, edges, 'test-user-id');
+        const engine = new WorkflowEngine(
+            mockSupabase,
+            'wf-loop',
+            'Loop Workflow',
+            nodes,
+            edges,
+            'test-user-id',
+            undefined,
+            'circular',
+            { max_node_executions: 5, max_runtime_minutes: 1440, alert_thresholds: [60, 80, 95] },
+        );
 
-        // Mock console.log to avoid noise
-        const spyLog = vi.spyOn(console, 'log').mockImplementation(() => { });
-
-        await engine.run();
-
-        // Should complete without hanging, due to loop protection (10 limit)
-        expect(spyLog).toHaveBeenCalledWith(expect.stringContaining('execution limit reached'), expect.any(String));
+        await expect(engine.run()).rejects.toThrow('Emergency stop');
     });
 });

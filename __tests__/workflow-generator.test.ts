@@ -257,5 +257,39 @@ describe('Workflow Generator', () => {
         expect(code).toContain('FatalError');
         expect(code).toContain('RetryableError');
     });
-});
 
+    it('should compile strict lineal strategy for multi-path graphs', () => {
+        const nodes: Node[] = [
+            { id: '1', type: 'step', position: { x: 0, y: 0 }, data: { label: 'Start Workflow' } },
+            { id: '2', type: 'step', position: { x: 0, y: 100 }, data: { label: 'HTTP Request', httpRequest: { url: 'https://api.example.com', method: 'GET' } } },
+            { id: '3', type: 'step', position: { x: 100, y: 100 }, data: { label: 'Send Email', emailConfig: { recipient: 'test@example.com' } } },
+        ];
+        const edges: Edge[] = [
+            { id: 'e1', source: '1', target: '2' },
+            { id: 'e2', source: '1', target: '3' },
+        ];
+
+        const code = generateWorkflowCode(nodes, edges, { mode: 'lineal' });
+        expect(code).toContain('Lineal strategy selected first outgoing path');
+        expect(code).not.toContain('Promise.all');
+    });
+
+    it('should include circular runtime safeguards in circular mode', () => {
+        const nodes: Node[] = [
+            { id: '1', type: 'step', position: { x: 0, y: 0 }, data: { label: 'Start Workflow' } },
+            { id: '2', type: 'step', position: { x: 0, y: 100 }, data: { label: 'HTTP Request', httpRequest: { url: 'https://api.example.com', method: 'GET' } } },
+        ];
+        const edges: Edge[] = [
+            { id: 'e1', source: '1', target: '2' },
+            { id: 'e2', source: '2', target: '1' },
+        ];
+
+        const code = generateWorkflowCode(nodes, edges, {
+            mode: 'circular',
+            modeConfig: { max_node_executions: 1234, max_runtime_minutes: 1440, alert_thresholds: [60, 80, 95] },
+        });
+        expect(code).toContain('__modeExecutionPolicy');
+        expect(code).toContain('__trackModeExecution');
+        expect(code).toContain('Circular strategy');
+    });
+});

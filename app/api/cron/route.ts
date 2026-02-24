@@ -51,7 +51,7 @@ export async function GET(req: Request) {
         // 3. Schedule Checks (Existing Logic)
         const { data: workflows, error } = await supabase
             .from('rune_workflows')
-            .select('id, name, user_id')
+            .select('id, name, user_id, workflow_mode, workflow_mode_config')
             .limit(50);
 
         if (error) throw error;
@@ -113,7 +113,9 @@ export async function GET(req: Request) {
                         nodes,
                         edges || [],
                         wf.user_id,
-                        latestVersion.id // Pass version ID
+                        latestVersion.id, // Pass version ID
+                        latestVersion.workflow_mode || wf.workflow_mode || latestVersion.definition_json?.workflow_mode,
+                        latestVersion.workflow_mode_config || wf.workflow_mode_config || latestVersion.definition_json?.workflow_mode_config,
                     );
 
                     // Run with some cron metadata

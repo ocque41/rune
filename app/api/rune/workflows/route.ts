@@ -1,34 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { withTrace } from '@/lib/trace';
+import {
+    normalizeWorkflowMode,
+    normalizeWorkflowModeConfig,
+} from '@/lib/workflow/modes';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-    return withTrace('api.workflows.create', async () => {
+    return withTrace('api.rune.workflows.upsert', async () => {
         try {
-            // Authenticate user
             const authClient = await createClient();
-            const { data: { user } } = await authClient.auth.getUser();
-
-            // Use Admin client for the write to ensure no RLS blocking on creation if policies are strict,
-            // but WE MUST USE THE AUTHENTICATED USER ID for ownership.
-            const supabase = createAdminClient();
+            const { data: { user }, error: authError } = await authClient.auth.getUser();
+            if (authError || !user) {
+                return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+            }
 
             const body = await req.json();
-            const { id, name, description, graph, code, user_id } = body;
+            const {
+                id,
+                name,
+                description,
+                graph,
+                graph_json,
+                code,
+                workflow_mode,
+                workflow_mode_config,
+            } = body || {};
 
-            // Basic validation
-            if (!name || !graph || !code) {
+            const graphPayload = graph ?? graph_json;
+            if (!name || !graphPayload || !code) {
                 return NextResponse.json(
                     { error: 'Missing required fields: name, graph, code' },
-                    { status: 400 }
+                    { status: 400 },
                 );
             }
 
-            // Use authenticated user ID if available, otherwise fallback (development/admin mode)
-            const finalUserId = user?.id || user_id || '00000000-0000-0000-0000-000000000000';
+            const mode = normalizeWorkflowMode(workflow_mode);
+            const modeConfig = normalizeWorkflowModeConfig(mode, workflow_mode_config);
 
-            // Hardcode product_id for 'rune' as per instructions verify slug='rune' 
-            // or we can query it. For performance we might hardcode or query once.
+            const supabase = createAdminClient();
             const { data: productData, error: productError } = await supabase
                 .from('ecosystem_products')
                 .select('id')
@@ -36,95 +48,97 @@ export async function POST(req: NextRequest) {
                 .single();
 
             if (productError || !productData) {
-                console.warn("Could not find 'rune' product in ecosystem_products, ensure it exists.");
-                // Fallback or error? We'll return error for safety.
                 return NextResponse.json({ error: "Product 'rune' not found" }, { status: 500 });
             }
 
-            const product_id = productData.id;
-
             const workflowData = {
                 name,
-                description,
-                graph_json: graph,
+                description: description ?? null,
+                graph_json: graphPayload,
                 code,
-                product_id,
-                user_id: finalUserId,
-                updated_at: new Date().toISOString()
+                product_id: productData.id,
+                user_id: user.id,
+                workflow_mode: mode,
+                workflow_mode_config: modeConfig,
+                updated_at: new Date().toISOString(),
             };
 
-            let result;
+            let result: any = null;
             if (id) {
-                // Update existing
                 const { data, error } = await supabase
                     .from('rune_workflows')
                     .update(workflowData)
                     .eq('id', id)
-                    .select()
+                    .eq('user_id', user.id)
+                    .select('*')
                     .single();
 
                 if (error) throw error;
                 result = data;
             } else {
-                // Insert new
                 const { data, error } = await supabase
                     .from('rune_workflows')
                     .insert([{ ...workflowData, created_at: new Date().toISOString() }])
-                    .select()
+                    .select('*')
                     .single();
 
                 if (error) throw error;
                 result = data;
             }
 
-            return NextResponse.json({ success: true, workflow: result });
-
+            return NextResponse.json({
+                success: true,
+                workflow: {
+                    ...result,
+                    workflow_mode: mode,
+                    workflow_mode_config: modeConfig,
+                },
+            });
         } catch (error: unknown) {
             console.error('Save workflow error:', error);
             const message = error instanceof Error ? error.message : 'Failed to save workflow';
-            return NextResponse.json(
-                { error: message },
-                { status: 500 }
-            );
+            return NextResponse.json({ error: message }, { status: 500 });
         }
     });
 }
 
-export const dynamic = 'force-dynamic';
-
 export async function GET(req: NextRequest) {
-    return withTrace('api.workflows.list', async () => {
-        let userId = 'unknown';
+    return withTrace('api.rune.workflows.list', async () => {
         try {
-            // Use authenticated client to respect RLS
             const supabase = await createClient();
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) userId = user.id;
+            const { data: { user }, error: authError } = await supabase.auth.getUser();
+            if (authError || !user) {
+                return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+            }
 
-            console.log(`[WorkflowList] Fetching for user: ${userId}`);
-
-            // Pagination params
             const url = new URL(req.url);
             const limit = parseInt(url.searchParams.get('limit') || '50', 10);
             const offset = parseInt(url.searchParams.get('offset') || '0', 10);
 
             const { data, error } = await supabase
                 .from('rune_workflows')
-                .select('id, name, description, updated_at')
+                .select('id, name, description, updated_at, workflow_mode, workflow_mode_config')
+                .eq('user_id', user.id)
                 .order('updated_at', { ascending: false })
                 .range(offset, offset + limit - 1);
 
             if (error) throw error;
 
-            console.log(`[WorkflowList] Success. Found ${data?.length || 0} workflows for user ${userId}`);
+            const workflows = (data || []).map((workflow: any) => {
+                const mode = normalizeWorkflowMode(workflow.workflow_mode);
+                return {
+                    ...workflow,
+                    workflow_mode: mode,
+                    workflow_mode_config: normalizeWorkflowModeConfig(mode, workflow.workflow_mode_config),
+                };
+            });
 
-            return NextResponse.json({ workflows: data });
-
+            return NextResponse.json({ workflows });
         } catch (error: unknown) {
-            console.error(`[WorkflowList] Error for user ${userId}:`, error);
+            console.error('List workflows error:', error);
             return NextResponse.json(
                 { error: 'Failed to list cloud workflows' },
-                { status: 500 }
+                { status: 500 },
             );
         }
     });

@@ -119,7 +119,7 @@ async function handleWorkflowTrigger(workflowId: string, payload: any) {
 
         const { data: wfMeta } = await supabase
             .from('rune_workflows')
-            .select('name, user_id')
+            .select('name, user_id, workflow_mode, workflow_mode_config')
             .eq('id', workflowId)
             .single();
 
@@ -133,7 +133,9 @@ async function handleWorkflowTrigger(workflowId: string, payload: any) {
             graph.nodes,
             graph.edges,
             workflowUserId,
-            latestVersion.id
+            latestVersion.id,
+            latestVersion.workflow_mode || wfMeta?.workflow_mode || latestVersion.definition_json?.workflow_mode,
+            latestVersion.workflow_mode_config || wfMeta?.workflow_mode_config || latestVersion.definition_json?.workflow_mode_config,
         );
 
         const webhookNode = graph.nodes.find((n: any) => n.type === 'webhook');

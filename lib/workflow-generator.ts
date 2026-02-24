@@ -5,17 +5,51 @@ import path from 'path';
 import { generateVersionId, saveWorkflowVersion, updateWorkflowMetadata } from './workflow-versioning';
 import { getStreamWritable } from './workflow/runtime/streams';
 import { getNodeKindDisplayName, resolveNodeKind } from './workflow/node-catalog';
+import {
+  buildModeExecutionPolicy,
+  normalizeWorkflowMode,
+  normalizeWorkflowModeConfig,
+  type WorkflowMode,
+  type WorkflowModeConfig,
+} from './workflow/modes';
 
-export function generateWorkflowCode(workflowId: string, nodes: Node[], edges: Edge[]): string;
-export function generateWorkflowCode(nodes: Node[], edges: Edge[]): string;
+export interface GenerateWorkflowCodeOptions {
+  mode?: WorkflowMode;
+  modeConfig?: WorkflowModeConfig;
+}
+
+export function generateWorkflowCode(
+  workflowId: string,
+  nodes: Node[],
+  edges: Edge[],
+  options?: GenerateWorkflowCodeOptions,
+): string;
+export function generateWorkflowCode(
+  nodes: Node[],
+  edges: Edge[],
+  options?: GenerateWorkflowCodeOptions,
+): string;
 export function generateWorkflowCode(
   workflowIdOrNodes: string | Node[],
   nodesOrEdges: Node[] | Edge[],
-  maybeEdges?: Edge[],
+  maybeEdgesOrOptions?: Edge[] | GenerateWorkflowCodeOptions,
+  maybeOptions?: GenerateWorkflowCodeOptions,
 ): string {
   const workflowId = typeof workflowIdOrNodes === 'string' ? workflowIdOrNodes : 'workflow';
   const nodes = ((typeof workflowIdOrNodes === 'string' ? nodesOrEdges : workflowIdOrNodes) ?? []) as Node[];
-  const edges = ((typeof workflowIdOrNodes === 'string' ? maybeEdges : nodesOrEdges) ?? []) as Edge[];
+  const edges = (
+    typeof workflowIdOrNodes === 'string'
+      ? (Array.isArray(maybeEdgesOrOptions) ? maybeEdgesOrOptions : [])
+      : nodesOrEdges
+  ) as Edge[];
+
+  const rawOptions = (typeof workflowIdOrNodes === 'string'
+    ? (Array.isArray(maybeEdgesOrOptions) ? maybeOptions : maybeEdgesOrOptions)
+    : maybeEdgesOrOptions) as GenerateWorkflowCodeOptions | undefined;
+
+  const mode = normalizeWorkflowMode(rawOptions?.mode);
+  const modeConfig = normalizeWorkflowModeConfig(mode, rawOptions?.modeConfig);
+  const modePolicy = buildModeExecutionPolicy(mode, modeConfig);
 
   const usedStepFunctions = new Set<string>();
   const usedImports = new Set<string>();
@@ -1006,16 +1040,28 @@ export const sendTwilioMessage = async (params: {
 
 
   // 2. Build Workflow Logic
-  const startNode = nodes.find((n) => resolveNodeKind(n as any) === 'startWorkflow');
+  const startNode =
+    nodes.find((n) => resolveNodeKind(n as any) === 'startWorkflow')
+    || nodes.find((n) => resolveNodeKind(n as any) === 'webhook')
+    || nodes.find((n) => resolveNodeKind(n as any) === 'schedule');
   let workflowBody = '';
 
   if (startNode) {
-    workflowBody = traverseGraph(startNode.id, nodes, edges, new Set(), 'runId', usedStepFunctions, usedImports, usedHelperFunctions);
+    if (mode === 'lineal') {
+      workflowBody = compileLinealWorkflow(startNode.id, nodes, edges, 'runId', usedStepFunctions, usedImports, usedHelperFunctions);
+    } else if (mode === 'circular') {
+      workflowBody = compileCircularWorkflow(startNode.id, nodes, edges, 'runId', usedStepFunctions, usedImports, usedHelperFunctions);
+    } else {
+      workflowBody = traverseGraph(startNode.id, nodes, edges, new Set(), 'runId', usedStepFunctions, usedImports, usedHelperFunctions);
+    }
   }
+
+  const modePrelude = buildModePrelude(modePolicy);
 
   const getWorkflowDefinitionContent = (body: string, scheduleConfig: string) => `async function workflow(params: { runId: string; [key: string]: any }) {
   "use workflow";
   const { runId } = params; // Extract runId
+  ${modePrelude}
   ${body}
   return { result: "Workflow completed" };
 }
@@ -1120,6 +1166,142 @@ export const ${functionName} = async (params: any) => {
   return `${finalImports}\n${subWorkflowImports}\n${finalHelperFunctions}\n${finalStepDefinitions}\nexport ${getWorkflowDefinitionContent(workflowBody, generateScheduleConfig(nodes))}`;
 }
 
+function compileLinealWorkflow(
+  startNodeId: string,
+  nodes: Node[],
+  edges: Edge[],
+  runId: string,
+  usedStepFunctions: Set<string>,
+  usedImports: Set<string>,
+  usedHelperFunctions: Set<string>,
+): string {
+  const visited = new Set<string>([startNodeId]);
+  let currentNodeId = startNodeId;
+  let code = '';
+
+  while (true) {
+    const outgoing = getSortedOutgoingEdges(edges, currentNodeId);
+    if (outgoing.length === 0) break;
+
+    if (outgoing.length > 1) {
+      code += `\n    // Lineal strategy selected first outgoing path for node "${currentNodeId}".`;
+    }
+
+    const nextTargetId = outgoing[0].target;
+    const nextNode = nodes.find((node) => node.id === nextTargetId);
+    if (!nextNode) break;
+
+    code += trackNodeExecutionSnippet(nextTargetId);
+    code += generateNodeCall(nextNode, runId, usedStepFunctions, usedImports, usedHelperFunctions);
+
+    if (visited.has(nextTargetId)) {
+      code += `\n    // Stopped to prevent circular path in lineal compilation.`;
+      break;
+    }
+
+    visited.add(nextTargetId);
+    currentNodeId = nextTargetId;
+  }
+
+  return code;
+}
+
+function compileCircularWorkflow(
+  startNodeId: string,
+  nodes: Node[],
+  edges: Edge[],
+  runId: string,
+  usedStepFunctions: Set<string>,
+  usedImports: Set<string>,
+  usedHelperFunctions: Set<string>,
+): string {
+  const cycleEdgeCount = countCycleEdges(edges);
+  const heading = cycleEdgeCount > 0
+    ? `\n    // Circular strategy detected ${cycleEdgeCount} cycle edge(s). Runtime safeguards are enabled.`
+    : `\n    // Circular strategy enabled. Runtime safeguards are active.`;
+
+  return `${heading}${traverseGraph(startNodeId, nodes, edges, new Set(), runId, usedStepFunctions, usedImports, usedHelperFunctions)}`;
+}
+
+function countCycleEdges(edges: Edge[]): number {
+  const adjacency = new Map<string, string[]>();
+  edges.forEach((edge) => {
+    if (!adjacency.has(edge.source)) adjacency.set(edge.source, []);
+    adjacency.get(edge.source)!.push(edge.target);
+  });
+
+  const hasPath = (from: string, to: string): boolean => {
+    if (from === to) return true;
+    const queue = [from];
+    const visited = new Set<string>();
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (current === to) return true;
+      if (visited.has(current)) continue;
+      visited.add(current);
+      const next = adjacency.get(current) || [];
+      next.forEach((candidate) => queue.push(candidate));
+    }
+
+    return false;
+  };
+
+  return edges.filter((edge) => hasPath(edge.target, edge.source)).length;
+}
+
+function getSortedOutgoingEdges(edges: Edge[], sourceNodeId: string): Edge[] {
+  return edges
+    .filter((edge) => edge.source === sourceNodeId)
+    .sort((left, right) => {
+      const leftKey = `${left.sourceHandle || ''}:${left.target}:${left.id}`;
+      const rightKey = `${right.sourceHandle || ''}:${right.target}:${right.id}`;
+      return leftKey.localeCompare(rightKey);
+    });
+}
+
+function trackNodeExecutionSnippet(nodeId: string): string {
+  return `\n    __trackModeExecution("${nodeId}");`;
+}
+
+function buildModePrelude(policy: ReturnType<typeof buildModeExecutionPolicy>): string {
+  if (policy.mode !== 'circular') {
+    return `
+  const __modeExecution = { total: 0, perNode: {} as Record<string, number>, mode: "${policy.mode}" };
+  const __trackModeExecution = (nodeId: string) => {
+    __modeExecution.total += 1;
+    __modeExecution.perNode[nodeId] = (__modeExecution.perNode[nodeId] || 0) + 1;
+  };`;
+  }
+
+  return `
+  const __modeExecutionPolicy = {
+    maxNodeExecutions: ${policy.maxNodeExecutions},
+    maxRuntimeMinutes: ${policy.maxRuntimeMinutes},
+    alertThresholds: [${policy.alertThresholds.join(', ')}]
+  };
+  const __modeExecution = { total: 0, perNode: {} as Record<string, number>, startedAtMs: Date.now(), lastAlertThreshold: 0 };
+  const __trackModeExecution = (nodeId: string) => {
+    __modeExecution.total += 1;
+    __modeExecution.perNode[nodeId] = (__modeExecution.perNode[nodeId] || 0) + 1;
+    const elapsedMinutes = (Date.now() - __modeExecution.startedAtMs) / 60000;
+
+    if (__modeExecution.total > __modeExecutionPolicy.maxNodeExecutions) {
+      throw new Error("Circular safety stop: execution count reached emergency cap.");
+    }
+    if (elapsedMinutes > __modeExecutionPolicy.maxRuntimeMinutes) {
+      throw new Error("Circular safety stop: runtime exceeded emergency cap.");
+    }
+
+    const usagePercent = (__modeExecution.total / __modeExecutionPolicy.maxNodeExecutions) * 100;
+    for (const threshold of __modeExecutionPolicy.alertThresholds) {
+      if (usagePercent >= threshold && threshold > __modeExecution.lastAlertThreshold) {
+        __modeExecution.lastAlertThreshold = threshold;
+      }
+    }
+  };`;
+}
+
 function traverseGraph(
   currentId: string,
   nodes: Node[],
@@ -1143,12 +1325,20 @@ function traverseGraph(
     // Find True branch
     const trueEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'true');
     const trueNode = nodes.find(n => n.id === trueEdge?.target);
-    const trueCode = trueEdge && trueNode ? generateNodeCall(trueNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(trueEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
+    const trueCode = trueEdge && trueNode
+      ? trackNodeExecutionSnippet(trueEdge.target)
+        + generateNodeCall(trueNode, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+        + traverseGraph(trueEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions)
+      : '';
 
     // Find False branch
     const falseEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'false');
     const falseNode = nodes.find(n => n.id === falseEdge?.target);
-    const falseCode = falseEdge && falseNode ? generateNodeCall(falseNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(falseEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
+    const falseCode = falseEdge && falseNode
+      ? trackNodeExecutionSnippet(falseEdge.target)
+        + generateNodeCall(falseNode, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+        + traverseGraph(falseEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions)
+      : '';
 
     return `\n    if (${condition}) {\n      ${trueCode}\n    } else {\n      ${falseCode}\n    }`;
   }
@@ -1160,12 +1350,20 @@ function traverseGraph(
     // Find Body branch
     const bodyEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'body');
     const bodyNode = nodes.find(n => n.id === bodyEdge?.target);
-    const bodyCode = bodyEdge && bodyNode ? generateNodeCall(bodyNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(bodyEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
+    const bodyCode = bodyEdge && bodyNode
+      ? trackNodeExecutionSnippet(bodyEdge.target)
+        + generateNodeCall(bodyNode, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+        + traverseGraph(bodyEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions)
+      : '';
 
     // Find Done branch
     const doneEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'done');
     const doneNode = nodes.find(n => n.id === doneEdge?.target);
-    const doneCode = doneEdge && doneNode ? generateNodeCall(doneNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(doneEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
+    const doneCode = doneEdge && doneNode
+      ? trackNodeExecutionSnippet(doneEdge.target)
+        + generateNodeCall(doneNode, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+        + traverseGraph(doneEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+      : '';
 
     return `\n    for (const item of ${items}) {\n      ${bodyCode}\n    }\n    ${doneCode}`;
   }
@@ -1180,7 +1378,9 @@ function traverseGraph(
       const branchEdge = edges.find(e => e.source === currentId && e.sourceHandle === `branch-${i}`);
       const branchNode = nodes.find(n => n.id === branchEdge?.target);
       const branchCode = branchEdge && branchNode
-        ? generateNodeCall(branchNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(branchEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions)
+        ? trackNodeExecutionSnippet(branchEdge.target)
+          + generateNodeCall(branchNode, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+          + traverseGraph(branchEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions)
         : '';
 
       branchPromises.push(`(async () => {\n      ${branchCode}\n    })()`);
@@ -1190,7 +1390,9 @@ function traverseGraph(
     const mergeEdge = edges.find(e => e.source === currentId && e.sourceHandle === 'merge');
     const mergeNode = nodes.find(n => n.id === mergeEdge?.target);
     const mergeCode = mergeEdge && mergeNode
-      ? generateNodeCall(mergeNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(mergeEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+      ? trackNodeExecutionSnippet(mergeEdge.target)
+        + generateNodeCall(mergeNode, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+        + traverseGraph(mergeEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions)
       : '';
 
     return `\n    await Promise.all([\n      ${branchPromises.join(',\n      ')}\n    ]);\n    ${mergeCode}`;
@@ -1256,7 +1458,11 @@ function traverseGraph(
 
 
     const doneNode = nodes.find(n => n.id === doneEdge?.target);
-    const doneCode = doneEdge && doneNode ? generateNodeCall(doneNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(doneEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
+    const doneCode = doneEdge && doneNode
+      ? trackNodeExecutionSnippet(doneEdge.target)
+        + generateNodeCall(doneNode, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+        + traverseGraph(doneEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+      : '';
 
     return `${batchCode}\n    // Continue after batch processing\n    ${doneCode}`;
   }
@@ -1277,8 +1483,16 @@ function traverseGraph(
     const successNode = nodes.find(n => n.id === successEdge?.target);
     const failureNode = nodes.find(n => n.id === failureEdge?.target);
 
-    const successCode = successEdge && successNode ? generateNodeCall(successNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(successEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
-    const failureCode = failureEdge && failureNode ? generateNodeCall(failureNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(failureEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
+    const successCode = successEdge && successNode
+      ? trackNodeExecutionSnippet(successEdge.target)
+        + generateNodeCall(successNode, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+        + traverseGraph(successEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions)
+      : '';
+    const failureCode = failureEdge && failureNode
+      ? trackNodeExecutionSnippet(failureEdge.target)
+        + generateNodeCall(failureNode, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+        + traverseGraph(failureEdge.target, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions)
+      : '';
 
     return `\n    const validationResult = await validateData({
             schema: \`${schema}\`,
@@ -1316,7 +1530,11 @@ function traverseGraph(
 
     const nextEdge = edges.find(e => e.source === currentId);
     const nextNode = nodes.find(n => n.id === nextEdge?.target);
-    const nextCode = nextEdge && nextNode ? generateNodeCall(nextNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(nextEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
+    const nextCode = nextEdge && nextNode
+      ? trackNodeExecutionSnippet(nextEdge.target)
+        + generateNodeCall(nextNode, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+        + traverseGraph(nextEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+      : '';
 
     return `\n    const twilioResult = await sendTwilioMessage({
         fromPhoneNumber: \`${processString(fromPhoneNumber)}\`,
@@ -1340,7 +1558,11 @@ function traverseGraph(
     // Find Next node
     const nextEdge = edges.find(e => e.source === currentId);
     const nextNode = nodes.find(n => n.id === nextEdge?.target);
-    const nextCode = nextEdge && nextNode ? generateNodeCall(nextNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(nextEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
+    const nextCode = nextEdge && nextNode
+      ? trackNodeExecutionSnippet(nextEdge.target)
+        + generateNodeCall(nextNode, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+        + traverseGraph(nextEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+      : '';
 
     return `\n    const approvalResult = await waitForApproval({ approverEmail: "${approverEmail}", timeout: "${timeout}" });\n    ${nextCode}`;
   }
@@ -1357,7 +1579,11 @@ function traverseGraph(
 
     const nextEdge = edges.find(e => e.source === currentId);
     const nextNode = nodes.find(n => n.id === nextEdge?.target);
-    const nextCode = nextEdge && nextNode ? generateNodeCall(nextNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(nextEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
+    const nextCode = nextEdge && nextNode
+      ? trackNodeExecutionSnippet(nextEdge.target)
+        + generateNodeCall(nextNode, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+        + traverseGraph(nextEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+      : '';
 
     return `\n    const aiResult = await generateContent({
         prompt: \`${prompt.replace(/`/g, '\\`')}\`,
@@ -1381,7 +1607,11 @@ function traverseGraph(
 
     const nextEdge = edges.find(e => e.source === currentId);
     const nextNode = nodes.find(n => n.id === nextEdge?.target);
-    const nextCode = nextEdge && nextNode ? generateNodeCall(nextNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(nextEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions) : '';
+    const nextCode = nextEdge && nextNode
+      ? trackNodeExecutionSnippet(nextEdge.target)
+        + generateNodeCall(nextNode, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+        + traverseGraph(nextEdge.target, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+      : '';
 
     return `\n    const transformResult = await transformData({
         mapping: \`${mapping.replace(/`/g, '\\`')}\`,
@@ -1404,6 +1634,7 @@ function traverseGraph(
     const targetNode = nodes.find((n) => n.id === targetId);
 
     if (targetNode) {
+      code += trackNodeExecutionSnippet(targetId);
       code += generateNodeCall(targetNode, runId, usedStepFunctions, usedImports, usedHelperFunctions);
       code += traverseGraph(targetId, nodes, edges, visited, runId, usedStepFunctions, usedImports, usedHelperFunctions);
     }
@@ -1414,7 +1645,9 @@ function traverseGraph(
       const targetNode = nodes.find((n) => n.id === targetId);
       if (!targetNode) return '';
 
-      const branchCode = generateNodeCall(targetNode, runId, usedStepFunctions, usedImports, usedHelperFunctions) + traverseGraph(targetId, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions);
+      const branchCode = trackNodeExecutionSnippet(targetId)
+        + generateNodeCall(targetNode, runId, usedStepFunctions, usedImports, usedHelperFunctions)
+        + traverseGraph(targetId, nodes, edges, new Set(visited), runId, usedStepFunctions, usedImports, usedHelperFunctions);
       return `(async () => { ${branchCode} })()`;
     });
 

@@ -108,16 +108,17 @@ export async function getRun(supabase: SupabaseClient, id: string): Promise<Work
         logs: (run.logs as unknown as RunLog[]) || [],
         steps: ((run.steps as unknown as any[]) || []).map(s => ({
             ...s,
-            startTime: s.started_at,
-            endTime: s.finished_at,
-            durationMs: s.finished_at && s.started_at
-                ? new Date(s.finished_at).getTime() - new Date(s.started_at).getTime()
+            startTime: s.started_at || s.start_time,
+            endTime: s.finished_at || s.end_time,
+            durationMs: (s.finished_at || s.end_time) && (s.started_at || s.start_time)
+                ? new Date(s.finished_at || s.end_time).getTime() - new Date(s.started_at || s.start_time).getTime()
                 : undefined,
-            stepId: s.node_id,
-            stepLabel: s.node_id, // Fallback as no label in DB
-            input: s.input_json,
-            result: s.output_json
-        })).sort((a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()),
+            stepId: s.node_id || s.step_id,
+            stepLabel: s.step_label || s.node_id || s.step_id, // fallback for legacy rows
+            input: s.input_json ?? s.input,
+            result: s.output_json ?? s.output,
+            error: s.error_json?.message ?? s.error?.message ?? s.error,
+        })).sort((a: any, b: any) => new Date(a.startTime || 0).getTime() - new Date(b.startTime || 0).getTime()),
         waitingFor: run.waiting_for as unknown as WaitingFor | undefined
     };
 }
@@ -252,12 +253,11 @@ export async function recordRunProgress(
     runUpdates?: Partial<WorkflowRun>
 ): Promise<void> {
 
-    // 1. Insert/Update step in rune_run_steps
-    // 1. Insert/Update step in rune_run_steps (Live Schema)
+    // Canonical run step columns for one write path.
     const stepData = {
         run_id: runId,
         user_id: userId,
-        node_id: stepExecution.stepId, // Storing execution UUID in node_id column
+        node_id: stepExecution.stepId,
         status: stepExecution.status,
         started_at: stepExecution.startTime,
         finished_at: stepExecution.endTime,

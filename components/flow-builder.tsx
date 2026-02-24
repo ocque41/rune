@@ -56,6 +56,8 @@ import { NodeConfigModal } from '@/components/node-config/node-config-modal';
 import { inferKindFromLegacyLabel, resolveNodeKind } from '@/lib/workflow/node-catalog';
 import {
     DEFAULT_WORKFLOW_MODE,
+    WORKFLOW_MODES,
+    isWorkflowModesV1Enabled,
     normalizeWorkflowMode,
     normalizeWorkflowModeConfig,
     type WorkflowMode,
@@ -117,6 +119,18 @@ const LINEAL_BLOCKED_KINDS = new Set([
     'parallel',
     'loop',
 ]);
+const MODE_STRUCTURE_ERROR_CODES = new Set([
+    'LINEAL_BRANCH_NODE_NOT_ALLOWED',
+    'LINEAL_FAN_OUT_NOT_ALLOWED',
+    'LINEAL_FAN_IN_NOT_ALLOWED',
+    'CYCLE_DETECTED',
+]);
+
+const MODE_LABELS: Record<WorkflowMode, string> = {
+    lineal: 'Lineal',
+    branching: 'Branching',
+    circular: 'Circular',
+};
 
 function willCreateCycle(
     existingEdges: Edge[],
@@ -157,6 +171,7 @@ const FlowBuilderContent = ({
     savedFilename?: string | null;
     initialWorkflowId?: string | null;
 }) => {
+    const workflowModesV1Enabled = isWorkflowModesV1Enabled();
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
     const [nodes, setNodes, onNodesChange] = useNodesState<Node<RuneNodeData>>(initialNodes);
     const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[]);
@@ -232,7 +247,17 @@ const FlowBuilderContent = ({
 
     // User Templates State
     const [templateTab, setTemplateTab] = useState<'system' | 'my'>('system');
-    const [userTemplates, setUserTemplates] = useState<Array<{ id: string; name: string; description?: string; graph_json?: { nodes?: Node<RuneNodeData>[]; edges?: Edge[] } }>>([]);
+    const [userTemplates, setUserTemplates] = useState<Array<{
+        id: string;
+        name: string;
+        description?: string;
+        graph_json?: {
+            nodes?: Node<RuneNodeData>[];
+            edges?: Edge[];
+            workflow_mode?: WorkflowMode;
+            workflow_mode_config?: WorkflowModeConfig;
+        };
+    }>>([]);
     const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
     const [templateForm, setTemplateForm] = useState({ name: '', description: '' });
     const [isSavingTemplate, setIsSavingTemplate] = useState(false);
@@ -266,7 +291,12 @@ const FlowBuilderContent = ({
                 body: JSON.stringify({
                     name: templateForm.name,
                     description: templateForm.description,
-                    graph_json: { nodes, edges }
+                    graph_json: {
+                        nodes,
+                        edges,
+                        workflow_mode: workflowMode,
+                        workflow_mode_config: workflowModeConfig,
+                    }
                 }),
             });
 
@@ -282,7 +312,7 @@ const FlowBuilderContent = ({
         } finally {
             setIsSavingTemplate(false);
         }
-    }, [nodes, edges, templateForm, fetchUserTemplates]);
+    }, [nodes, edges, templateForm, workflowMode, workflowModeConfig, fetchUserTemplates]);
 
     const onDeleteTemplate = useCallback(async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -298,14 +328,28 @@ const FlowBuilderContent = ({
         }
     }, [fetchUserTemplates]);
 
-    const loadUserTemplate = useCallback((template: { id: string; name: string; graph_json?: { nodes?: Node<RuneNodeData>[]; edges?: Edge[] } }) => {
+    const loadUserTemplate = useCallback((template: {
+        id: string;
+        name: string;
+        graph_json?: {
+            nodes?: Node<RuneNodeData>[];
+            edges?: Edge[];
+            workflow_mode?: WorkflowMode;
+            workflow_mode_config?: WorkflowModeConfig;
+        };
+    }) => {
         if (template.graph_json?.nodes && template.graph_json?.edges) {
             setNodes(template.graph_json.nodes);
             setEdges(template.graph_json.edges);
+            const templateMode = normalizeWorkflowMode(template.graph_json.workflow_mode);
+            setWorkflowMode(templateMode);
+            setWorkflowModeConfig(
+                normalizeWorkflowModeConfig(templateMode, template.graph_json.workflow_mode_config),
+            );
             setShowTemplates(false);
             toast.success(`Template "${template.name}" loaded`);
         }
-    }, [setNodes, setEdges]);
+    }, [setNodes, setEdges, setWorkflowMode, setWorkflowModeConfig]);
 
     // Paste workflow from clipboard (Cmd+V / Ctrl+V)
     useEffect(() => {
@@ -742,6 +786,11 @@ const FlowBuilderContent = ({
 
             const sourceKind = resolveNodeKind(sourceNode);
 
+            if (!workflowModesV1Enabled) {
+                setEdges((eds) => addEdge(params, eds));
+                return;
+            }
+
             if (workflowMode === 'lineal') {
                 if (LINEAL_BLOCKED_KINDS.has(sourceKind)) {
                     toast.error('Lineal mode does not allow branching or loop nodes.');
@@ -781,7 +830,7 @@ const FlowBuilderContent = ({
 
             setEdges((eds) => addEdge(nextEdge, eds));
         },
-        [setEdges, edges, nodes, workflowMode],
+        [setEdges, edges, nodes, workflowMode, workflowModesV1Enabled],
     );
 
     const onDragOver = useCallback((event: React.DragEvent) => {
@@ -807,7 +856,7 @@ const FlowBuilderContent = ({
             }
 
             const normalizedKind = draggedKind || inferKindFromLegacyLabel(label || `${type} node`, type);
-            if (workflowMode === 'lineal' && LINEAL_BLOCKED_KINDS.has(normalizedKind)) {
+            if (workflowModesV1Enabled && workflowMode === 'lineal' && LINEAL_BLOCKED_KINDS.has(normalizedKind)) {
                 toast.error('This node type is not available in lineal mode.');
                 return;
             }
@@ -829,7 +878,7 @@ const FlowBuilderContent = ({
 
             setNodes((nds) => nds.concat(newNode));
         },
-        [reactFlowInstance, setNodes, workflowMode],
+        [reactFlowInstance, setNodes, workflowMode, workflowModesV1Enabled],
     );
 
     const onSaveCloud = useCallback(async () => {
@@ -890,7 +939,16 @@ const FlowBuilderContent = ({
             const response = await fetch('/api/workflows/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, filename }),
+                body: JSON.stringify({
+                    id: workflowId,
+                    name: workflowName,
+                    description: 'Draft saved from Flow Builder',
+                    graph: { nodes, edges, agentConfig },
+                    workflow_mode: workflowMode,
+                    workflow_mode_config: workflowModeConfig,
+                    code,
+                    filename,
+                }),
             });
 
             if (!response.ok) throw new Error('Failed to save');
@@ -901,7 +959,7 @@ const FlowBuilderContent = ({
             console.error('Save error:', error);
             toast.error('Failed to save draft');
         }
-    }, [nodes, edges, workflowId, workflowMode, workflowModeConfig]);
+    }, [nodes, edges, workflowId, workflowName, workflowMode, workflowModeConfig, agentConfig]);
 
     const onDeploy = useCallback(async () => {
         try {
@@ -1017,9 +1075,14 @@ const FlowBuilderContent = ({
     const loadTemplate = useCallback((template: Template) => {
         setNodes(template.nodes);
         setEdges(template.edges);
+        const templateMode = normalizeWorkflowMode(template.workflow_mode);
+        setWorkflowMode(templateMode);
+        setWorkflowModeConfig(
+            normalizeWorkflowModeConfig(templateMode, template.workflow_mode_config),
+        );
         setShowTemplates(false);
         toast.success(`Template "${template.name}" loaded`);
-    }, [setNodes, setEdges]);
+    }, [setNodes, setEdges, setWorkflowMode, setWorkflowModeConfig]);
 
 
 
@@ -1125,6 +1188,7 @@ const FlowBuilderContent = ({
                     <Sidebar
                         hasStartNode={hasStartNode}
                         workflowId={workflowId}
+                        workflowMode={workflowMode}
                         onAgentClick={() => setIsAgentOpen(true)}
                     />
                 </div>
@@ -1132,6 +1196,7 @@ const FlowBuilderContent = ({
                     <Sidebar
                         hasStartNode={hasStartNode}
                         workflowId={workflowId}
+                        workflowMode={workflowMode}
                         onAgentClick={() => setIsAgentOpen(true)}
                         className="w-full max-w-none"
                     />
@@ -1216,7 +1281,34 @@ const FlowBuilderContent = ({
                                 >
                                     Fit view
                                 </button>
-                                <div className="ml-auto flex min-w-[220px] items-center gap-2 rounded-md border border-white/10 bg-black/40 px-2 py-1">
+                                {workflowModesV1Enabled && (
+                                    <div className="ml-auto flex min-w-[220px] items-center gap-2 rounded-md border border-white/10 bg-black/40 px-2 py-1">
+                                        <span className="text-[11px] text-white/55">Mode</span>
+                                        <select
+                                            value={workflowMode}
+                                            onChange={(event) => {
+                                                const nextMode = normalizeWorkflowMode(event.target.value);
+                                                const modeValidation = validateGraph(getNodes(), getEdges(), { mode: nextMode });
+                                                const structuralError = modeValidation.errors.find((issue) => MODE_STRUCTURE_ERROR_CODES.has(issue.code));
+                                                if (structuralError) {
+                                                    toast.error(structuralError.message);
+                                                    return;
+                                                }
+                                                setWorkflowMode(nextMode);
+                                                setWorkflowModeConfig((current) => normalizeWorkflowModeConfig(nextMode, current));
+                                            }}
+                                            className="rounded border border-white/15 bg-black/50 px-2 py-1 text-xs text-white outline-none"
+                                            aria-label="Workflow mode"
+                                        >
+                                            {WORKFLOW_MODES.map((mode) => (
+                                                <option key={mode} value={mode}>
+                                                    {MODE_LABELS[mode]}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                                <div className="flex min-w-[220px] items-center gap-2 rounded-md border border-white/10 bg-black/40 px-2 py-1">
                                     <span className="text-[11px] text-white/55">Name</span>
                                     <input
                                         type="text"
@@ -1270,7 +1362,9 @@ const FlowBuilderContent = ({
                                 </button>
                                 <button
                                     onClick={() => {
-                                        const result = validateGraph(getNodes(), getEdges());
+                                        const result = validateGraph(getNodes(), getEdges(), {
+                                            mode: workflowMode,
+                                        });
                                         setValidationResult(result);
                                         setShowValidation(true);
                                     }}

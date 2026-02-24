@@ -80,7 +80,7 @@ describe('Workflow Simulator', () => {
             const result = await simulateWorkflow(nodes, edges, {});
 
             expect(result.success).toBe(false);
-            expect(result.logs.some(l => l.type !== 'nodeOutput' && l.message.includes('No "Start Workflow" node'))).toBe(true);
+            expect(result.logs.some(l => l.type !== 'nodeOutput' && (l.message ?? '').includes('No "Start Workflow" node'))).toBe(true);
         });
 
         it('should simulate a simple linear workflow', async () => {
@@ -393,7 +393,7 @@ describe('Workflow Simulator', () => {
             const result = await simulateWorkflow(nodes, edges);
 
             // Should complete (not hang) and have a warning about infinite loop
-            expect(result.logs.some(l => l.type !== 'nodeOutput' && l.message.includes('Infinite loop prevented'))).toBe(true);
+            expect(result.logs.some(l => l.type !== 'nodeOutput' && (l.message ?? '').includes('Infinite loop prevented'))).toBe(true);
         });
     });
 });

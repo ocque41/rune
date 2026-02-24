@@ -1,9 +1,12 @@
 import { Node, Edge } from '@xyflow/react';
+import type { WorkflowMode, WorkflowModeConfig } from '@/lib/workflow/modes';
 
 export type Template = {
     id: string;
     name: string;
     description: string;
+    workflow_mode?: WorkflowMode;
+    workflow_mode_config?: WorkflowModeConfig;
     nodes: Node[];
     edges: Edge[];
 };

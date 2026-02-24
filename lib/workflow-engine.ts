@@ -1,10 +1,29 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Node, Edge } from '@xyflow/react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { saveRun, updateRunStatus, updateStepExecution, setRunWaiting, WorkflowRun, StepExecution, appendLog } from './run-store';
+import {
+    saveRun,
+    updateRunStatus,
+    updateStepExecution,
+    setRunWaiting,
+    WorkflowRun,
+    StepExecution,
+    appendLog,
+    type WaitingFor,
+} from './run-store';
 import { ingestAutonomyEvent } from '@/lib/autonomy/events';
 import jsonata from 'jsonata';
 import { getNodeKindDisplayName, resolveNodeKind } from './workflow/node-catalog';
+import { sendEmail } from './email';
+import {
+    buildModeExecutionPolicy,
+    normalizeWorkflowMode,
+    normalizeWorkflowModeConfig,
+    DEFAULT_WORKFLOW_MODE,
+    type WorkflowMode,
+    type WorkflowModeConfig,
+    type ModeExecutionPolicy,
+} from './workflow/modes';
 
 type ExecutionContext = {
     runId: string;
@@ -13,10 +32,24 @@ type ExecutionContext = {
     inputs: Record<string, any>; // outputs from previous nodes keyed by nodeId
     variables: Record<string, any>; // Global execution variables
     logs: any[];
+    waitingFor?: WaitingFor;
 };
 
 export class WorkflowEngine {
     private context: ExecutionContext;
+    private workflowMode: WorkflowMode;
+    private workflowModeConfig: WorkflowModeConfig;
+    private modePolicy: ModeExecutionPolicy;
+    private pausedForWaiting = false;
+    private executionStats = {
+        startedAtMs: 0,
+        totalNodeExecutions: 0,
+        perNodeExecutions: {} as Record<string, number>,
+        alertedThresholds: new Set<number>(),
+        alertKeys: new Set<string>(),
+        approvalNodes: new Set<string>(),
+        approvalExecutions: 0,
+    };
 
     constructor(
         private supabase: SupabaseClient,
@@ -25,15 +58,24 @@ export class WorkflowEngine {
         private nodes: Node[],
         private edges: Edge[],
         private userId: string,
-        private workflowVersionId?: string
+        private workflowVersionId?: string,
+        workflowMode: WorkflowMode = DEFAULT_WORKFLOW_MODE,
+        workflowModeConfig: WorkflowModeConfig = {},
     ) {
+        this.workflowMode = normalizeWorkflowMode(workflowMode);
+        this.workflowModeConfig = normalizeWorkflowModeConfig(this.workflowMode, workflowModeConfig);
+        this.modePolicy = buildModeExecutionPolicy(this.workflowMode, this.workflowModeConfig);
+
+        const approvalNodes = nodes.filter((node) => resolveNodeKind(node as any) === 'approval');
+        approvalNodes.forEach((node) => this.executionStats.approvalNodes.add(node.id));
+
         this.context = {
             runId: crypto.randomUUID(),
             nodes,
             edges,
             inputs: {},
             variables: {},
-            logs: []
+            logs: [],
         };
     }
 
@@ -120,10 +162,18 @@ export class WorkflowEngine {
         await saveRun(this.supabase, run, this.userId);
 
         try {
+            this.pausedForWaiting = false;
+            this.executionStats.startedAtMs = Date.now();
+            this.executionStats.totalNodeExecutions = 0;
+            this.executionStats.perNodeExecutions = {};
+            this.executionStats.alertedThresholds = new Set<number>();
+            this.executionStats.alertKeys = new Set<string>();
+            this.executionStats.approvalExecutions = 0;
+
             if (metadata?.trigger) {
-                this.log('info', `Workflow execution started (trigger: ${metadata.trigger})`);
+                await this.log('info', `Workflow execution started (trigger: ${metadata.trigger})`);
             } else {
-                this.log('info', 'Workflow execution started');
+                await this.log('info', `Workflow execution started (mode: ${this.workflowMode})`);
             }
 
             for (const entry of queue) {
@@ -135,13 +185,36 @@ export class WorkflowEngine {
             while (queue.length > 0) {
                 const { nodeId, input } = queue.shift()!;
                 processedCount[nodeId] = (processedCount[nodeId] || 0) + 1;
+                await this.enforceExecutionPolicy(nodeId, processedCount[nodeId]);
+                await this.executeNode(nodeId, input, queue);
+                if (this.pausedForWaiting) break;
+            }
 
-                if (processedCount[nodeId] > 10) {
-                    this.log('warn', `Node ${nodeId} execution limit reached (loop detection). Skipping.`);
-                    continue;
+            if (this.pausedForWaiting) {
+                await updateRunStatus(this.supabase, this.context.runId, 'waiting', this.context.inputs);
+                try {
+                    await ingestAutonomyEvent(this.userId, {
+                        source_type: 'system',
+                        dedupe_key: `run-waiting-${this.context.runId}`,
+                        workflow_id: this.workflowId,
+                        payload: {
+                            event: 'run.waiting',
+                            run_id: this.context.runId,
+                            status: 'waiting',
+                            waiting_for: this.context.waitingFor as any,
+                        }
+                    }, this.supabase as any);
+                } catch (e) {
+                    console.warn('[Autonomy] Failed to emit waiting event', e);
                 }
 
-                await this.executeNode(nodeId, input, queue);
+                return {
+                    ...run,
+                    status: 'waiting',
+                    waitingFor: this.context.waitingFor,
+                    endTime: undefined,
+                    result: this.context.inputs,
+                };
             }
 
             await updateRunStatus(this.supabase, this.context.runId, 'completed', this.context.inputs);
@@ -201,7 +274,7 @@ export class WorkflowEngine {
         const label = this.getNodeLabel(node);
 
         const startTime = new Date().toISOString();
-        const stepId = crypto.randomUUID();
+        const stepId = nodeId;
 
         // Log start
         // this.log('info', `Executing node: ${label}`, { nodeId, input });
@@ -248,6 +321,14 @@ export class WorkflowEngine {
                     result = await this.executeTwilioMessage(data, input);
                     break;
 
+                case 'approval':
+                    this.executionStats.approvalExecutions += 1;
+                    status = 'waiting';
+                    result = await this.executeApproval(data, input);
+                    this.pausedForWaiting = true;
+                    queue.length = 0;
+                    return;
+
                 case 'ifElse':
                     const conditionResult = await this.evaluateCondition(data, input);
                     result = { condition: conditionResult };
@@ -269,7 +350,7 @@ export class WorkflowEngine {
         } catch (err: any) {
             status = 'failed';
             errorMsg = err.message;
-            this.log('error', `Step ${label} failed: ${err.message}`);
+            await this.log('error', `Step ${label} failed: ${err.message}`);
             throw err; // For now fail the whole workflow. In future, allow error handling paths.
         } finally {
             const endTime = new Date().toISOString();
@@ -297,6 +378,10 @@ export class WorkflowEngine {
             this.context.inputs[nodeId] = result;
         }
 
+        if (this.pausedForWaiting) {
+            return;
+        }
+
         // Standard Edge Traversal (if not handled by specific logic like If/Else)
         this.queueNextNodes(nodeId, result, queue);
     }
@@ -314,6 +399,213 @@ export class WorkflowEngine {
         if (edge) {
             queue.push({ nodeId: edge.target, input });
         }
+    }
+
+    private async enforceExecutionPolicy(nodeId: string, nodeExecutionCount: number) {
+        this.executionStats.totalNodeExecutions += 1;
+        this.executionStats.perNodeExecutions[nodeId] = nodeExecutionCount;
+
+        const elapsedMinutes = (Date.now() - this.executionStats.startedAtMs) / 60000;
+
+        if (this.workflowMode !== 'circular') {
+            if (nodeExecutionCount > 1000) {
+                throw new Error(`Execution stopped: node "${nodeId}" exceeded safe retry limit.`);
+            }
+            return;
+        }
+
+        const executionUsagePct = (this.executionStats.totalNodeExecutions / this.modePolicy.maxNodeExecutions) * 100;
+        for (const threshold of this.modePolicy.alertThresholds) {
+            if (executionUsagePct < threshold || this.executionStats.alertedThresholds.has(threshold)) continue;
+            this.executionStats.alertedThresholds.add(threshold);
+            await this.emitCircularAlert(
+                `threshold-${threshold}`,
+                `Circular execution reached ${threshold}% of emergency execution capacity.`,
+                {
+                    threshold,
+                    total_executions: this.executionStats.totalNodeExecutions,
+                    max_node_executions: this.modePolicy.maxNodeExecutions,
+                },
+                'warn',
+            );
+        }
+
+        if (this.executionStats.totalNodeExecutions >= this.modePolicy.maxNodeExecutions) {
+            await this.emitCircularAlert(
+                'emergency-execution-cap',
+                'Emergency stop activated: circular execution count reached the safety cap.',
+                {
+                    total_executions: this.executionStats.totalNodeExecutions,
+                    max_node_executions: this.modePolicy.maxNodeExecutions,
+                },
+                'error',
+            );
+            throw new Error('Emergency stop: maximum node executions reached for circular mode.');
+        }
+
+        if (elapsedMinutes >= this.modePolicy.maxRuntimeMinutes) {
+            await this.emitCircularAlert(
+                'emergency-runtime-cap',
+                'Emergency stop activated: circular runtime reached the safety cap.',
+                {
+                    elapsed_minutes: Number(elapsedMinutes.toFixed(2)),
+                    max_runtime_minutes: this.modePolicy.maxRuntimeMinutes,
+                },
+                'error',
+            );
+            throw new Error('Emergency stop: maximum runtime reached for circular mode.');
+        }
+
+        if (this.executionStats.totalNodeExecutions >= 100) {
+            const [dominantNodeId, dominantCount] = Object.entries(this.executionStats.perNodeExecutions)
+                .sort((a, b) => b[1] - a[1])[0] || [nodeId, nodeExecutionCount];
+            const dominanceRatio = dominantCount / this.executionStats.totalNodeExecutions;
+
+            if (dominanceRatio >= 0.9) {
+                await this.emitCircularAlert(
+                    'probable-infinite-loop',
+                    'Probable infinite loop detected: one node is dominating execution.',
+                    {
+                        dominant_node_id: dominantNodeId,
+                        dominant_ratio: Number(dominanceRatio.toFixed(4)),
+                        dominant_count: dominantCount,
+                        total_executions: this.executionStats.totalNodeExecutions,
+                    },
+                    'warn',
+                );
+            } else if (dominanceRatio >= 0.7) {
+                await this.emitCircularAlert(
+                    'single-node-domination',
+                    'Execution risk detected: one node is being executed repeatedly.',
+                    {
+                        dominant_node_id: dominantNodeId,
+                        dominant_ratio: Number(dominanceRatio.toFixed(4)),
+                        dominant_count: dominantCount,
+                        total_executions: this.executionStats.totalNodeExecutions,
+                    },
+                    'warn',
+                );
+            }
+        }
+
+        if (
+            this.executionStats.approvalNodes.size > 0
+            && this.executionStats.approvalExecutions === 0
+            && (this.executionStats.totalNodeExecutions >= 500 || elapsedMinutes >= 30)
+        ) {
+            await this.emitCircularAlert(
+                'approval-bypass-risk',
+                'Approval bypass risk: approval steps exist but have not been reached during prolonged circular execution.',
+                {
+                    approval_nodes: Array.from(this.executionStats.approvalNodes),
+                    total_executions: this.executionStats.totalNodeExecutions,
+                    elapsed_minutes: Number(elapsedMinutes.toFixed(2)),
+                },
+                'warn',
+            );
+        }
+    }
+
+    private async emitCircularAlert(
+        alertKey: string,
+        message: string,
+        payload: Record<string, unknown>,
+        level: 'warn' | 'error',
+    ) {
+        if (this.executionStats.alertKeys.has(alertKey)) return;
+        this.executionStats.alertKeys.add(alertKey);
+
+        const payloadText = Object.keys(payload).length > 0 ? ` ${JSON.stringify(payload)}` : '';
+        await this.log(level, `[Circular Alert] ${message}${payloadText}`);
+
+        try {
+            await ingestAutonomyEvent(this.userId, {
+                source_type: 'system',
+                dedupe_key: `run-alert-${this.context.runId}-${alertKey}`,
+                workflow_id: this.workflowId,
+                payload: {
+                    event: 'run.circular_alert',
+                    run_id: this.context.runId,
+                    workflow_id: this.workflowId,
+                    workflow_name: this.workflowName,
+                    mode: this.workflowMode,
+                    level,
+                    message,
+                    alert_key: alertKey,
+                    ...payload,
+                },
+            }, this.supabase as any);
+        } catch (error) {
+            console.warn('[WorkflowEngine] Failed to ingest circular alert event:', error);
+        }
+
+        try {
+            if (typeof (this.supabase as any)?.from === 'function') {
+                await (this.supabase as any)
+                    .from('rune_notifications')
+                    .insert({
+                        user_id: this.userId,
+                        type: 'agent',
+                        title: 'Workflow safety alert',
+                        message,
+                        link: `/runs/${this.context.runId}`,
+                    });
+            }
+        } catch (error) {
+            console.warn('[WorkflowEngine] Failed to create notification alert:', error);
+        }
+
+        const recipients = this.getAlertRecipients();
+        if (recipients.length === 0) return;
+
+        await Promise.allSettled(
+            recipients.map((to) => sendEmail({
+                to,
+                subject: `[Rune] Workflow safety alert: ${this.workflowName}`,
+                html: `<p>${message}</p><pre>${JSON.stringify({
+                    run_id: this.context.runId,
+                    workflow_id: this.workflowId,
+                    workflow_name: this.workflowName,
+                    mode: this.workflowMode,
+                    ...payload,
+                }, null, 2)}</pre>`,
+            })),
+        );
+    }
+
+    private getAlertRecipients(): string[] {
+        const raw =
+            process.env.RUNE_WORKFLOW_ALERT_EMAILS
+            || process.env.RUNE_WORKFLOW_ALERT_EMAIL
+            || '';
+
+        return raw
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean);
+    }
+
+    private async executeApproval(data: any, input: any) {
+        const approvalConfig = data.approvalConfig || data || {};
+        const approverEmail = approvalConfig.approverEmail || 'approver@example.com';
+        const timeout = approvalConfig.timeout || '24h';
+        const waitingFor: WaitingFor = {
+            type: 'approval',
+            identifier: `approval-${this.context.runId}-${Date.now()}`,
+            since: new Date().toISOString(),
+        };
+
+        this.context.waitingFor = waitingFor;
+        await setRunWaiting(this.supabase, this.context.runId, waitingFor);
+        await this.log('info', `Waiting for approval from ${approverEmail} (timeout: ${timeout}).`);
+
+        return {
+            status: 'waiting',
+            approverEmail,
+            timeout,
+            waitingFor,
+            input,
+        };
     }
 
     // --- Step Implementations ---
@@ -720,7 +1012,10 @@ export class WorkflowEngine {
 
     private async log(level: 'info' | 'warn' | 'error', message: string, data?: any) {
         console.log(`[WorkflowEngine] [${level}] ${message}`, data || '');
-        // Use atomic appendLog
-        await appendLog(this.supabase, this.context.runId, message, level);
+        try {
+            await appendLog(this.supabase, this.context.runId, message, level);
+        } catch (error) {
+            console.warn('[WorkflowEngine] Failed to append run log:', error);
+        }
     }
 }

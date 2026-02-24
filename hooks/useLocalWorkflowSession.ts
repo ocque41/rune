@@ -1,6 +1,11 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { Node, Edge } from '@xyflow/react';
-import type { WorkflowMode, WorkflowModeConfig } from '@/lib/workflow/modes';
+import {
+    normalizeWorkflowMode,
+    normalizeWorkflowModeConfig,
+    type WorkflowMode,
+    type WorkflowModeConfig,
+} from '@/lib/workflow/modes';
 
 const STORAGE_KEY = 'rune_workflow_session';
 
@@ -83,11 +88,14 @@ export function useLocalWorkflowSession({
 
                     setNodes(uniqueNodes);
                     setEdges(session.edges);
-                    if (session.workflowMode && setWorkflowMode) {
-                        setWorkflowMode(session.workflowMode);
+                    const normalizedMode = normalizeWorkflowMode(session.workflowMode);
+                    if (setWorkflowMode) {
+                        setWorkflowMode(normalizedMode);
                     }
-                    if (session.workflowModeConfig && setWorkflowModeConfig) {
-                        setWorkflowModeConfig(session.workflowModeConfig);
+                    if (setWorkflowModeConfig) {
+                        setWorkflowModeConfig(
+                            normalizeWorkflowModeConfig(normalizedMode, session.workflowModeConfig),
+                        );
                     }
                     console.log('Restored workflow session from', new Date(session.updatedAt).toLocaleString());
                 }
