@@ -13,6 +13,33 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+function resolveClientCookieOptions() {
+    const configuredDomain =
+        process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN ||
+        process.env.NEXT_PUBLIC_SUPABASE_COOKIE_DOMAIN
+    const domain =
+        configuredDomain && configuredDomain !== 'auto'
+            ? configuredDomain
+            : process.env.NODE_ENV === 'production'
+                ? '.cumulush.com'
+                : undefined
+
+    const secureMode = (process.env.NEXT_PUBLIC_AUTH_COOKIE_SECURE_MODE ?? 'auto').toLowerCase()
+    const secure =
+        secureMode === 'always'
+            ? true
+            : secureMode === 'never'
+                ? false
+                : window.location.protocol === 'https:'
+
+    return {
+        ...(domain ? { domain } : {}),
+        sameSite: 'lax' as const,
+        secure,
+        path: '/' as const,
+    }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null)
     const [isLoading, setIsLoading] = useState(true)
@@ -23,11 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
-            cookieOptions: {
-                domain: '.cumulush.com',
-                sameSite: 'lax',
-                secure: true,
-            }
+            cookieOptions: resolveClientCookieOptions(),
         }
     )
 
