@@ -25,12 +25,16 @@ function resolveClientCookieOptions() {
                 : undefined
 
     const secureMode = (process.env.NEXT_PUBLIC_AUTH_COOKIE_SECURE_MODE ?? 'auto').toLowerCase()
+    const isHttps =
+        typeof window !== 'undefined'
+            ? window.location.protocol === 'https:'
+            : process.env.NODE_ENV === 'production'
     const secure =
         secureMode === 'always'
             ? true
             : secureMode === 'never'
                 ? false
-                : window.location.protocol === 'https:'
+                : isHttps
 
     return {
         ...(domain ? { domain } : {}),
