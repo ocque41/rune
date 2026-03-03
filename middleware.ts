@@ -80,14 +80,6 @@ export async function middleware(request: NextRequest, event: NextFetchEvent) {
       authContext,
     })
 
-    if (staleSession) {
-      clearSupabaseAuthCookies({
-        request,
-        response,
-        cookiePolicy,
-      })
-    }
-
     queueTelemetry(request, event, {
       requestId,
       appKey: 'rune',
@@ -102,7 +94,15 @@ export async function middleware(request: NextRequest, event: NextFetchEvent) {
       redirectAllowed,
     })
 
-    return NextResponse.redirect(loginUrl)
+    const redirectResponse = NextResponse.redirect(loginUrl)
+    if (staleSession) {
+      clearSupabaseAuthCookies({
+        request,
+        response: redirectResponse,
+        cookiePolicy,
+      })
+    }
+    return redirectResponse
   }
 
   if (staleSession) {
