@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
 import { processPendingMessages } from '@/lib/notifications/process';
 
 // POST /api/notifications/process - Process pending messages and send notifications

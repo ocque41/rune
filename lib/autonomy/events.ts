@@ -1,4 +1,5 @@
-import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import { AgentEventInsert } from '@/lib/types/database';
 import type { SupabaseClient } from '@supabase/supabase-js';
 

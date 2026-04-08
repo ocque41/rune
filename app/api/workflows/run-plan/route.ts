@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { Edge, Node } from '@xyflow/react';
-import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import { WorkflowEngine } from '@/lib/workflow-engine';
 import { buildSubgraph } from '@/lib/agent-tools';
 import { processIdempotency } from '@/lib/idempotency';

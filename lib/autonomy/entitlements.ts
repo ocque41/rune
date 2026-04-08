@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
 import { getPlanFromTier, PLAN_LIMITS, PlanLimits } from './plans';
 
 export interface UserEntitlement {

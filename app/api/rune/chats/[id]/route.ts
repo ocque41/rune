@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
 
 // GET /api/rune/chats/[id] - Get chat with messages
 // DELETE /api/rune/chats/[id] - Delete chat

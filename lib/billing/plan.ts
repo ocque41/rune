@@ -1,5 +1,5 @@
 import { getUserEntitlements } from '@/lib/autonomy/entitlements';
-import { createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
 
 export interface PlanDetails {
     plan_id: string; // 'free', 'pro', 'enterprise'

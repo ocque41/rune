@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getEffectivePolicy } from './policy';
 import { TRIAGE_SYSTEM_PROMPT, PLANNING_SYSTEM_PROMPT } from './prompts';

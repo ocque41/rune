@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listSecretKeys } from '@/lib/secrets-manager';
-import { createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
 
 /**
  * GET /api/secrets/list

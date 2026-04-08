@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
 import { AgentConfigSchema } from '@/lib/agent/types';
 
 const DEFAULT_CONFIG = {

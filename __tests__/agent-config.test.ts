@@ -3,11 +3,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getEffectiveAgentConfig, saveAgentConfig } from '../app/actions/agent-config';
 import { AgentConfig } from '../lib/agent/types';
 import { isHighImpactTool } from '../lib/agent/tools-metadata';
-import { createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
 
 // Mock Supabase
-vi.mock('@/lib/supabase/server', () => ({
-    createClient: vi.fn()
+vi.mock('@cumulus/auth/server', () => ({
+    createServerSupabaseClient: vi.fn()
 }));
 
 describe('Agent Configuration Integration', () => {

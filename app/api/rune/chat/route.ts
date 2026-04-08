@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { LLMConfig, Message } from '@/lib/types/agent';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { logUsageEvent } from '@/lib/usage/log';
-import { createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
 
 export async function POST(req: NextRequest) {
     const startTs = Date.now();

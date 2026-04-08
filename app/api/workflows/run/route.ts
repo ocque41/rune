@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import { WorkflowEngine } from '@/lib/workflow-engine';
 import { processIdempotency } from '@/lib/idempotency';
 

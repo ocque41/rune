@@ -1,6 +1,6 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
 import { executeJob } from '@/lib/autonomy/execution';
 import { revalidatePath } from 'next/cache';
 import { AutonomyConfig } from '@/lib/autonomy/policy';

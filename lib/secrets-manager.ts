@@ -8,7 +8,7 @@
  */
 
 import { SupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/server'; // Import Supabase server client factory
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server'; // Import Supabase server client factory
 import { createSupabaseSecret, getSupabaseSecret as getSupabaseSecretInternal, updateSupabaseSecret, deleteSupabaseSecret, listSupabaseSecretKeys as listSupabaseSecretKeysInternal } from './supabase-secrets'; // Import Supabase secrets functions
 
 export type SecretsProvider = 'env' | 'aws' | 'vault' | 'supabase';

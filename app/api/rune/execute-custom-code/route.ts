@@ -1,6 +1,6 @@
 // app/api/rune/execute-custom-code/route.ts
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
 
 function isInternalRequest(request: Request): boolean {
   const expectedToken = process.env.RUNE_INTERNAL_API_TOKEN;

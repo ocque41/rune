@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getWaitingRuns, resumeRun, appendLog } from '@/lib/run-store';
 import { processIdempotency } from '@/lib/idempotency';
 
-import { createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
 
 async function performResume(body: any) {
     const { runId, event, data } = body;

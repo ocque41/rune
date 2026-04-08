@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@/lib/types/database';
 import { getEffectivePolicy, checkBudget } from './policy';

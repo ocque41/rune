@@ -1,6 +1,6 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
 import { TOOLS_DEFINITION } from '@/lib/agent-tools';
 import { getToolCapability, isToolImplemented } from '@/lib/agent/tools-metadata';
 

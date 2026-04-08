@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
 import { withTrace } from "@/lib/trace";
 
 const WORKFLOW_COLORS = ["#7CFF8B", "#7CD3FF", "#E5C6FF", "#FFC27C", "#FF7C9C", "#AAAAAA"];

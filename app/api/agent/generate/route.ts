@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
 import { buildAgentContext } from '@/lib/agent-context';
 import { TOOLS_DEFINITION, executeTool } from '@/lib/agent-tools';
 import { AgentConfig } from '@/lib/agent/types';

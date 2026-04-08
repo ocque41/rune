@@ -1,6 +1,6 @@
 // app/api/rune/secrets/route.ts
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
 import { listSecretKeys, createSecret, updateSecret, deleteSecret } from '@/lib/secrets-manager';
 
 // Helper function to get the authenticated user's ID
