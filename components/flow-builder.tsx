@@ -63,6 +63,7 @@ import {
     type WorkflowMode,
     type WorkflowModeConfig
 } from '@/lib/workflow/modes';
+import { assertNoInlineSecrets } from '@/lib/security/secrets-policy';
 
 // Define a type for the data property of a node, extending ReactFlow's default Node data
 interface RuneNodeData {
@@ -1106,6 +1107,8 @@ const FlowBuilderContent = ({
                 edges,
                 code,
             };
+
+            assertNoInlineSecrets(exportData, 'Workflow export');
 
             const json = JSON.stringify(exportData, null, 2);
             const filename = `workflow-${timestamp}.json`;

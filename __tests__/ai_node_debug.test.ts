@@ -28,6 +28,11 @@ vi.mock('@google/generative-ai', () => ({
     })
 }));
 
+vi.mock('@/lib/byok', () => ({
+    getUserProviderApiKey: vi.fn().mockResolvedValue({ apiKey: 'TEST_KEY', keyRef: 'GOOGLE_API_KEY' }),
+    providerFromModel: vi.fn((model: string) => model.startsWith('gemini-') ? 'google' : null),
+}));
+
 // Mock run-store functions
 vi.mock('@/lib/run-store', () => ({
     saveRun: vi.fn(),
@@ -35,6 +40,10 @@ vi.mock('@/lib/run-store', () => ({
     updateStepExecution: vi.fn(),
     setRunWaiting: vi.fn(),
     appendLog: vi.fn(),
+}));
+
+vi.mock('@/lib/usage/log', () => ({
+    logUsageEvent: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe('WorkflowEngine AI Node', () => {
@@ -72,12 +81,10 @@ describe('WorkflowEngine AI Node', () => {
             'user_1'
         );
 
-        process.env.GOOGLE_API_KEY = 'TEST_KEY';
-
         await engine.run({ name: 'World' });
 
-        // Check if @google/generative-ai was called with enforced model
-        expect(mockGetGenerativeModel).toHaveBeenCalledWith({ model: 'gemini-2.0-flash' });
+        // Check if @google/generative-ai was called with the configured model
+        expect(mockGetGenerativeModel).toHaveBeenCalledWith({ model: 'gemini-pro' });
 
         // Check if prompt was interpolated
         expect(mockGenerateContent).toHaveBeenCalledWith(expect.stringContaining('User data: {"name":"World"'));

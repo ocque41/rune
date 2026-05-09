@@ -5,6 +5,7 @@ import path from 'path';
 import { generateVersionId, saveWorkflowVersion, updateWorkflowMetadata } from './workflow-versioning';
 import { getStreamWritable } from './workflow/runtime/streams';
 import { getNodeKindDisplayName, resolveNodeKind } from './workflow/node-catalog';
+import { redactSecrets } from './security/secrets-policy';
 import {
   buildModeExecutionPolicy,
   normalizeWorkflowMode,
@@ -705,10 +706,10 @@ export const waitForApproval = async (params: { approverEmail: string; timeout?:
 
   // Add reusable AI step
   const aiStepDefinition = `
-export const generateContent = async (params: { prompt: string; model?: string; provider?: string; maxTokens?: number; thinkingLevel?: string }) => {
+export const generateContent = async (params: { prompt: string; model?: string; provider?: string; providerKeyRef?: string; maxTokens?: number; thinkingLevel?: string }) => {
   "use step";
   const isSandbox = process.env.RUNE_WORKFLOW_MODE === 'sandbox' || (process.env.NODE_ENV !== 'production' && !process.env.RUNE_WORKFLOW_MODE);
-  const provider = params.provider || 'openai';
+  const provider = params.provider || 'gemini';
   const model = params.model || (provider === 'gemini' ? 'gemini-3-flash-preview' : 'default');
   
   console.log("[AI] Generating content");
@@ -716,14 +717,9 @@ export const generateContent = async (params: { prompt: string; model?: string; 
   console.log("[AI] Model:", model);
   console.log("[AI] Prompt length:", params.prompt?.length || 0, "chars");
   console.log("[AI] Mode:", isSandbox ? 'sandbox' : 'live');
-  
-  // Check for API keys
-  const openaiKey = process.env.OPENAI_API_KEY;
-  const geminiKey = process.env.GEMINI_API_KEY;
-  
-  // In sandbox mode or without API keys, return mock
-  if (isSandbox || (provider === 'openai' && !openaiKey) || (provider === 'gemini' && !geminiKey)) {
-    console.log("[AI] Returning mock response", isSandbox ? '(sandbox mode)' : '(no API key)');
+
+  if (isSandbox) {
+    console.log("[AI] Returning mock response (sandbox mode)");
     return {
       ok: true,
       status: 'mocked',
@@ -731,12 +727,16 @@ export const generateContent = async (params: { prompt: string; model?: string; 
       model,
       provider,
       mocked: true,
-      note: isSandbox ? 'Sandbox mode' : 'API key not configured'
+      note: 'Sandbox mode'
     };
   }
   
   try {
-    if (provider === 'gemini' && geminiKey) {
+    if (provider === 'gemini') {
+      const keyRef = params.providerKeyRef || 'GOOGLE_API_KEY';
+      const geminiKey = await getSecret(keyRef);
+      if (!geminiKey) throw new Error(\`Missing provider key secret: \${keyRef}\`);
+
       // Use v1beta for new models like gemini-2.0-flash and gemini-3
       const modelName = model;
       
@@ -1573,8 +1573,9 @@ function traverseGraph(
 
     const config = (currentNode.data as any).aiConfig || {};
     const prompt = config.promptTemplate || (currentNode.data as any).prompt || '';
-    const model = config.model || (currentNode.data as any).model || 'gpt-4o';
+    const model = config.model || (currentNode.data as any).model || 'gemini-3-flash-preview';
     const provider = config.provider || 'gemini';
+    const providerKeyRef = config.providerKeyRef || (currentNode.data as any).providerKeyRef || '';
     const thinkingLevel = (currentNode.data as any).thinkingLevel;
 
     const nextEdge = edges.find(e => e.source === currentId);
@@ -1589,6 +1590,7 @@ function traverseGraph(
         prompt: \`${prompt.replace(/`/g, '\\`')}\`,
         model: "${model}",
         provider: "${provider}",
+        providerKeyRef: ${JSON.stringify(providerKeyRef)},
         thinkingLevel: "${thinkingLevel || ''}"
     });\n    ${nextCode}`;
   }
@@ -1984,7 +1986,8 @@ function processString(str: string): string {
   // If string contains a secret placeholder, replace it with ${getSecret} call
   if (str.includes('{{') && str.includes('}}')) {
     const processed = str.replace(/\{\{([^}]+)\}\}/g, (_, secretName) => {
-      return `\${getSecret("${secretName.trim()}")}`;
+      const normalizedName = String(secretName).trim().replace(/^secrets\./i, '');
+      return `\${await getSecret("${normalizedName}")}`;
     });
     return `\`${processed}\``; // Return as a template literal string
   }
@@ -1994,6 +1997,7 @@ function processString(str: string): string {
 
 // NEW: Helper to emit node output
 export async function emitNodeOutput(nodeId: string, output: any, runId: string, stepType: string) {
+  const safeOutput = redactSecrets(output);
   const writable = getStreamWritable(runId);
   if (writable) {
     const writer = writable.getWriter();
@@ -2001,13 +2005,13 @@ export async function emitNodeOutput(nodeId: string, output: any, runId: string,
       type: 'nodeOutput',
       nodeId,
       stepType,
-      output,
+      output: safeOutput,
       runId,
       timestamp: Date.now()
     }) + "\n");
     writer.releaseLock();
   } else {
-    console.log(`[Node Output Debug - ${stepType}:${nodeId}]`, output);
+    console.log(`[Node Output Debug - ${stepType}:${nodeId}]`, safeOutput);
   }
 }
 

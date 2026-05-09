@@ -1,50 +1,26 @@
-/**
- * Runtime Secrets Helper
- * This is the getSecret() function that workflows call at runtime
- * It fetches secrets from the server-side API
- */
+import { getSecret as getManagedSecret } from '@/lib/secrets-manager';
 
-// Cache secrets during workflow execution to avoid repeated API calls
 const secretsCache = new Map<string, string>();
 
 /**
- * Get a secret value by key
- * This function is meant to be imported by generated workflow code
- * 
- * Usage in workflows:
- * const apiKey = await getSecret("API_KEY");
+ * Server-only runtime secret lookup.
+ * Values are never fetched through a client-readable API route.
  */
-export async function getSecret(key: string): Promise<string> {
-    // Check cache first
-    if (secretsCache.has(key)) {
-        return secretsCache.get(key)!;
+export async function getSecret(key: string, userId: string): Promise<string> {
+    if (!userId) {
+        throw new Error('userId is required for runtime secret lookup');
     }
 
-    try {
-        // Fetch from API
-        const response = await fetch(`/api/secrets/${encodeURIComponent(key)}`);
-
-        if (!response.ok) {
-            if (response.status === 404) {
-                throw new Error(`Secret '${key}' not found`);
-            }
-            throw new Error(`Failed to fetch secret '${key}': ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (!data.success) {
-            throw new Error(data.error || `Failed to retrieve secret '${key}'`);
-        }
-
-        // Cache the value
-        secretsCache.set(key, data.value);
-
-        return data.value;
-    } catch (error) {
-        console.error(`Error fetching secret '${key}':`, error);
-        throw error;
+    const cacheKey = `${userId}:${key}`;
+    if (secretsCache.has(cacheKey)) {
+        return secretsCache.get(cacheKey)!;
     }
+
+    const value = await getManagedSecret(key, userId);
+    if (!value) throw new Error(`Secret '${key}' not found`);
+
+    secretsCache.set(cacheKey, value);
+    return value;
 }
 
 /**
@@ -60,5 +36,5 @@ export function clearSecretsCache(): void {
  * Useful for optimizing workflows that need many secrets
  */
 export async function preloadSecrets(keys: string[]): Promise<void> {
-    await Promise.all(keys.map(key => getSecret(key)));
+    throw new Error('preloadSecrets requires a user-scoped runtime and is disabled by default');
 }

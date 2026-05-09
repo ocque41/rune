@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { redactSecrets } from '@/lib/security/secrets-policy';
 
 export interface RunLog {
     timestamp: string;
@@ -55,11 +56,11 @@ export async function saveRun(supabase: SupabaseClient, run: WorkflowRun, userId
         start_time: run.startTime,
         end_time: run.endTime,
         duration: run.duration,
-        args: run.args,
-        result: run.result,
-        error: run.error,
-        logs: run.logs,
-        steps: run.steps,
+        args: redactSecrets(run.args),
+        result: redactSecrets(run.result),
+        error: redactSecrets(run.error),
+        logs: redactSecrets(run.logs),
+        steps: redactSecrets(run.steps),
         waiting_for: run.waitingFor,
     };
 
@@ -176,7 +177,7 @@ export async function appendLog(supabase: SupabaseClient, runId: string, message
     const logEntry = {
         timestamp: new Date().toISOString(),
         level,
-        message
+        message: redactSecrets(message)
     };
 
     // Fetch current logs, append, and update
@@ -214,8 +215,8 @@ export async function updateRunStatus(
 
     // Construct updates object
     const updates: any = { status };
-    if (result !== undefined) updates.result = result;
-    if (error !== undefined) updates.error = error;
+    if (result !== undefined) updates.result = redactSecrets(result);
+    if (error !== undefined) updates.error = redactSecrets(error);
     if (status === 'completed' || status === 'failed') {
         updates.end_time = new Date().toISOString();
     }
@@ -262,9 +263,9 @@ export async function recordRunProgress(
         started_at: stepExecution.startTime,
         finished_at: stepExecution.endTime,
         attempts: 1,
-        input_json: stepExecution.input,
-        output_json: stepExecution.result,
-        error_json: stepExecution.error ? { message: stepExecution.error } : null,
+        input_json: redactSecrets(stepExecution.input),
+        output_json: redactSecrets(stepExecution.result),
+        error_json: stepExecution.error ? { message: redactSecrets(stepExecution.error) } : null,
     };
 
     const { error: stepError } = await supabase
@@ -283,8 +284,8 @@ export async function recordRunProgress(
     if (runUpdates) {
         const updateData: any = {};
         if (runUpdates.status) updateData.status = runUpdates.status;
-        if (runUpdates.result !== undefined) updateData.result = runUpdates.result;
-        if (runUpdates.error !== undefined) updateData.error = runUpdates.error;
+        if (runUpdates.result !== undefined) updateData.result = redactSecrets(runUpdates.result);
+        if (runUpdates.error !== undefined) updateData.error = redactSecrets(runUpdates.error);
         if (runUpdates.endTime) updateData.end_time = runUpdates.endTime;
 
         if (Object.keys(updateData).length > 0) {

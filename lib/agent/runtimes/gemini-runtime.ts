@@ -4,6 +4,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { AgentConfig } from '../types';
 import { isHighImpactTool } from '../tools-metadata';
 import { logUsageEvent } from '@/lib/usage/log';
+import { redactSecrets } from '@/lib/security/secrets-policy';
 
 export interface GeminiRuntimeConfig extends Partial<AgentConfig> {
     model: string;
@@ -355,9 +356,9 @@ export class GeminiAgentRuntime {
                                         call.name,
                                         call.args
                                     );
-                                    resultStr = JSON.stringify(result);
+                                    resultStr = JSON.stringify(redactSecrets(result));
                                 } catch (e: any) {
-                                    resultStr = JSON.stringify({ error: e.message });
+                                    resultStr = JSON.stringify({ error: redactSecrets(e.message) });
                                 }
 
                                 responseParts.push({
@@ -399,8 +400,8 @@ export class GeminiAgentRuntime {
                     controller.close();
 
                 } catch (e: any) {
-                    console.error('[GeminiRuntime] Error:', e);
-                    emit(`\n[System Error: ${e.message}]\n`);
+                    console.error('[GeminiRuntime] Error:', redactSecrets(e?.message || e));
+                    emit(`\n[System Error: ${redactSecrets(e.message)}]\n`);
                     controller.close();
                 }
             }

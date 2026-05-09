@@ -19,6 +19,7 @@ import {
 
 import { logUsageEvent } from '@/lib/usage/log';
 import { isHighImpactTool, isToolImplemented } from './tools-metadata';
+import { redactSecrets } from '@/lib/security/secrets-policy';
 
 export interface ToolExecutionContext {
     jobId?: string;
@@ -28,7 +29,7 @@ export interface ToolExecutionContext {
 }
 
 export async function executeTool(supabase: any, userId: string, toolName: string, args: any, context?: ToolExecutionContext) {
-    console.log(`[ToolExec] Executing ${toolName} for ${userId}`, args);
+    console.log(`[ToolExec] Executing ${toolName} for ${userId}`, redactSecrets(args));
     const startTime = Date.now();
     let status: 'success' | 'error' = 'success';
 
@@ -120,9 +121,9 @@ export async function executeTool(supabase: any, userId: string, toolName: strin
         return result;
 
     } catch (e: any) {
-        console.error(`[ToolExec] Error in ${toolName}:`, e);
+        console.error(`[ToolExec] Error in ${toolName}:`, redactSecrets(e?.message || e));
         status = 'error';
-        return { error: e.message };
+        return { error: redactSecrets(e.message) };
     } finally {
         const latency = Date.now() - startTime;
         // Fire and forget logging
@@ -142,7 +143,7 @@ export async function executeTool(supabase: any, userId: string, toolName: strin
             isHighImpactTool: isHighImpactTool(toolName),
             status,
             latencyMs: latency,
-            metadata: { tool_args: args }
+            metadata: { tool_args: redactSecrets(args) }
         });
     }
 }

@@ -15,7 +15,7 @@ import {
     DrawerTrigger,
 } from '@/components/ui/drawer';
 import { toast } from 'sonner';
-import { Eye, EyeOff, PlusCircle, Trash2, Edit } from 'lucide-react';
+import { Trash2, Edit } from 'lucide-react';
 
 interface Secret {
     name: string;
@@ -30,10 +30,8 @@ const SecretsManagerDrawer: React.FC<SecretsManagerDrawerProps> = ({ isOpen, onO
     const [secrets, setSecrets] = useState<Secret[]>([]);
     const [newSecretName, setNewSecretName] = useState('');
     const [newSecretValue, setNewSecretValue] = useState('');
-    const [showNewSecretValue, setShowNewSecretValue] = useState(false);
     const [editingSecret, setEditingSecret] = useState<Secret | null>(null);
     const [editingSecretValue, setEditingSecretValue] = useState('');
-    const [showEditingSecretValue, setShowEditingSecretValue] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
     const fetchSecrets = useCallback(async () => {
@@ -79,7 +77,6 @@ const SecretsManagerDrawer: React.FC<SecretsManagerDrawerProps> = ({ isOpen, onO
             toast.success('Secret created successfully!');
             setNewSecretName('');
             setNewSecretValue('');
-            setShowNewSecretValue(false);
             fetchSecrets();
         } catch (error: any) {
             toast.error(error.message);
@@ -108,7 +105,6 @@ const SecretsManagerDrawer: React.FC<SecretsManagerDrawerProps> = ({ isOpen, onO
             toast.success('Secret updated successfully!');
             setEditingSecret(null);
             setEditingSecretValue('');
-            setShowEditingSecretValue(false);
             fetchSecrets();
         } catch (error: any) {
             toast.error(error.message);
@@ -144,7 +140,6 @@ const SecretsManagerDrawer: React.FC<SecretsManagerDrawerProps> = ({ isOpen, onO
     const startEditingSecret = (secret: Secret) => {
         setEditingSecret(secret);
         setEditingSecretValue(''); // Value is never exposed, so start empty
-        setShowEditingSecretValue(false);
     };
 
     return (
@@ -167,27 +162,17 @@ const SecretsManagerDrawer: React.FC<SecretsManagerDrawerProps> = ({ isOpen, onO
                                 disabled={isLoading}
                             />
                         </div>
-                        <div className="relative">
+                        <div>
                             <Label htmlFor="new-secret-value">Secret Value</Label>
                             <Input
                                 id="new-secret-value"
-                                type={showNewSecretValue ? 'text' : 'password'}
+                                type="password"
                                 value={newSecretValue}
                                 onChange={(e) => setNewSecretValue(e.target.value)}
-                                placeholder="sk-..."
+                                placeholder="Paste the secret value"
                                 disabled={isLoading}
-                                className="pr-10"
+                                autoComplete="off"
                             />
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="absolute right-0 top-0 mt-7 mr-2"
-                                onClick={() => setShowNewSecretValue(!showNewSecretValue)}
-                                aria-label={showNewSecretValue ? 'Hide secret value' : 'Show secret value'}
-                            >
-                                {showNewSecretValue ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            </Button>
                         </div>
                     </div>
                     <Button onClick={handleCreateSecret} disabled={isLoading || !newSecretName || !newSecretValue}>
@@ -243,27 +228,17 @@ const SecretsManagerDrawer: React.FC<SecretsManagerDrawerProps> = ({ isOpen, onO
                             <DrawerDescription>Update the value for this secret.</DrawerDescription>
                         </DrawerHeader>
                         <div className="p-4">
-                            <div className="relative mb-4">
+                            <div className="mb-4">
                                 <Label htmlFor="edit-secret-value">Secret Value</Label>
                                 <Input
                                     id="edit-secret-value"
-                                    type={showEditingSecretValue ? 'text' : 'password'}
+                                    type="password"
                                     value={editingSecretValue}
                                     onChange={(e) => setEditingSecretValue(e.target.value)}
-                                    placeholder="sk-..."
+                                    placeholder="Paste replacement value"
                                     disabled={isLoading}
-                                    className="pr-10"
+                                    autoComplete="off"
                                 />
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="absolute right-0 top-0 mt-7 mr-2"
-                                    onClick={() => setShowEditingSecretValue(!showEditingSecretValue)}
-                                    aria-label={showEditingSecretValue ? 'Hide secret value' : 'Show secret value'}
-                                >
-                                    {showEditingSecretValue ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                </Button>
                             </div>
                             <Button onClick={handleUpdateSecret} disabled={isLoading || !editingSecretValue}>
                                 {isLoading ? 'Updating...' : 'Update Secret'}

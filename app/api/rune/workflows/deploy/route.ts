@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
 import { workflowStore } from '@/lib/workflow-store';
+import { assertNoInlineSecrets } from '@/lib/security/secrets-policy';
 
 export async function POST(req: NextRequest) {
     try {
@@ -19,6 +20,8 @@ export async function POST(req: NextRequest) {
         if (!workflow) {
             return NextResponse.json({ error: 'Workflow not found or access denied' }, { status: 404 });
         }
+
+        assertNoInlineSecrets({ graph: workflow.graph, code: workflow.code || '' }, 'Workflow deploy');
 
         const newVersion = await workflowStore.deployVersion(
             supabase,

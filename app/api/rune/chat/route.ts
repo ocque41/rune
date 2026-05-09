@@ -3,6 +3,8 @@ import { LLMConfig, Message } from '@/lib/types/agent';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { logUsageEvent } from '@/lib/usage/log';
 import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
+import { MissingProviderKeyError, getUserProviderApiKey } from '@/lib/byok';
+import { redactSecrets } from '@/lib/security/secrets-policy';
 
 export async function POST(req: NextRequest) {
     const startTs = Date.now();
@@ -14,16 +16,21 @@ export async function POST(req: NextRequest) {
         if (user) userId = user.id;
 
         const body = await req.json();
-        const { messages, config } = body as { messages: Message[], config: LLMConfig };
+        const { messages, config = {} as LLMConfig } = body as { messages: Message[], config?: LLMConfig };
 
         if (!messages || !Array.isArray(messages)) {
             return NextResponse.json({ error: 'Invalid messages format' }, { status: 400 });
         }
 
-        const apiKey = process.env.GOOGLE_API_KEY;
-        if (!apiKey) {
-            return NextResponse.json({ error: 'Server configuration error: Missing API Key' }, { status: 500 });
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+
+        const { apiKey } = await getUserProviderApiKey({
+            provider: 'google',
+            providerKeyRef: config.providerKeyRef,
+            userId: user.id,
+        });
 
         const genAI = new GoogleGenerativeAI(apiKey);
 
@@ -87,7 +94,7 @@ export async function POST(req: NextRequest) {
                     });
 
                 } catch (err: any) {
-                    console.error('Stream Error:', err);
+                    console.error('Stream Error:', redactSecrets(err?.message || err));
                     controller.error(err);
 
                     // Log failure
@@ -98,7 +105,7 @@ export async function POST(req: NextRequest) {
                         provider: 'google',
                         status: 'error',
                         latencyMs: Date.now() - startTs,
-                        errorCode: err.message
+                        errorCode: redactSecrets(err.message)
                     });
                 } finally {
                     controller.close();
@@ -114,7 +121,10 @@ export async function POST(req: NextRequest) {
         });
 
     } catch (error: any) {
-        console.error('Chat API Error:', error);
+        if (error instanceof MissingProviderKeyError) {
+            return NextResponse.json({ error: error.message }, { status: 400 });
+        }
+        console.error('Chat API Error:', redactSecrets(error?.message || error));
 
         // Log top-level failure
         await logUsageEvent({
@@ -124,7 +134,7 @@ export async function POST(req: NextRequest) {
             provider: 'google',
             status: 'error',
             latencyMs: Date.now() - startTs,
-            errorCode: error.message
+            errorCode: redactSecrets(error.message)
         });
 
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

@@ -22,12 +22,20 @@ export interface SecretsConfig {
     vaultToken?: string;
 }
 
+function isProdLike(): boolean {
+    return process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
+}
+
 /**
  * Get secrets configuration from environment variables
  */
 function getConfig(): SecretsConfig {
     // Default to 'supabase' if not set, as 'env' is read-only
     const provider = (process.env.SECRETS_PROVIDER || 'supabase') as SecretsProvider;
+
+    if (provider === 'env' && isProdLike()) {
+        throw new Error('SECRETS_PROVIDER=env is disabled in production. Use Supabase-backed BYOK secrets.');
+    }
 
     return {
         provider,
@@ -43,7 +51,6 @@ function getConfig(): SecretsConfig {
  */
 export async function listSecretKeys(userId: string): Promise<string[]> {
     const config = getConfig();
-    const supabase = await createClient(); // Create Supabase client once per request
 
     switch (config.provider) {
         case 'env':
@@ -56,6 +63,7 @@ export async function listSecretKeys(userId: string): Promise<string[]> {
             return listVaultSecretKeys(config);
 
         case 'supabase':
+            const supabase = await createClient();
             return listSupabaseSecretKeysInternal(supabase, userId);
 
         default:
@@ -69,7 +77,6 @@ export async function listSecretKeys(userId: string): Promise<string[]> {
  */
 export async function getSecret(key: string, userId?: string): Promise<string | null> {
     const config = getConfig();
-    const supabase = await createClient(); // Create Supabase client
 
     switch (config.provider) {
         case 'env':
@@ -83,9 +90,10 @@ export async function getSecret(key: string, userId?: string): Promise<string | 
 
         case 'supabase':
             if (!userId) {
-                console.error("userId is required for Supabase secrets provider");
+                console.error('userId is required for Supabase secrets provider');
                 return null;
             }
+            const supabase = await createClient();
             return getSupabaseSecretInternal(supabase, userId, key);
 
         default:
@@ -183,8 +191,7 @@ async function listAwsSecretKeys(config: SecretsConfig): Promise<string[]> {
             .filter(Boolean) as string[];
     } catch (error) {
         console.error('Error listing AWS secrets:', error);
-        console.warn('Falling back to environment variables');
-        return listEnvSecretKeys();
+        return [];
     }
 }
 
@@ -214,8 +221,8 @@ async function getAwsSecret(key: string, config: SecretsConfig): Promise<string 
  */
 async function listVaultSecretKeys(config: SecretsConfig): Promise<string[]> {
     if (!config.vaultAddress || !config.vaultToken) {
-        console.warn('Vault configuration missing, falling back to environment variables');
-        return listEnvSecretKeys();
+        console.warn('Vault configuration missing');
+        return [];
     }
 
     try {
@@ -233,8 +240,7 @@ async function listVaultSecretKeys(config: SecretsConfig): Promise<string[]> {
         return data.data?.keys || [];
     } catch (error) {
         console.error('Error listing Vault secrets:', error);
-        console.warn('Falling back to environment variables');
-        return listEnvSecretKeys();
+        return [];
     }
 }
 

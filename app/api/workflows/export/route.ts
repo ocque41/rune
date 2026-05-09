@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { assertNoInlineSecrets } from '@/lib/security/secrets-policy';
 
 export async function POST(request: NextRequest) {
     try {
@@ -11,6 +12,8 @@ export async function POST(request: NextRequest) {
                 { status: 400 }
             );
         }
+
+        assertNoInlineSecrets(data, 'Workflow export');
 
         // Create the JSON content
         const json = JSON.stringify(data, null, 2);

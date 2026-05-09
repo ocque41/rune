@@ -12,6 +12,7 @@ export const AgentConfigSchema = z.object({
     // Note: stored externally in DB columns, but useful to have in type def
     model: z.string().min(1, "Model is required"),
     provider: ModelProviderSchema.default('google'),
+    providerKeyRef: z.string().trim().min(1).max(128).optional(),
 
     // Generation Params
     temperature: z.number().min(0).max(2).default(0.7),

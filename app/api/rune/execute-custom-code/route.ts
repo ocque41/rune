@@ -1,6 +1,7 @@
 // app/api/rune/execute-custom-code/route.ts
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient as createClient } from '@cumulus/auth/server';
+import { redactSecrets } from '@/lib/security/secrets-policy';
 
 function isInternalRequest(request: Request): boolean {
   const expectedToken = process.env.RUNE_INTERNAL_API_TOKEN;
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
       console.log("[Custom Code Proxy] Sandbox execution request received:");
       console.log("  Language:", language);
       console.log("  Entrypoint:", entrypoint);
-      console.log("  Input:", JSON.stringify(input));
+      console.log("  Input:", JSON.stringify(redactSecrets(input)));
       console.log("  Code length:", code.length);
       
       // Simulate execution time
@@ -46,11 +47,11 @@ export async function POST(request: Request) {
           simulated: true,
           language,
           entrypoint,
-          input,
+          input: redactSecrets(input),
           processedCodeLength: code.length,
           message: `Successfully simulated ${language} code execution in sandbox.`
         },
-        logs: [`Sandbox: Executed ${entrypoint} in ${language} with input: ${JSON.stringify(input)}`],
+        logs: [`Sandbox: Executed ${entrypoint} in ${language} with input: ${JSON.stringify(redactSecrets(input))}`],
         durationMs: 100
       });
     }
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
 
     if (!externalResponse.ok) {
       const errorData = await externalResponse.json().catch(() => ({ message: 'Unknown error from external service.' }));
-      console.error("[Custom Code Proxy] External service error:", externalResponse.status, errorData);
+      console.error("[Custom Code Proxy] External service error:", externalResponse.status, redactSecrets(errorData));
       return NextResponse.json(
         { status: 'error', message: `External service responded with error: ${externalResponse.status} - ${errorData.message || 'Unknown'}` },
         { status: externalResponse.status }
@@ -92,9 +93,9 @@ export async function POST(request: Request) {
     return NextResponse.json(responseData);
 
   } catch (error: any) {
-    console.error("[Custom Code Proxy] Internal server error:", error);
+    console.error("[Custom Code Proxy] Internal server error:", redactSecrets(error?.message || error));
     return NextResponse.json(
-      { status: 'error', message: 'Internal server error processing custom code request.', error: error.message },
+      { status: 'error', message: 'Internal server error processing custom code request.', error: redactSecrets(error.message) },
       { status: 500 }
     );
   }

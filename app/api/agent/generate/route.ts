@@ -5,6 +5,8 @@ import { TOOLS_DEFINITION, executeTool } from '@/lib/agent-tools';
 import { AgentConfig } from '@/lib/agent/types';
 import { isHighImpactTool, isToolImplemented } from '@/lib/agent/tools-metadata';
 import { GeminiAgentRuntime } from '@/lib/agent/runtimes/gemini-runtime';
+import { MissingProviderKeyError, getUserProviderApiKey, providerFromModel } from '@/lib/byok';
+import { redactSecrets } from '@/lib/security/secrets-policy';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60; // Set max duration to 60 seconds (Hobby limit)
@@ -12,21 +14,6 @@ export const maxDuration = 60; // Set max duration to 60 seconds (Hobby limit)
 // ... (GenerateRequest interface)
 
 // ... (POST function start)
-
-function getProvider(model: string): 'openai' | 'anthropic' | 'google' | null {
-    if (model.startsWith('gpt-')) return 'openai';
-    if (model.startsWith('claude-')) return 'anthropic';
-    if (model.startsWith('gemini-')) return 'google';
-    if (model.startsWith('o1-')) return 'openai';
-    return null;
-}
-
-function getApiKey(provider: 'openai' | 'anthropic' | 'google'): string | undefined {
-    if (provider === 'openai') return process.env.OPENAI_API_KEY;
-    if (provider === 'anthropic') return process.env.ANTHROPIC_API_KEY;
-    if (provider === 'google') return process.env.GOOGLE_API_KEY;
-    return undefined;
-}
 
 interface GenerateRequest {
     input: string;
@@ -102,7 +89,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Determine provider based on model
-        const provider = getProvider(config.model);
+        const provider = providerFromModel(config.model);
 
         if (!provider) {
             return NextResponse.json({
@@ -110,14 +97,11 @@ export async function POST(req: NextRequest) {
             }, { status: 400 });
         }
 
-        // Get API key
-        const apiKey = getApiKey(provider);
-
-        if (!apiKey) {
-            return NextResponse.json({
-                error: `API key not configured for ${provider}. Please add ${provider.toUpperCase()}_API_KEY to your environment.`
-            }, { status: 500 });
-        }
+        const { apiKey } = await getUserProviderApiKey({
+            provider,
+            providerKeyRef: config.providerKeyRef,
+            userId: user.id,
+        });
 
         // --- Build Context ---
         let systemPromptWithContext = config.systemPrompt;
@@ -220,13 +204,7 @@ export async function POST(req: NextRequest) {
             return isToolImplemented(toolName);
         });
 
-        if (config.model.startsWith('gemini')) {
-            const googleApiKey = process.env.GOOGLE_API_KEY;
-
-            if (!googleApiKey) {
-                return NextResponse.json({ error: 'Missing GOOGLE_API_KEY' }, { status: 500 });
-            }
-
+        if (provider === 'google') {
             // Format messages for Runtime: { role, content }
             const runtimeMessages = messages.map(m => ({
                 role: m.role,
@@ -235,7 +213,7 @@ export async function POST(req: NextRequest) {
 
             // Convert system tools to definitions
             const toolsDefinitions = TOOLS_DEFINITION.filter(t => allowedToolNames.includes(t.function.name));
-            const runtime = new GeminiAgentRuntime(supabase, user.id, googleApiKey);
+            const runtime = new GeminiAgentRuntime(supabase, user.id, apiKey);
 
             // TODO: Add MCP tools if needed
 
@@ -248,7 +226,7 @@ export async function POST(req: NextRequest) {
                     systemPrompt: systemPromptWithContext || config.systemPrompt,
                     maxTokens: config.maxTokens || 2000,
                     topP: config.topP,
-                    apiKey: googleApiKey,
+                    apiKey,
                     tools: allowedToolNames,
                     thinking: config.thinking || { enabled: false } // Pass thinking config if present in request
                 },
@@ -268,12 +246,16 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        // Default / OpenAI Fallback
-        return streamOpenAI(apiKey!, config, messages, supabase, user.id, activeChatId, autonomousMode, sessionId, workflowId || undefined);
+        if (provider === 'anthropic') {
+            return streamAnthropic(apiKey, config, messages);
+        }
+
+        return streamOpenAI(apiKey, config, messages, supabase, user.id, activeChatId, autonomousMode, sessionId, workflowId || undefined);
 
         // ... (functions below)
 
         function formatContextToString(ctx: any): string {
+            ctx = redactSecrets(ctx);
             let s = `You are an AI assistant helping with the Rune automation platform.\n\n`;
 
             // User
@@ -344,12 +326,12 @@ export async function POST(req: NextRequest) {
 
 
         async function executeToolCall(supabase: any, userId: string, toolName: string, args: any) {
-            console.log(`[ToolExec] Executing ${toolName} for ${userId}`, args);
+            console.log(`[ToolExec] Executing ${toolName} for ${userId}`, redactSecrets(args));
             try {
-                return await executeTool(supabase, userId, toolName, args || {});
+                return redactSecrets(await executeTool(supabase, userId, toolName, args || {}));
             } catch (e: any) {
-                console.error(`[ToolExec] Error in ${toolName}:`, e);
-                return { error: e.message };
+                console.error(`[ToolExec] Error in ${toolName}:`, redactSecrets(e?.message || e));
+                return { error: redactSecrets(e.message) };
             }
         }
 
@@ -583,7 +565,7 @@ export async function POST(req: NextRequest) {
                             }
                         }
                     } catch (e: any) {
-                        result = { error: e.message || 'Failed to execute tool' };
+                        result = { error: redactSecrets(e.message || 'Failed to execute tool') };
 
                         if (toolCall.function.name === 'run_node') {
                             const args = JSON.parse(toolCall.function.arguments || '{}');
@@ -591,7 +573,7 @@ export async function POST(req: NextRequest) {
                             if (nodeId) {
                                 failedNodes[nodeId] = failedNodes[nodeId] || { attempts: 0, lastError: '' };
                                 failedNodes[nodeId].attempts++;
-                                failedNodes[nodeId].lastError = e.message;
+                                failedNodes[nodeId].lastError = redactSecrets(e.message);
                             }
                         }
                     }
@@ -913,9 +895,12 @@ export async function POST(req: NextRequest) {
             });
         }
     } catch (error) {
+        if (error instanceof MissingProviderKeyError) {
+            return NextResponse.json({ error: error.message }, { status: 400 });
+        }
         console.error('Generate API error:', error);
         return NextResponse.json({
-            error: error instanceof Error ? error.message : 'Internal server error'
+            error: error instanceof Error ? redactSecrets(error.message) : 'Internal server error'
         }, { status: 500 });
     }
 }

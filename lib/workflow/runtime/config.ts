@@ -50,7 +50,8 @@ export function isProductionMode(): boolean {
 }
 
 /**
- * Check if a specific service is configured via environment variables
+ * Check if a specific service is configured via environment variables.
+ * Model providers are intentionally not configured here; hosted AI calls use per-user BYOK secrets.
  */
 export function isServiceConfigured(service: 'database' | 'email' | 'slack' | 'openai' | 'gemini'): boolean {
     switch (service) {
@@ -60,8 +61,9 @@ export function isServiceConfigured(service: 'database' | 'email' | 'slack' | 'o
             return !!(process.env.RESEND_API_KEY || process.env.SMTP_HOST || process.env.SENDGRID_API_KEY);
         case 'slack':
             return !!process.env.SLACK_WEBHOOK_URL;
+        case 'openai':
         case 'gemini':
-            return !!process.env.GEMINI_API_KEY;
+            return false;
         default:
             return false;
     }

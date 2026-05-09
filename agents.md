@@ -7,7 +7,7 @@ Give AI agents a fast, accurate map of the Rune codebase, key data flows, and co
 Rune is a **Workflow Command Deck**: a visual, node-based workflow builder with code generation, simulation, and cloud persistence. The app includes a command center dashboard (3D workflow wheel + modules), a drag-and-drop editor, workflow templates, run history, and an autonomy/jobs console.
 
 ## Tech Stack
-- **Next.js 15** (App Router, React Server Actions)
+- **Next.js 16** (App Router, React Server Actions)
 - **React** (client-heavy UI)
 - **Tailwind CSS** (no custom CSS modules)
 - **@xyflow/react** (React Flow graph engine)
@@ -73,7 +73,7 @@ Rune is a **Workflow Command Deck**: a visual, node-based workflow builder with 
 - **Input**: React Flow nodes/edges
 - **Process**: graph traversal + TypeScript template assembly
 - **Output**: executable TS with helpers + step impls
-- **Secrets**: UI uses `{{SECRET_NAME}}` → compiler converts to `${getSecret("SECRET_NAME")}`
+- **Secrets**: UI uses `{{SECRET_NAME}}` → compiler converts to server-side secret resolution.
 - **Never** hardcode secrets in generated code.
 
 ## Adding a Node Type (required steps)

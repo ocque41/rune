@@ -24,6 +24,8 @@ import {
     type WorkflowModeConfig,
     type ModeExecutionPolicy,
 } from './workflow/modes';
+import { getUserProviderApiKey, providerFromModel } from '@/lib/byok';
+import { redactSecrets } from '@/lib/security/secrets-policy';
 
 type ExecutionContext = {
     runId: string;
@@ -242,8 +244,8 @@ export class WorkflowEngine {
             };
 
         } catch (error: any) {
-            console.error('Workflow execution failed:', error);
-            await updateRunStatus(this.supabase, this.context.runId, 'failed', undefined, error.message);
+            console.error('Workflow execution failed:', redactSecrets(error?.message || error));
+            await updateRunStatus(this.supabase, this.context.runId, 'failed', undefined, redactSecrets(error.message));
 
             try {
                 await ingestAutonomyEvent(this.userId, {
@@ -254,7 +256,7 @@ export class WorkflowEngine {
                         event: 'run.failed',
                         run_id: this.context.runId,
                         status: 'failed',
-                        error: error.message
+                        error: redactSecrets(error.message)
                     }
                 }, this.supabase as any);
             } catch (e) {
@@ -615,7 +617,7 @@ export class WorkflowEngine {
         if (!config?.url) throw new Error('Missing URL');
 
         console.log('[WorkflowEngine] executeHttpRequest called');
-        console.log('[WorkflowEngine] HTTP config:', JSON.stringify(config, null, 2));
+        console.log('[WorkflowEngine] HTTP config:', JSON.stringify(redactSecrets(config), null, 2));
 
         // Parse headers - they may be stored as a JSON string
         let headers: Record<string, string> = {};
@@ -624,7 +626,7 @@ export class WorkflowEngine {
                 try {
                     headers = JSON.parse(config.headers);
                 } catch (e) {
-                    console.warn('[WorkflowEngine] Failed to parse headers JSON:', config.headers);
+                    console.warn('[WorkflowEngine] Failed to parse headers JSON:', redactSecrets(config.headers));
                 }
             } else {
                 headers = config.headers;
@@ -646,8 +648,8 @@ export class WorkflowEngine {
         }
 
         console.log('[WorkflowEngine] Fetching:', config.url, config.method || 'GET');
-        console.log('[WorkflowEngine] Headers:', headers);
-        console.log('[WorkflowEngine] Body:', body);
+        console.log('[WorkflowEngine] Headers:', redactSecrets(headers));
+        console.log('[WorkflowEngine] Body:', redactSecrets(body));
 
         const response = await fetch(config.url, {
             method: config.method || 'GET',
@@ -677,8 +679,8 @@ export class WorkflowEngine {
 
         // Debug logging
         console.log('[WorkflowEngine] executeSendEmail called');
-        console.log('[WorkflowEngine] Raw data:', JSON.stringify(data, null, 2));
-        console.log('[WorkflowEngine] emailConfig:', JSON.stringify(config, null, 2));
+        console.log('[WorkflowEngine] Raw data:', JSON.stringify(redactSecrets(data), null, 2));
+        console.log('[WorkflowEngine] emailConfig:', JSON.stringify(redactSecrets(config), null, 2));
 
         const { sendEmail } = await import('./email');
         let smtpConfig = undefined;
@@ -695,7 +697,7 @@ export class WorkflowEngine {
 
                 if (senderData?.smtp_config) {
                     smtpConfig = senderData.smtp_config;
-                    console.log('[WorkflowEngine] Found smtp_config:', smtpConfig);
+                    console.log('[WorkflowEngine] Found smtp_config:', redactSecrets(smtpConfig));
                 } else {
                     console.log('[WorkflowEngine] No smtp_config found, will use Resend');
                 }
@@ -714,16 +716,16 @@ export class WorkflowEngine {
             smtpConfig
         };
 
-        console.log('[WorkflowEngine] Calling sendEmail with:', JSON.stringify(emailParams, null, 2));
+        console.log('[WorkflowEngine] Calling sendEmail with:', JSON.stringify(redactSecrets(emailParams), null, 2));
 
         try {
             const result = await sendEmail(emailParams);
-            console.log('[WorkflowEngine] Email sent successfully:', result);
+            console.log('[WorkflowEngine] Email sent successfully:', redactSecrets(result));
             return result;
         } catch (error: any) {
-            console.error('[Email] Failed:', error);
+            console.error('[Email] Failed:', redactSecrets(error?.message || error));
 
-            let errorMessage = error.message || 'Unknown email error';
+            let errorMessage = redactSecrets(error.message || 'Unknown email error');
 
             // Critical Hint for AI Agent to stop infinite loops on Resend restrictions
             if (errorMessage.includes("Invalid `to` field") || errorMessage.includes("Resend free tier")) {
@@ -825,12 +827,7 @@ export class WorkflowEngine {
     }
 
     private async executeAiGenerate(data: any, input: any) {
-        const config = data.aiConfig || {};
-        const apiKey = process.env.GOOGLE_API_KEY;
-
-        if (!apiKey) {
-            throw new Error("GOOGLE_API_KEY is not configured in the environment.");
-        }
+        const config = { ...data, ...(data.aiConfig || {}) };
 
         let prompt = config.prompt;
         if (!prompt) {
@@ -845,10 +842,19 @@ export class WorkflowEngine {
             // Todo: Better templating engine
         }
 
-        const genAI = new GoogleGenerativeAI(apiKey);
+        const modelName = config.model || 'gemini-2.0-flash';
+        const provider = config.provider || providerFromModel(modelName) || 'google';
+        if (provider !== 'google') {
+            throw new Error(`Workflow AI node provider '${provider}' is not supported by the workflow runner yet.`);
+        }
 
-        // Use gemini-2.0-flash as the only supported model for now
-        const modelName = 'gemini-2.0-flash';
+        const { apiKey } = await getUserProviderApiKey({
+            provider: 'google',
+            providerKeyRef: config.providerKeyRef,
+            userId: this.userId,
+        });
+
+        const genAI = new GoogleGenerativeAI(apiKey);
 
         // Prepare generation config with thinking config support
         const generationConfig: any = {};
@@ -985,8 +991,8 @@ export class WorkflowEngine {
 
         // Get secrets from secrets manager (which will resolve via provider)
         const secretsManager = await import('@/lib/secrets-manager');
-        const accountSid = await secretsManager.getSecret(accountSidSecretName);
-        const authToken = await secretsManager.getSecret(authTokenSecretName);
+        const accountSid = await secretsManager.getSecret(accountSidSecretName, this.userId);
+        const authToken = await secretsManager.getSecret(authTokenSecretName, this.userId);
 
         if (!accountSid || !authToken) {
             throw new Error("Twilio Account SID or Auth Token secret not found.");
@@ -1011,9 +1017,9 @@ export class WorkflowEngine {
     }
 
     private async log(level: 'info' | 'warn' | 'error', message: string, data?: any) {
-        console.log(`[WorkflowEngine] [${level}] ${message}`, data || '');
+        console.log(`[WorkflowEngine] [${level}] ${message}`, data ? redactSecrets(data) : '');
         try {
-            await appendLog(this.supabase, this.context.runId, message, level);
+            await appendLog(this.supabase, this.context.runId, redactSecrets(message), level);
         } catch (error) {
             console.warn('[WorkflowEngine] Failed to append run log:', error);
         }

@@ -4,6 +4,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js'; // Assuming SupabaseClient is available
 import { isToolImplemented } from '@/lib/agent/tools-metadata';
+import { redactSecrets } from '@/lib/security/secrets-policy';
 
 // --- INTERFACES AND TYPES ---
 export interface ToolFunction {
@@ -538,7 +539,7 @@ export const TOOLS_DEFINITION: ToolDefinition[] = [
 // --- TOOL EXECUTION FUNCTION ---
 // This function dispatches to the correct tool handler.
 export async function executeTool(supabase: SupabaseClient, userId: string, toolName: string, args: any): Promise<any> {
-    console.log(`[lib/agent-tools.ts] Executing ${toolName} for ${userId}`, args);
+    console.log(`[lib/agent-tools.ts] Executing ${toolName} for ${userId}`, redactSecrets(args));
     try {
         // Normalize MCP naming variants
         if (toolName.startsWith('mcp:')) {

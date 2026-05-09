@@ -35,6 +35,14 @@ export function AiConfigForm({ draftData, setDraftData, errors, activeSection }:
           />
           <ErrorText errors={errors} path="model" />
         </Field>
+        <Field label="Provider Key Secret">
+          <TextInput
+            value={asString(getPathValue(draftData, 'providerKeyRef'))}
+            onChange={(value) => setDraftData((current) => setPathValue(current, 'providerKeyRef', value))}
+            placeholder="GOOGLE_API_KEY"
+          />
+          <ErrorText errors={errors} path="providerKeyRef" />
+        </Field>
         <Field label="Thinking Level">
           <SelectInput
             value={asString(getPathValue(draftData, 'thinkingLevel'), 'high')}

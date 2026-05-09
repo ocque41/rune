@@ -6,6 +6,7 @@ import {
     normalizeWorkflowMode,
     normalizeWorkflowModeConfig,
 } from '@/lib/workflow/modes';
+import { assertNoInlineSecrets } from '@/lib/security/secrets-policy';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,8 @@ export async function POST(req: NextRequest) {
                     { status: 400 },
                 );
             }
+
+            assertNoInlineSecrets({ graph: graphPayload, code }, 'Workflow save');
 
             const mode = normalizeWorkflowMode(workflow_mode);
             const modeConfig = normalizeWorkflowModeConfig(mode, workflow_mode_config);

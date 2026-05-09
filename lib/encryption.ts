@@ -3,12 +3,10 @@ import crypto from 'crypto';
 const ALGORITHM = 'aes-256-gcm';
 
 function getEncryptionKey() {
-    // Only use server-side secrets for the key. Fallback for local dev only if needed.
-    const rawKey = process.env.SUPABASE_JWT_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const rawKey = process.env.RUNE_SECRETS_ENCRYPTION_KEY;
 
     if (!rawKey) {
-        console.warn('Warning: No secure key found for encryption. Using fallback (NOT SECURE for production).');
-        return crypto.createHash('sha256').update('insecure-fallback-key').digest();
+        throw new Error('RUNE_SECRETS_ENCRYPTION_KEY is required to encrypt BYOK secrets.');
     }
 
     return crypto.createHash('sha256').update(String(rawKey)).digest();
@@ -54,8 +52,7 @@ export function decrypt(text: string): string {
         decrypted += decipher.final('utf8');
 
         return decrypted;
-    } catch (error) {
-        console.error('Decryption failed:', error);
+    } catch {
         throw new Error('Failed to decrypt secret');
     }
 }

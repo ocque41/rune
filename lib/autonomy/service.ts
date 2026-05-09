@@ -8,8 +8,13 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { executeJob } from './execution';
 import { logUsageEvent } from '@/lib/usage/log';
 import { scheduleMessage } from '@/lib/agent-tools';
+import { getUserProviderApiKey } from '@/lib/byok';
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
+async function getGeminiModel(userId: string, modelName = 'gemini-1.5-flash') {
+    const { apiKey } = await getUserProviderApiKey({ provider: 'google', userId });
+    const genAI = new GoogleGenerativeAI(apiKey);
+    return genAI.getGenerativeModel({ model: modelName, generationConfig: { responseMimeType: "application/json" } });
+}
 
 export async function processPendingEvents(supabase: SupabaseClient<Database>) {
     const { data: events, error } = await supabase
@@ -180,7 +185,7 @@ export async function runPlanning(jobId: string, supabaseClient?: SupabaseClient
     const { config: policy } = await getEffectivePolicy(supabase, job.user_id, job.workflow_id || undefined);
 
     // 3. Plan (AI)
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", generationConfig: { responseMimeType: "application/json" } });
+    const model = await getGeminiModel(job.user_id);
 
     const prompt = `
     ${PLANNING_SYSTEM_PROMPT}
@@ -260,7 +265,7 @@ async function updateEventStatus(supabase: SupabaseClient<Database>, id: string,
 }
 
 async function runTriageAI(event: any, policy: any) {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", generationConfig: { responseMimeType: "application/json" } });
+    const model = await getGeminiModel(event.user_id);
 
     const prompt = `
     ${TRIAGE_SYSTEM_PROMPT}

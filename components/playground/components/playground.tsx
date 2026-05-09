@@ -87,6 +87,7 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
     // Auto-scroll ref
     const [availableTools, setAvailableTools] = useState<AgentToolDef[]>([]);
     const [isLoadingTools, setIsLoadingTools] = useState(false);
+    const [secretKeys, setSecretKeys] = useState<string[]>([]);
     const toolsListRef = useRef<HTMLDivElement>(null);
     const chatMessagesRef = useRef<HTMLDivElement>(null);
 
@@ -189,13 +190,15 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
         const loadInitialData = async () => {
             setIsLoadingTools(true);
             try {
-                const [{ tools }, loadedPresets, effectiveConfig] = await Promise.all([
+                const [{ tools }, loadedPresets, effectiveConfig, secretsResponse] = await Promise.all([
                     getAvailableTools(),
                     getAgentPresets(),
-                    getEffectiveAgentConfig(workflowId || undefined)
+                    getEffectiveAgentConfig(workflowId || undefined),
+                    fetch('/api/rune/secrets').then((response) => response.ok ? response.json() : { secretKeys: [] }),
                 ]);
                 setAvailableTools(tools);
                 setPresets(loadedPresets);
+                setSecretKeys(Array.isArray(secretsResponse.secretKeys) ? secretsResponse.secretKeys : []);
                 if (effectiveConfig) {
                     updateConfig(effectiveConfig);
                 }
@@ -983,6 +986,24 @@ export function Playground({ workflowId, onSubmit, onSave }: PlaygroundProps) {
                                             <SelectItem value="gemini-3-pro-preview">Gemini 3 Pro (Preview)</SelectItem>
                                         </SelectContent>
                                     </Select>
+
+                                    <div className="space-y-2">
+                                        <Label className="text-[11px] text-white/60">Provider Key</Label>
+                                        <Select
+                                            value={config.providerKeyRef || "__default"}
+                                            onValueChange={(val) => updateConfig({ providerKeyRef: val === "__default" ? undefined : val })}
+                                        >
+                                            <SelectTrigger className="bg-white/[0.03] border-white/[0.08] h-9 text-xs text-white/80">
+                                                <SelectValue placeholder="Select secret" />
+                                            </SelectTrigger>
+                                            <SelectContent className="bg-[color:var(--metric-surface-2)] border-white/[0.08]">
+                                                <SelectItem value="__default">Default secret name</SelectItem>
+                                                {secretKeys.map((key) => (
+                                                    <SelectItem key={key} value={key}>{key}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
 
                                     {/* Cost & Usage Stats */}
                                     {messages.length > 0 && (

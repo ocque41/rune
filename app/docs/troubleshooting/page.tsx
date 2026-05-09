@@ -39,10 +39,10 @@ export default function TroubleshootingPage() {
                             <h2 className="text-xl font-bold text-[var(--foreground-title)]">"Secret Not Found" Error</h2>
                         </div>
                         <p className="text-[var(--foreground-body)] mb-3">
-                            This happens when a workflow tries to access a <code>{`{{SECRET_NAME}}`}</code> that hasn't been defined in the environment.
+                            This happens when a workflow tries to access a <code>{`{{SECRET_NAME}}`}</code> that has not been added to Rune Secrets.
                         </p>
                         <div className="bg-[var(--background)] p-3 rounded border border-[var(--border-color)] text-sm">
-                            <strong>Fix:</strong> Add the secret to your project's `.env` file (e.g. `WORKFLOW_SECRET_MY_API_KEY=value`) and restart the dev server.
+                            <strong>Fix:</strong> Add or replace the key in the Secrets drawer. Local development can also use <code>WORKFLOW_SECRET_MY_API_KEY</code> with <code>SECRETS_PROVIDER=env</code>.
                         </div>
                     </div>
 
