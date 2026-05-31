@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, RefreshCcw } from "lucide-react";
 
-import { createClient } from "@/lib/supabase/client";
+import { createClient, hasSupabaseClientConfig } from "@/lib/supabase/client";
 
 function safeRedirectTarget(value: string | null): string {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
@@ -57,13 +57,20 @@ function readQueryState() {
 }
 
 export default function LoginPage() {
-  const [supabase] = useState(() => createClient());
-  const [status, setStatus] = useState<"checking" | "redirecting" | "retry">("checking");
+  const [supabase] = useState(() => hasSupabaseClientConfig() ? createClient() : null);
+  const [status, setStatus] = useState<"checking" | "redirecting" | "retry" | "missing-config">(
+    () => hasSupabaseClientConfig() ? "checking" : "missing-config"
+  );
   const [queryState] = useState(readQueryState);
 
   const { redirectTarget, authReason, authAttempt, handoff } = queryState;
 
   useEffect(() => {
+    if (!supabase) {
+      setStatus("missing-config");
+      return;
+    }
+
     let isActive = true;
 
     const continueToTarget = () => {
@@ -167,6 +174,12 @@ export default function LoginPage() {
               Back to Cumulus
               <ArrowRight className="h-4 w-4" />
             </a>
+          </div>
+        ) : status === "missing-config" ? (
+          <div className="space-y-3">
+            <p className="text-sm leading-6 text-white/70">
+              Supabase is not configured for this environment. Add the public Supabase URL and anon key before using hosted sign-in.
+            </p>
           </div>
         ) : (
           <div className="space-y-3">

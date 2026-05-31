@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
-import { createClient } from '@/lib/supabase/client'
+import { createClient, hasSupabaseClientConfig } from '@/lib/supabase/client'
 
 type User = any
 type AuthContextType = {
@@ -16,8 +16,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null)
-    const [isLoading, setIsLoading] = useState(true)
-    const [supabase] = useState(() => createClient())
+    const [isLoading, setIsLoading] = useState(() => hasSupabaseClientConfig())
+    const [supabase] = useState(() => hasSupabaseClientConfig() ? createClient() : null)
     const router = useRouter()
 
     // 2. Broadcast Channel for Cross-Tab Sync
@@ -45,6 +45,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // 3. User State Listener
     useEffect(() => {
+        if (!supabase) {
+            setUser(null)
+            setIsLoading(false)
+            return
+        }
+
         let isActive = true
 
         const hydrateSession = async () => {
@@ -88,10 +94,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             channel.postMessage('auth:logout')
             channel.close()
 
-            // Call our Server Route for full cleanup
-            await fetch('/api/auth/signout', { method: 'POST' })
-
-            await supabase.auth.signOut({ scope: 'global' })
+            if (supabase) {
+                // Call our Server Route for full cleanup
+                await fetch('/api/auth/signout', { method: 'POST' })
+                await supabase.auth.signOut({ scope: 'global' })
+            }
         } catch (error) {
             console.error('Logout failed', error)
         } finally {
